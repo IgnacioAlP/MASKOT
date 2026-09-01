@@ -70,10 +70,12 @@ def insertar_usuario(username, password, rol='empleado'):
             password_hash = hash_password(password)
             cursor.execute("""
                 INSERT INTO usuarios (username, password, rol, activo, created_at, tenant_id)
-                VALUES (%s, %s, %s, TRUE, NOW(), %s)
+                VALUES (%s, %s, %s, true, CURRENT_TIMESTAMP, %s)
+                RETURNING id
             """, (username, password_hash, rol, tenant_id))
+            user_id = cursor.fetchone()[0]
             conexion.commit()
-            return cursor.lastrowid
+            return user_id
     except Exception as e:
         conexion.rollback()
         logger.error(f"Error al insertar usuario: {e}")
@@ -110,7 +112,7 @@ def desactivar_usuario(user_id):
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE usuarios 
-                SET activo = FALSE 
+                SET activo = false 
                 WHERE id = %s AND tenant_id = %s
             """, (user_id, tenant_id))
             conexion.commit()
@@ -130,7 +132,7 @@ def activar_usuario(user_id):
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE usuarios 
-                SET activo = TRUE 
+                SET activo = true 
                 WHERE id = %s AND tenant_id = %s
             """, (user_id, tenant_id))
             conexion.commit()
@@ -192,8 +194,8 @@ def obtener_usuario_por_id(user_id):
     return usuario
 
 def cambiar_estado_usuario(user_id, estado):
-    """Cambia el estado activo/inactivo de un usuario (0=inactivo, 1=activo)"""
-    if estado == 1:
+    """Cambia el estado activo/inactivo de un usuario (acepta numérico o booleano)"""
+    if estado in (1, True, '1', 'true'):
         return activar_usuario(user_id)
     else:
         return desactivar_usuario(user_id)

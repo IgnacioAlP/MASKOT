@@ -7,7 +7,6 @@ def asistencia():
     if 'usuario_id' not in session:
         return redirect(url_for('login'))
     
-    # admin_maskot tiene permisos completos
     usuario = session.get('usuario', '')
     if usuario == 'admin_maskot':
         session['rol'] = 'admin'
@@ -16,18 +15,16 @@ def asistencia():
         conexion = obtener_conexion()
         cursor = conexion.cursor()
         
-        # Obtener el registro de asistencia de hoy para el usuario actual
         hoy = date.today()
         cursor.execute("""
             SELECT id, fecha, hora_entrada, hora_salida
             FROM asistencia 
-            WHERE personal_id = %s AND DATE(fecha) = %s
+            WHERE personal_id = %s AND fecha::date = %s
         """, (session['usuario_id'], hoy))
         
         asistencia_hoy = cursor.fetchone()
         
         tenant_id = obtener_tenant_id()
-        # Si es admin o admin, mostrar asistencia de todos
         if session.get('rol') in ['admin']:
             cursor.execute("""
                 SELECT a.id, a.personal_id, u.username,
@@ -35,7 +32,7 @@ def asistencia():
                 FROM asistencia a
                 LEFT JOIN personal p ON a.personal_id = p.id
                 LEFT JOIN usuarios u ON p.usuario_id = u.id
-                WHERE DATE(a.fecha) = %s AND a.tenant_id = %s
+                WHERE a.fecha::date = %s AND a.tenant_id = %s
                 ORDER BY a.fecha DESC, a.hora_entrada DESC
             """, (hoy, tenant_id))
             asistencias_del_dia = cursor.fetchall()
@@ -58,14 +55,7 @@ def asistencia():
                              fecha_hoy=date.today())
 
 def marcar_entrada(personal_id=None, fecha=None, hora=None):
-    """Marcar entrada del empleado.
-
-    Firma: marcar_entrada(personal_id=None, fecha=None, hora=None)
-    - Si se pasan parámetros, se usan para registrar la entrada (permitido desde llamadas internas).
-    - Si no, se usa la sesión del usuario actual como antes.
-    Devuelve JSON (tupla con status code cuando aplica) para uso en rutas AJAX o llamadas internas.
-    """
-    # Determinar personal_id desde argumentos o sesión
+    """Marcar entrada del empleado."""
     if personal_id is None:
         if 'usuario_id' not in session:
             return jsonify({'error': 'No autorizado'}), 403
@@ -75,14 +65,12 @@ def marcar_entrada(personal_id=None, fecha=None, hora=None):
         conexion = obtener_conexion()
         cursor = conexion.cursor()
 
-        # Fecha a usar
         hoy = fecha if fecha is not None else date.today()
-
         tenant_id = obtener_tenant_id()
-        # Verificar si ya marcó entrada hoy
+
         cursor.execute("""
             SELECT id FROM asistencia
-            WHERE personal_id = %s AND DATE(fecha) = %s AND tenant_id = %s
+            WHERE personal_id = %s AND fecha::date = %s AND tenant_id = %s
         """, (personal_id, hoy, tenant_id))
 
         if cursor.fetchone():
@@ -90,10 +78,8 @@ def marcar_entrada(personal_id=None, fecha=None, hora=None):
             conexion.close()
             return jsonify({'error': 'Ya marcaste entrada hoy'}), 400
 
-        # Registrar entrada
         ahora_dt = None
         if hora is not None:
-            # hora puede venir como string 'HH:MM:SS' o como time
             try:
                 if isinstance(hora, str):
                     hparts = hora.split(':')
@@ -114,7 +100,6 @@ def marcar_entrada(personal_id=None, fecha=None, hora=None):
         cursor.close()
         conexion.close()
 
-        # Formatear mensaje con hora si tenemos datetime/time
         hora_str = ahora_dt.strftime('%H:%M') if hasattr(ahora_dt, 'strftime') else str(ahora_dt)
 
         return jsonify({
@@ -126,12 +111,7 @@ def marcar_entrada(personal_id=None, fecha=None, hora=None):
         return jsonify({'error': f'Error al marcar entrada: {str(e)}'}), 500
 
 def marcar_salida(personal_id=None, fecha=None, hora=None):
-    """Marcar salida del empleado.
-
-    Firma: marcar_salida(personal_id=None, fecha=None, hora=None)
-    - Si se pasan parámetros, se usan para buscar y registrar la salida.
-    - Si no, se usa la sesión del usuario actual como antes.
-    """
+    """Marcar salida del empleado."""
     if personal_id is None:
         if 'usuario_id' not in session:
             return jsonify({'error': 'No autorizado'}), 403
@@ -143,10 +123,10 @@ def marcar_salida(personal_id=None, fecha=None, hora=None):
 
         tenant_id = obtener_tenant_id()
         hoy = fecha if fecha is not None else date.today()
-        # Buscar registro de entrada de hoy sin salida
+
         cursor.execute("""
             SELECT id, hora_entrada FROM asistencia
-            WHERE personal_id = %s AND DATE(fecha) = %s AND hora_salida IS NULL
+            WHERE personal_id = %s AND fecha::date = %s AND hora_salida IS NULL
             AND tenant_id = %s
         """, (personal_id, hoy, tenant_id))
 
@@ -156,7 +136,6 @@ def marcar_salida(personal_id=None, fecha=None, hora=None):
             conexion.close()
             return jsonify({'error': 'No hay registro de entrada para hoy o ya marcaste salida'}), 400
 
-        # hora a usar
         ahora_time = None
         if hora is not None:
             try:
@@ -205,11 +184,11 @@ def obtener_asistencias():
         tenant_id = obtener_tenant_id()
         cursor.execute("""
             SELECT a.id, u.username, a.fecha, a.hora_entrada, a.hora_salida,
-                   TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600 as horas_trabajadas
+                   EXTRACT(EPOCH FROM (a.hora_salida::time - a.hora_entrada::time))/3600 as horas_trabajadas
             FROM asistencia a
             LEFT JOIN personal p ON a.personal_id = p.id
             LEFT JOIN usuarios u ON p.usuario_id = u.id
-            WHERE DATE(a.fecha) BETWEEN %s AND %s AND a.tenant_id = %s
+            WHERE a.fecha::date BETWEEN %s AND %s AND a.tenant_id = %s
             ORDER BY a.fecha DESC, a.hora_entrada DESC
         """, (fecha_desde, fecha_hasta, tenant_id))
         
@@ -219,10 +198,13 @@ def obtener_asistencias():
         
         asistencias_list = []
         for asistencia in asistencias:
+            fecha_val = asistencia[2]
+            fecha_str = fecha_val.strftime('%Y-%m-%d') if hasattr(fecha_val, 'strftime') else str(fecha_val)
+            
             asistencias_list.append({
                 'id': asistencia[0],
                 'usuario': asistencia[1],
-                'fecha': asistencia[2].strftime('%Y-%m-%d'),
+                'fecha': fecha_str,
                 'hora_entrada': str(asistencia[3]) if asistencia[3] else None,
                 'hora_salida': str(asistencia[4]) if asistencia[4] else None,
                 'horas_trabajadas': round(asistencia[5], 2) if asistencia[5] else 0
@@ -248,12 +230,12 @@ def obtener_resumen_asistencia():
         cursor.execute("""
             SELECT u.username,
                    COUNT(a.id) as dias_trabajados,
-                   SUM(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600) as total_horas,
-                   AVG(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600) as promedio_horas_dia
+                   SUM(EXTRACT(EPOCH FROM (a.hora_salida::time - a.hora_entrada::time))/3600) as total_horas,
+                   AVG(EXTRACT(EPOCH FROM (a.hora_salida::time - a.hora_entrada::time))/3600) as promedio_horas_dia
             FROM usuarios u
             JOIN personal p ON u.id = p.usuario_id
-            LEFT JOIN asistencia a ON p.id = a.personal_id AND DATE_FORMAT(a.fecha, '%Y-%m') = %s
-            WHERE p.activo = TRUE AND p.tenant_id = %s
+            LEFT JOIN asistencia a ON p.id = a.personal_id AND TO_CHAR(a.fecha, 'YYYY-MM') = %s
+            WHERE p.activo = true AND p.tenant_id = %s
             GROUP BY u.id, u.username
         """, (mes, tenant_id))
         
@@ -293,8 +275,8 @@ def obtener_historial_completo():
                 CASE 
                     WHEN a.hora_entrada IS NOT NULL AND a.hora_salida IS NOT NULL THEN
                         CONCAT(
-                            FLOOR(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600), 'h ',
-                            FLOOR((TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))%3600)/60), 'm'
+                            FLOOR(EXTRACT(EPOCH FROM (a.hora_salida::time - a.hora_entrada::time))/3600), 'h ',
+                            FLOOR((EXTRACT(EPOCH FROM (a.hora_salida::time - a.hora_entrada::time))::integer %% 3600)/60), 'm'
                         )
                     ELSE NULL
                 END as horas_trabajadas
@@ -323,7 +305,7 @@ def obtener_asistencia_por_personal_y_fecha(personal_id, fecha):
         cursor.execute("""
             SELECT id, personal_id, fecha, hora_entrada, hora_salida
             FROM asistencia 
-            WHERE personal_id = %s AND DATE(fecha) = %s
+            WHERE personal_id = %s AND fecha::date = %s
         """, (personal_id, fecha))
         asistencia = cursor.fetchone()
         cursor.close()

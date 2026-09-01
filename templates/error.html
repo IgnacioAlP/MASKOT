@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Error del Sistema - MASKOT</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fredoka+One&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         body {
@@ -75,54 +77,67 @@
         }
 
         @keyframes sadPup {
-            0%, 100% { transform: rotate(-2deg); }
-            50% { transform: rotate(2deg); }
+
+            0%,
+            100% {
+                transform: rotate(-2deg);
+            }
+
+            50% {
+                transform: rotate(2deg);
+            }
         }
 
         @keyframes tearDrop {
-            0%, 60% { opacity: 0; transform: translateY(0); }
-            70% { opacity: 1; transform: translateY(10px); }
-            100% { opacity: 0; transform: translateY(30px); }
+
+            0%,
+            60% {
+                opacity: 0;
+                transform: translateY(0);
+            }
+
+            70% {
+                opacity: 1;
+                transform: translateY(10px);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(30px);
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="error-container">
         <div class="error-drawing">
-            <!-- SVG de perrito triste -->
             <svg class="pup" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <g transform="translate(5, 5)">
-                    <!-- Cabeza -->
-                    <path d="M 50,15 C 25,15 15,35 15,50 C 15,70 25,90 50,90 C 75,90 85,70 85,50 C 85,35 75,15 50,15 Z" fill="#D2B48C"/>
-                    <!-- Orejas -->
-                    <path d="M 15,50 C 5,40 0,20 10,10 C 20,0 35,10 35,25" fill="#A0522D" transform="rotate(-15, 15, 50)"/>
-                    <path d="M 85,50 C 95,40 100,20 90,10 C 80,0 65,10 65,25" fill="#A0522D" transform="rotate(15, 85, 50)"/>
-                    <!-- Hocico -->
-                    <path d="M 50,65 C 40,65 35,75 35,80 C 35,85 40,90 50,90 C 60,90 65,85 65,80 C 65,75 60,65 50,65 Z" fill="#F5DEB3"/>
-                    <!-- Nariz -->
-                    <circle cx="50" cy="70" r="5" fill="#222"/>
-                    <!-- Ojos -->
-                    <circle cx="35" cy="50" r="6" fill="#FFF"/>
-                    <circle cx="35" cy="50" r="3" fill="#222"/>
-                    <circle cx="65" cy="50" r="6" fill="#FFF"/>
-                    <circle cx="65" cy="50" r="3" fill="#222"/>
-                    <!-- Boca triste -->
-                    <path d="M 40 80 Q 50 75 60 80" stroke="#222" stroke-width="1.5" fill="none"/>
-                    <!-- Lagrima -->
-                    <path class="tear" d="M 38 60 Q 40 65 38 70 Q 36 65 38 60" fill="#6ccae2"/>
-                    <!-- Vendaje -->
-                    <g transform="translate(60, 20) rotate(45)">
-                        <rect x="-10" y="-3" width="20" height="6" fill="#FFF" stroke="#DDD" stroke-width="0.5"/>
-                        <rect x="-2" y="-7" width="4" height="14" fill="#F9E4E4"/>
-                        <path d="M -1.5 -3 L 1.5 -3 M -1.5 0 L 1.5 0 M -1.5 3 L 1.5 3" stroke="#E57373" stroke-width="0.5"/>
-                    </g>
+                    <path d="M 50,15 C 25,15 15,35 15,50 C 15,70 25,90 50,90 C 75,90 85,70 85,50 C 85,35 75,15 50,15 Z"
+                        fill="#D2B48C" />
+                    <path d="M 15,50 C 5,40 0,20 10,10 C 20,0 35,10 35,25" fill="#A0522D"
+                        transform="rotate(-15, 15, 50)" />
+                    <path d="M 85,50 C 95,40 100,20 90,10 C 80,0 65,10 65,25" fill="#A0522D"
+                        transform="rotate(15, 85, 50)" />
+                    <path d="M 50,65 C 40,65 35,75 35,80 C 35,85 40,90 50,90 C 60,90 65,85 65,80 C 65,75 60,65 50,65 Z"
+                        fill="#F5DEB3" />
+                    <circle cx="50" cy="70" r="5" fill="#222" />
+                    <circle cx="35" cy="50" r="6" fill="#FFF" />
+                    <circle cx="35" cy="50" r="3" fill="#222" />
+                    <circle cx="65" cy="50" r="6" fill="#FFF" />
+                    <circle cx="65" cy="50" r="3" fill="#222" />
+                    <path d="M 40 80 Q 50 75 60 80" stroke="#222" stroke-width="1.5" fill="none" />
+                    <path class="tear" d="M 38 60 Q 40 65 38 70 Q 36 65 38 60" fill="#6ccae2" />
                 </g>
             </svg>
         </div>
         <h1>¡Oh, no!</h1>
         <h2>Parece que algo se enredó en el sistema.</h2>
-        <p>Nuestro equipo de cachorros técnicos ya está trabajando para solucionarlo. Por favor, intenta volver a la página anterior.</p>
+        <p>Nuestro equipo de cachorros técnicos ya está trabajando para solucionarlo. Por favor, intenta volver a la
+            página anterior.</p>
         <a href="javascript:history.back()" class="btn-back">Regresar</a>
     </div>
 </body>
+
 </html>

@@ -25,7 +25,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="row g-4">
             <!-- Información Principal -->
             <div class="col-lg-8">
@@ -58,7 +58,8 @@
                                     <label class="info-label">
                                         <i class="fas fa-calendar-day me-2 text-primary"></i>Fecha
                                     </label>
-                                    <div class="info-value">{{ cita[4].strftime('%d/%m/%Y') if cita[4] else 'No definida' }}</div>
+                                    <div class="info-value">{{ cita[4].strftime('%d/%m/%Y') if cita[4] else 'No
+                                        definida' }}</div>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -136,7 +137,10 @@
                                             {{ mascota.nombre }}
                                         </h6>
                                         <span class="especie-badge {{ mascota.especie.lower() }}">
-                                            {% if mascota.especie.lower() == 'perro' %}🐕{% elif mascota.especie.lower() == 'gato' %}🐱{% elif mascota.especie.lower() == 'conejo' %}🐰{% elif mascota.especie.lower() == 'ave' %}🐦{% elif mascota.especie.lower() == 'reptil' %}🦎{% else %}🐾{% endif %}
+                                            {% if mascota.especie.lower() == 'perro' %}🐕{% elif mascota.especie.lower()
+                                            == 'gato' %}🐱{% elif mascota.especie.lower() == 'conejo' %}🐰{% elif
+                                            mascota.especie.lower() == 'ave' %}🐦{% elif mascota.especie.lower() ==
+                                            'reptil' %}🦎{% else %}🐾{% endif %}
                                             {{ mascota.especie }}
                                         </span>
                                     </div>
@@ -204,21 +208,22 @@
                     <div class="card-body">
                         <div class="d-grid gap-2">
                             {% if cita[6] == 'completada' %}
-                            <a href="{{ url_for('generar_recibo', cita_id=cita[0]) }}" class="btn btn-success btn-sm" target="_blank">
+                            <a href="{{ url_for('generar_recibo', cita_id=cita[0]) }}" class="btn btn-success btn-sm"
+                                target="_blank">
                                 <i class="fas fa-receipt me-2"></i>Generar Recibo
                             </a>
                             {% endif %}
-                            
+
                             {% if cita[6] not in ['completada', 'cancelada'] %}
                             <a href="{{ url_for('editar_cita', cita_id=cita[0]) }}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-edit me-2"></i>Editar Cita
                             </a>
-                            
+
                             <button onclick="reprogramarCita({{ cita[0] }})" class="btn btn-warning btn-sm">
                                 <i class="fas fa-calendar-alt me-2"></i>Reprogramar
                             </button>
                             {% endif %}
-                            
+
                             <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
                                 <i class="fas fa-print me-2"></i>Imprimir
                             </button>
@@ -231,187 +236,187 @@
 </section>
 
 <style>
-.detalle-cita-section {
-    background-color: #f8f9fa;
-    min-height: 100vh;
-}
-
-.info-item {
-    margin-bottom: 1rem;
-}
-
-.info-label {
-    font-weight: 600;
-    color: #6c757d;
-    font-size: 0.9rem;
-    display: block;
-    margin-bottom: 0.25rem;
-}
-
-.info-value {
-    font-size: 1rem;
-    color: #333;
-}
-
-.status-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.status-pendiente {
-    background-color: #fff3cd;
-    color: #856404;
-}
-
-.status-confirmada {
-    background-color: #d4edda;
-    color: #155724;
-}
-
-.status-en_progreso {
-    background-color: #cce5ff;
-    color: #004085;
-}
-
-.status-completada {
-    background-color: #d1ecf1;
-    color: #0c5460;
-}
-
-.status-cancelada {
-    background-color: #f8d7da;
-    color: #721c24;
-}
-
-.mascota-card {
-    border: 1px solid #dee2e6;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    background: white;
-}
-
-.mascota-header {
-    display: flex;
-    justify-content: between;
-    align-items: center;
-    margin-bottom: 0.75rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.mascota-nombre {
-    margin: 0;
-    color: #333;
-}
-
-.especie-badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.especie-badge.perro {
-    background: #fff8e1;
-    color: #f57f17;
-}
-
-.especie-badge.gato {
-    background: #f3e5f5;
-    color: #7b1fa2;
-}
-
-.especie-badge.conejo {
-    background: #e8f5e8;
-    color: #2e7d32;
-}
-
-.especie-badge.ave {
-    background: #e3f2fd;
-    color: #1976d2;
-}
-
-.especie-badge.reptil {
-    background: #f1f8e9;
-    color: #558b2f;
-}
-
-.especie-badge.otro,
-.especie-badge.no.especificado {
-    background: #fafafa;
-    color: #616161;
-}
-
-.mascota-details {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.detail-item {
-    font-size: 0.85rem;
-    color: #6c757d;
-}
-
-.detail-item i {
-    width: 16px;
-    color: #007bff;
-}
-
-@media print {
-    .header-actions,
-    .card:last-child {
-        display: none !important;
-    }
-    
     .detalle-cita-section {
-        background: white !important;
+        background-color: #f8f9fa;
+        min-height: 100vh;
     }
-    
-    .card {
-        box-shadow: none !important;
-        border: 1px solid #ddd !important;
+
+    .info-item {
+        margin-bottom: 1rem;
     }
-}
+
+    .info-label {
+        font-weight: 600;
+        color: #6c757d;
+        font-size: 0.9rem;
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    .info-value {
+        font-size: 1rem;
+        color: #333;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-pendiente {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .status-confirmada {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .status-en_progreso {
+        background-color: #cce5ff;
+        color: #004085;
+    }
+
+    .status-completada {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+
+    .status-cancelada {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .mascota-card {
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        background: white;
+    }
+
+    .mascota-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .mascota-nombre {
+        margin: 0;
+        color: #333;
+    }
+
+    .especie-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .especie-badge.perro {
+        background: #fff8e1;
+        color: #f57f17;
+    }
+
+    .especie-badge.gato {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+
+    .especie-badge.conejo {
+        background: #e8f5e8;
+        color: #2e7d32;
+    }
+
+    .especie-badge.ave {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .especie-badge.reptil {
+        background: #f1f8e9;
+        color: #558b2f;
+    }
+
+    .especie-badge.otro,
+    .especie-badge.no.especificado {
+        background: #fafafa;
+        color: #616161;
+    }
+
+    .mascota-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .detail-item {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .detail-item i {
+        width: 16px;
+        color: #007bff;
+    }
+
+    @media print {
+
+        .header-actions,
+        .card:last-child {
+            display: none !important;
+        }
+
+        .detalle-cita-section {
+            background: white !important;
+        }
+
+        .card {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+        }
+    }
 </style>
 
 <script>
-function reprogramarCita(id) {
-    const nuevaFecha = prompt('Nueva fecha (YYYY-MM-DD):');
-    const nuevaHora = prompt('Nueva hora (HH:MM):');
-    
-    if (nuevaFecha && nuevaHora) {
-        showConfirmModal(`¿Reprogramar para el ${nuevaFecha} a las ${nuevaHora}?`).then(confirmed => {
-            if (!confirmed) return;
-            fetch(`/cita/${id}/reprogramar`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({ fecha: nuevaFecha, hora: nuevaHora })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Cita reprogramada correctamente', 'success'); else showMaskotNotification('Cita reprogramada correctamente', 'success');
-                    location.reload();
-                } else {
-                    if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI(data.error || 'Error al reprogramar la cita', 'error'); else showMaskotNotification(data.error || 'Error al reprogramar la cita', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error de conexión', 'error'); else showMaskotNotification('Error de conexión', 'error');
-            });
-        });
+    function reprogramarCita(id) {
+        const nuevaFecha = prompt('Nueva fecha (YYYY-MM-DD):');
+        const nuevaHora = prompt('Nueva hora (HH:MM):');
+
+        if (nuevaFecha && nuevaHora) {
+            if (confirm(`¿Reprogramar para el ${nuevaFecha} a las ${nuevaHora}?`)) {
+                fetch(`/cita/${id}/reprogramar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ fecha: nuevaFecha, hora: nuevaHora })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Cita reprogramada correctamente');
+                            location.reload();
+                        } else {
+                            alert(data.error || 'Error al reprogramar la cita');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error de conexión');
+                    });
+            }
+        }
     }
-}
 </script>
 {% endblock %}

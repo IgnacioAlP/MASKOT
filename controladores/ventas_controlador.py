@@ -1,3 +1,7 @@
+"""
+Controlador para el manejo y procesamiento de ventas (PostgreSQL / Supabase)
+"""
+
 from bd import obtener_conexion, obtener_tenant_id
 from datetime import datetime
 import json
@@ -19,7 +23,7 @@ def obtener_productos_venta():
             cursor.execute("""
                 SELECT id, nombre, precio, cantidad, imagen
                 FROM productos 
-                WHERE activo = 1 AND cantidad > 0 AND tipo = 'venta'
+                WHERE activo = true AND cantidad > 0 AND tipo = 'venta'
                 AND tenant_id = %s
                 ORDER BY nombre
             """, (tenant_id,))
@@ -34,11 +38,9 @@ def procesar_venta(datos_venta):
     conexion = obtener_conexion()
     
     try:
-        conexion.begin()
-        
         with conexion.cursor() as cursor:
             numero_venta = generar_numero_venta()
-            # Preparar campos opcionales
+            
             referencia = None
             if 'referencia_pago' in datos_venta and datos_venta.get('referencia_pago'):
                 referencia = datos_venta.get('referencia_pago')
@@ -59,19 +61,18 @@ def procesar_venta(datos_venta):
                 datos_venta['igv'] = tot['igv']
                 datos_venta['total'] = tot['total']
 
-            # Antes de insertar, validar stock disponible en productos (no aplica a servicios)
+            # Validar stock disponible en productos (no aplica a servicios)
             productos = datos_venta.get('productos', []) or []
             for p in productos:
                 if p.get('tipo') == 'servicio':
-                    continue  # Los servicios no tienen stock
+                    continue
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
                 if cantidad <= 0:
                     conexion.rollback()
-                    # Try to include product name if provided
                     nombre_prov = p.get('nombre') or f'id {pid}'
                     return {'success': False, 'error': f'Cantidad inválida para el producto "{nombre_prov}"'}
-                # Lock the product row and fetch name + stock
+                
                 cursor.execute("SELECT cantidad, nombre FROM productos WHERE id = %s FOR UPDATE", (pid,))
                 row = cursor.fetchone()
                 if not row:
@@ -84,7 +85,6 @@ def procesar_venta(datos_venta):
                     return {'success': False, 'error': f'Stock insuficiente para el producto "{nombre_db}" (disponible {stock_actual})'}
 
             tenant_id = obtener_tenant_id()
-            # Resolver nombre del vendedor para columnas NOT NULL legacy
             vendedor_id = datos_venta.get('vendedor_id')
             vendedor_nombre = None
             if vendedor_id:
@@ -94,7 +94,8 @@ def procesar_venta(datos_venta):
                     vendedor_nombre = row[0] if row else str(vendedor_id)
                 except Exception:
                     vendedor_nombre = str(vendedor_id)
-            # Insertar venta (incluye referencia_pago y datos de cliente si existen)
+
+            # Insertar venta con RETURNING id
             cursor.execute("""
                 INSERT INTO ventas (
                     numero_venta, fecha_venta, subtotal, igv, total,
@@ -103,6 +104,7 @@ def procesar_venta(datos_venta):
                     cliente_nombre, cliente_documento, notas,
                     tenant_id
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
             """, (
                 numero_venta, datetime.now(), datos_venta['subtotal'],
                 datos_venta['igv'], datos_venta['total'], datos_venta['metodo_pago'],
@@ -113,17 +115,16 @@ def procesar_venta(datos_venta):
                 tenant_id
             ))
 
-            venta_id = cursor.lastrowid
+            venta_id = cursor.fetchone()[0]
 
-            # Reducir stock de los productos vendidos dentro de la misma transacción (no aplica a servicios)
+            # Reducir stock dentro de la misma transacción
             for p in productos:
                 if p.get('tipo') == 'servicio':
-                    continue  # Los servicios no tienen stock que descontar
+                    continue
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
                 cursor.execute("UPDATE productos SET cantidad = cantidad - %s WHERE id = %s AND cantidad >= %s", (cantidad, pid, cantidad))
                 if cursor.rowcount == 0:
-                    # fetch name for friendlier error
                     cursor.execute("SELECT nombre FROM productos WHERE id = %s", (pid,))
                     rname = cursor.fetchone()
                     nombre_db = rname[0] if rname and rname[0] else f'id {pid}'
@@ -169,13 +170,17 @@ def obtener_detalle_venta(venta_id):
             resultado = cursor.fetchone()
             
             if resultado:
-                # Construir venta con valores por defecto para evitar claves faltantes
-                productos = []
-                try:
-                    productos = json.loads(resultado[10]) if resultado[10] else []
-                except Exception:
+                raw_prods = resultado[10]
+                if isinstance(raw_prods, str):
+                    try:
+                        productos = json.loads(raw_prods) if raw_prods else []
+                    except Exception:
+                        productos = []
+                elif isinstance(raw_prods, list):
+                    productos = raw_prods
+                else:
                     productos = []
-                # Normalizar cada producto: asegurar precio, cantidad y total
+
                 productos_normalizados = []
                 for p in productos:
                     try:
@@ -196,16 +201,13 @@ def obtener_detalle_venta(venta_id):
                     pn['total'] = total_producto
                     productos_normalizados.append(pn)
 
-                # Intentar deserializar referencia_pago como detalle de multipago si aplica
                 referencia_pago = resultado[15] if len(resultado) > 15 else None
                 detalle_multipago = None
                 if referencia_pago:
                     try:
-                        maybe = json.loads(referencia_pago)
-                        # Normalize into list of {metodo, monto}
+                        maybe = json.loads(referencia_pago) if isinstance(referencia_pago, str) else referencia_pago
                         if isinstance(maybe, dict):
                             normalized = []
-                            # Case A: keys like metodo1/monto1
                             i = 1
                             found_indexed = False
                             while True:
@@ -220,22 +222,20 @@ def obtener_detalle_venta(venta_id):
                                     except Exception:
                                         mon_val = 0.0
                                     if met:
-                                        normalized.append({'metodo': str(met), 'monto': round(mon_val,2)})
+                                        normalized.append({'metodo': str(met), 'monto': round(mon_val, 2)})
                                     i += 1
-                                    # safety cap
                                     if i > 20:
                                         break
                                     continue
                                 break
 
                             if not found_indexed:
-                                # Case B: dict where keys are method names and values are amounts
                                 for kkk, vvv in maybe.items():
                                     try:
                                         vv = float(vvv or 0)
                                     except Exception:
                                         vv = 0.0
-                                    normalized.append({'metodo': str(kkk), 'monto': round(vv,2)})
+                                    normalized.append({'metodo': str(kkk), 'monto': round(vv, 2)})
 
                             detalle_multipago = normalized if normalized else None
                     except Exception:
@@ -282,9 +282,7 @@ def registrar_venta(data):
 
 def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None,
                             metodo_pago=None, estado=None, limit=50, offset=0):
-    """Devuelve lista de ventas filtradas por rango de fechas y otros parámetros.
-    Los parámetros fecha_inicio/fecha_fin deben estar en formato 'YYYY-MM-DD' o None.
-    """
+    """Devuelve lista de ventas filtradas por rango de fechas y otros parámetros."""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
@@ -292,10 +290,10 @@ def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None
             where = ['tenant_id = %s']
             params = [tenant_id]
             if fecha_inicio:
-                where.append('DATE(fecha_venta) >= %s')
+                where.append('fecha_venta::date >= %s')
                 params.append(fecha_inicio)
             if fecha_fin:
-                where.append('DATE(fecha_venta) <= %s')
+                where.append('fecha_venta::date <= %s')
                 params.append(fecha_fin)
             if vendedor_id:
                 where.append('vendedor_id = %s')
@@ -309,23 +307,28 @@ def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None
 
             where_clause = (' WHERE ' + ' AND '.join(where)) if where else ''
 
-            # also fetch referencia_pago so we can detect detalle_multipago (multipago) for display
             sql = f"SELECT id, numero_venta, fecha_venta, subtotal, igv, total, metodo_pago, referencia_pago, estado, vendedor_id, productos FROM ventas {where_clause} ORDER BY fecha_venta DESC LIMIT %s OFFSET %s"
             params.extend([limit, offset])
             cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             resultados = []
             for r in rows:
-                try:
-                    productos = json.loads(r[9]) if r[9] else []
-                except Exception:
+                raw_prods = r[10]
+                if isinstance(raw_prods, str):
+                    try:
+                        productos = json.loads(raw_prods) if raw_prods else []
+                    except Exception:
+                        productos = []
+                elif isinstance(raw_prods, list):
+                    productos = raw_prods
+                else:
                     productos = []
-                # r[7] is referencia_pago (may contain JSON with detalle_multipago)
+
                 referencia_pago = r[7]
                 detalle_multipago = None
                 if referencia_pago:
                     try:
-                        maybe = json.loads(referencia_pago)
+                        maybe = json.loads(referencia_pago) if isinstance(referencia_pago, str) else referencia_pago
                         if isinstance(maybe, dict):
                             normalized = []
                             i = 1
@@ -342,7 +345,7 @@ def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None
                                     except Exception:
                                         mon_val = 0.0
                                     if met:
-                                        normalized.append({'metodo': str(met), 'monto': round(mon_val,2)})
+                                        normalized.append({'metodo': str(met), 'monto': round(mon_val, 2)})
                                     i += 1
                                     if i > 20:
                                         break
@@ -355,7 +358,7 @@ def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None
                                         vv = float(vvv or 0)
                                     except Exception:
                                         vv = 0.0
-                                    normalized.append({'metodo': str(kkk), 'monto': round(vv,2)})
+                                    normalized.append({'metodo': str(kkk), 'monto': round(vv, 2)})
 
                             detalle_multipago = normalized if normalized else None
                     except Exception:
@@ -380,9 +383,7 @@ def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None
 
 
 def calcular_totales_venta(productos):
-    """Calcula subtotal, igv (18%) y total para una lista de productos.
-    Cada producto debe tener 'precio' y 'cantidad'. Devuelve dict con subtotal, igv, total.
-    """
+    """Calcula subtotal, igv (18%) y total para una lista de productos."""
     try:
         subtotal = 0.0
         for p in productos:
@@ -406,14 +407,13 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
             where = ['tenant_id = %s']
             params = [tenant_id]
             if fecha_inicio:
-                where.append('DATE(fecha_venta) >= %s')
+                where.append('fecha_venta::date >= %s')
                 params.append(fecha_inicio)
             if fecha_fin:
-                where.append('DATE(fecha_venta) <= %s')
+                where.append('fecha_venta::date <= %s')
                 params.append(fecha_fin)
             where_clause = ' WHERE ' + ' AND '.join(where)
 
-            # Total de ventas y suma total vendida
             cursor.execute(f"SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as total_vendido FROM ventas {where_clause}", tuple(params))
             row = cursor.fetchone()
             total_ventas = int(row[0]) if row else 0
@@ -421,8 +421,6 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
 
             promedio = (total_vendido / total_ventas) if total_ventas > 0 else 0.0
 
-            # Por método de pago
-            # We aggregate in Python so we can account for detalle_multipago stored in referencia_pago
             cursor.execute(f"SELECT metodo_pago, referencia_pago, total FROM ventas {where_clause}", tuple(params))
             rows_pm = cursor.fetchall()
             agg = {}
@@ -431,15 +429,12 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
                 referencia_pago = r[1]
                 total_venta = float(r[2] or 0)
 
-                # Try to parse referencia_pago as multipago detail
                 used_multipago = False
                 if referencia_pago:
                     try:
-                        maybe = json.loads(referencia_pago)
-                        # normalize into list of {metodo,monto}
+                        maybe = json.loads(referencia_pago) if isinstance(referencia_pago, str) else referencia_pago
                         normalized = []
                         if isinstance(maybe, dict):
-                            # metodo1/monto1 pattern
                             i = 1
                             found_indexed = False
                             while True:
@@ -454,7 +449,7 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
                                     except Exception:
                                         mon_val = 0.0
                                     if met:
-                                        normalized.append({'metodo': str(met).strip(), 'monto': round(mon_val,2)})
+                                        normalized.append({'metodo': str(met).strip(), 'monto': round(mon_val, 2)})
                                     i += 1
                                     if i > 20:
                                         break
@@ -466,8 +461,8 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
                                         vv = float(vvv or 0)
                                     except Exception:
                                         vv = 0.0
-                                    normalized.append({'metodo': str(kkk).strip(), 'monto': round(vv,2)})
-                        # If we have a normalized multipago list, add amounts per method
+                                    normalized.append({'metodo': str(kkk).strip(), 'monto': round(vv, 2)})
+                        
                         if normalized:
                             used_multipago = True
                             for mp in normalized:
@@ -478,17 +473,14 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
                                 key = meth.lower()
                                 if key not in agg:
                                     agg[key] = {'metodo': key, 'cantidad': 0, 'total': 0.0}
-                                # For multipago we count the sale toward each method used
                                 agg[key]['cantidad'] += 1
                                 agg[key]['total'] += monto
                     except Exception:
                         pass
 
                 if not used_multipago:
-                    # No multipago detail: attribute the entire sale total to metodo_pago
                     meth = metodo_pago.strip() if metodo_pago else ''
                     if not meth:
-                        # skip anonymous/empty method entries
                         continue
                     key = meth.lower()
                     if key not in agg:
@@ -498,17 +490,15 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
 
             por_metodo = []
             for v in agg.values():
-                # Round totals
-                por_metodo.append({'metodo': v['metodo'], 'cantidad': int(v['cantidad']), 'total': round(float(v['total']),2)})
+                por_metodo.append({'metodo': v['metodo'], 'cantidad': int(v['cantidad']), 'total': round(float(v['total']), 2)})
 
-            # Vendedores activos
             cursor.execute(f"SELECT COUNT(DISTINCT vendedor_id) FROM ventas {where_clause}", tuple(params))
             vendedores_activos = int(cursor.fetchone()[0] or 0)
 
             return {
                 'total_ventas': total_ventas,
-                'total_vendido': round(total_vendido,2),
-                'promedio_venta': round(promedio,2),
+                'total_vendido': round(total_vendido, 2),
+                'promedio_venta': round(promedio, 2),
                 'por_metodo_pago': por_metodo,
                 'vendedores_activos': vendedores_activos
             }
@@ -525,20 +515,27 @@ def obtener_productos_mas_vendidos(fecha_inicio=None, fecha_fin=None, limit=10):
             where = ['tenant_id = %s']
             params = [tenant_id]
             if fecha_inicio:
-                where.append('DATE(fecha_venta) >= %s')
+                where.append('fecha_venta::date >= %s')
                 params.append(fecha_inicio)
             if fecha_fin:
-                where.append('DATE(fecha_venta) <= %s')
+                where.append('fecha_venta::date <= %s')
                 params.append(fecha_fin)
             where_clause = ' WHERE ' + ' AND '.join(where)
 
             cursor.execute(f"SELECT productos FROM ventas {where_clause}", tuple(params))
             agregados = {}
             for row in cursor.fetchall():
-                try:
-                    items = json.loads(row[0]) if row[0] else []
-                except Exception:
+                raw_item = row[0]
+                if isinstance(raw_item, str):
+                    try:
+                        items = json.loads(raw_item) if raw_item else []
+                    except Exception:
+                        items = []
+                elif isinstance(raw_item, list):
+                    items = raw_item
+                else:
                     items = []
+
                 for it in items:
                     pid = it.get('id')
                     nombre = it.get('nombre') or it.get('title') or str(pid)
@@ -549,7 +546,6 @@ def obtener_productos_mas_vendidos(fecha_inicio=None, fecha_fin=None, limit=10):
                     agregados[pid]['cantidad'] += cantidad
                     agregados[pid]['total_ingresos'] += total_ingresos
 
-            # Ordenar por cantidad vendida
             lista = sorted(agregados.values(), key=lambda x: x['cantidad'], reverse=True)
             return lista[:limit]
     finally:
@@ -557,9 +553,7 @@ def obtener_productos_mas_vendidos(fecha_inicio=None, fecha_fin=None, limit=10):
 
 
 def validar_stock_productos(productos):
-    """Valida si hay stock suficiente para la lista de productos.
-    Devuelve dict con 'valido' y 'errores' (lista de strings) y 'errores_obj' (lista de objects {id,nombre,msg}).
-    """
+    """Valida si hay stock suficiente para la lista de productos."""
     errores = []
     errores_obj = []
     conexion = obtener_conexion()
@@ -594,14 +588,10 @@ def validar_stock_productos(productos):
 
 
 def cancelar_venta(venta_id, motivo=None, usuario_id=None):
-    """Marca una venta como cancelada y repone el stock de los productos vendidos.
-    Devuelve {'success': True} o {'success': False, 'error': msg}
-    """
+    """Marca una venta como cancelada y repone el stock de los productos vendidos."""
     conexion = obtener_conexion()
     try:
-        conexion.begin()
         with conexion.cursor() as cursor:
-            # Obtener venta y sus productos
             cursor.execute("SELECT id, estado, productos FROM ventas WHERE id = %s FOR UPDATE", (venta_id,))
             row = cursor.fetchone()
             if not row:
@@ -613,20 +603,23 @@ def cancelar_venta(venta_id, motivo=None, usuario_id=None):
                 conexion.rollback()
                 return {'success': False, 'error': 'Venta ya está cancelada'}
 
-            try:
-                productos = json.loads(productos_json) if productos_json else []
-            except Exception:
+            if isinstance(productos_json, str):
+                try:
+                    productos = json.loads(productos_json) if productos_json else []
+                except Exception:
+                    productos = []
+            elif isinstance(productos_json, list):
+                productos = productos_json
+            else:
                 productos = []
 
-            # Reponer stock
             for p in productos:
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
                 if pid and cantidad > 0:
                     cursor.execute("UPDATE productos SET cantidad = cantidad + %s WHERE id = %s", (cantidad, pid))
 
-            # Marcar venta como cancelada y opcionalmente guardar motivo
-            cursor.execute("UPDATE ventas SET estado = 'cancelada', notas = CONCAT(IFNULL(notas, ''), %s) WHERE id = %s", (f'\nCANCELADA: {motivo or ""}', venta_id))
+            cursor.execute("UPDATE ventas SET estado = 'cancelada', notas = CONCAT(COALESCE(notas, ''), %s) WHERE id = %s", (f'\nCANCELADA: {motivo or ""}', venta_id))
             conexion.commit()
             return {'success': True}
     except Exception as e:

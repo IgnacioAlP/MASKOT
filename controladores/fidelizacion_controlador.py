@@ -29,7 +29,7 @@ WSP_API_TOKEN = os.environ.get('WSP_API_TOKEN')
 def _log(text):
     now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     log_msg = f"{now} | {text}\n"
-    print(log_msg, end='')  # Muestra en consola para la vista de logs de Vercel
+    print(log_msg, end='')
     try:
         with open(LOG_FILE, 'a', encoding='utf-8') as f:
             f.write(log_msg)
@@ -45,7 +45,6 @@ def _get_fidelizacion_row(cursor, email, tenant_id):
 def _create_or_update_fidelizacion(cursor, nombre, email, tenant_id):
     row = _get_fidelizacion_row(cursor, email, tenant_id)
     if row:
-        # incrementar contador
         new_count = row[3] + 1
         cursor.execute("UPDATE fidelizacion SET contador = %s, cliente_nombre = %s WHERE id = %s", (new_count, nombre, row[0]))
         return new_count
@@ -66,13 +65,6 @@ def _get_cliente_telefono(cursor, email, tenant_id):
     return None
 
 
-def _build_wa_url(message):
-    texto = message + "\n\nMensaje automático desde MASKOT."
-    encoded = urlencode_text(texto)
-    phone_clean = ''.join([c for c in WSP_PHONE if c.isdigit()])
-    return f"https://wa.me/{phone_clean}?text={encoded}"
-
-
 def urlencode_text(text):
     try:
         from urllib.parse import quote_plus
@@ -81,8 +73,15 @@ def urlencode_text(text):
         return text.replace(' ', '%20')
 
 
+def _build_wa_url(message):
+    texto = message + "\n\nMensaje automático desde MASKOT."
+    encoded = urlencode_text(texto)
+    phone_clean = ''.join([c for c in WSP_PHONE if c.isdigit()])
+    return f"https://wa.me/{phone_clean}?text={encoded}"
+
+
 def _send_via_whatsapp_business(phone, message):
-    """Opcional: enviar via WhatsApp Business API si está configurado WSP_API_URL y WSP_API_TOKEN."""
+    """Opcional: enviar vía WhatsApp Business API si está configurado WSP_API_URL y WSP_API_TOKEN."""
     if not (WSP_API_URL and WSP_API_TOKEN and requests):
         return False, 'WSP API no configurada o requests no disponible'
 
@@ -109,7 +108,6 @@ def obtener_alertas_recientes(limit=10):
     tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            # Unir con la tabla clientes para obtener teléfono y nombre real cuando esté disponible.
             cursor.execute("""
                 SELECT 
                     COALESCE(c.nombre, fh.cliente_email) as cliente_nombre,
@@ -135,7 +133,6 @@ def sincronizar_fidelizacion_desde_citas():
     tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            # Contar citas completadas agrupadas por cliente_email
             cursor.execute("""
                 SELECT cliente_email, cliente_nombre, COUNT(*) as total
                 FROM citas
@@ -149,7 +146,6 @@ def sincronizar_fidelizacion_desde_citas():
                 nombre = row[1] or email
                 total = int(row[2] or 0)
 
-                # Obtener fila existente
                 cursor.execute("SELECT id, contador FROM fidelizacion WHERE cliente_email = %s AND tenant_id = %s", (email, tenant_id))
                 existente = cursor.fetchone()
 
@@ -167,7 +163,7 @@ def sincronizar_fidelizacion_desde_citas():
                     cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_5' AND tenant_id=%s ORDER BY created_at DESC LIMIT 1", (email, tenant_id))
                     row_alerta5 = cursor.fetchone()
                     if row_alerta5:
-                        cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=NOW() WHERE id=%s", (mensaje_5, row_alerta5[0]))
+                        cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=CURRENT_TIMESTAMP WHERE id=%s", (mensaje_5, row_alerta5[0]))
                     else:
                         _insert_historial(cursor, email, 'alerta_5', mensaje_5, tenant_id)
 
@@ -177,11 +173,10 @@ def sincronizar_fidelizacion_desde_citas():
                     cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_10' AND tenant_id=%s ORDER BY created_at DESC LIMIT 1", (email, tenant_id))
                     row_alerta10 = cursor.fetchone()
                     if row_alerta10:
-                        cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=NOW() WHERE id=%s", (mensaje_10, row_alerta10[0]))
+                        cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=CURRENT_TIMESTAMP WHERE id=%s", (mensaje_10, row_alerta10[0]))
                     else:
                         _insert_historial(cursor, email, 'alerta_10', mensaje_10, tenant_id)
                     
-                    # Reiniciar contador a 0 después de otorgar el beneficio
                     cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s AND tenant_id = %s", (email, tenant_id))
                     _insert_historial(cursor, email, 'reinicio', f'contador reiniciado tras alcanzar {total}', tenant_id)
 

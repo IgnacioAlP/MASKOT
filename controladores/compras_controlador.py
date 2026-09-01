@@ -1,5 +1,5 @@
 """
-Controlador para el manejo de compras y historial de compras
+Controlador para el manejo de compras e historial de compras (PostgreSQL / Supabase)
 """
 
 import json
@@ -15,7 +15,6 @@ def obtener_compras_por_fecha(fecha_inicio=None, fecha_fin=None, cliente_email=N
         tenant_id = obtener_tenant_id()
         cursor = conexion.cursor()
         
-        # Construir query dinámicamente
         query = """
             SELECT 
                 c.id,
@@ -26,34 +25,31 @@ def obtener_compras_por_fecha(fecha_inicio=None, fecha_fin=None, cliente_email=N
                 c.metodo_pago,
                 c.estado,
                 c.fecha_compra,
-                JSON_LENGTH(c.productos) as cantidad_productos
+                COALESCE(jsonb_array_length(c.productos::jsonb), 0) as cantidad_productos
             FROM compras c
             WHERE c.tenant_id = %s
         """
         
         params = [tenant_id]
         
-        # Filtros opcionales
         if fecha_inicio:
-            query += " AND DATE(c.fecha_compra) >= %s"
+            query += " AND c.fecha_compra::date >= %s"
             params.append(fecha_inicio)
             
         if fecha_fin:
-            query += " AND DATE(c.fecha_compra) <= %s"
+            query += " AND c.fecha_compra::date <= %s"
             params.append(fecha_fin)
             
         if cliente_email:
-            query += " AND c.cliente_email LIKE %s"
+            query += " AND c.cliente_email ILIKE %s"
             params.append(f"%{cliente_email}%")
             
         if estado:
             query += " AND c.estado = %s"
             params.append(estado)
         
-        # Ordenar por fecha más reciente
         query += " ORDER BY c.fecha_compra DESC"
         
-        # Paginación
         if limit:
             query += f" LIMIT {limit}"
             if offset:
@@ -102,10 +98,15 @@ def obtener_detalle_compra(compra_id):
         compra = cursor.fetchone()
         
         if compra:
-            # Parsear los productos JSON
-            productos_data = json.loads(compra[4]) if compra[4] else []
+            # psycopg2 puede deserializar JSON automáticamente o entregarlo como string
+            raw_productos = compra[4]
+            if isinstance(raw_productos, str):
+                productos_data = json.loads(raw_productos) if raw_productos else []
+            elif isinstance(raw_productos, list):
+                productos_data = raw_productos
+            else:
+                productos_data = []
             
-            # Enriquecer con información actualizada de productos
             productos_enriquecidos = []
             for producto in productos_data:
                 cursor.execute("""
@@ -127,7 +128,6 @@ def obtener_detalle_compra(compra_id):
                         'imagen': producto_actual[2]
                     })
                 else:
-                    # Producto ya no existe, usar datos guardados
                     productos_enriquecidos.append({
                         'id': producto.get('id'),
                         'nombre': producto.get('nombre', 'Producto no disponible'),
@@ -138,7 +138,6 @@ def obtener_detalle_compra(compra_id):
                         'imagen': None
                     })
             
-            # Crear objeto compra completo
             compra_completa = {
                 'id': compra[0],
                 'cliente_nombre': compra[1],
@@ -174,12 +173,10 @@ def registrar_compra(cliente_nombre, cliente_email, cliente_telefono, productos,
         conexion = obtener_conexion()
         cursor = conexion.cursor()
         
-        # Calcular totales
         subtotal = sum(float(producto['precio']) * int(producto['cantidad']) for producto in productos)
-        igv = subtotal * 0.18  # 18% IGV
+        igv = subtotal * 0.18
         total = subtotal + igv
         
-        # Preparar productos para JSON
         productos_json = []
         for producto in productos:
             productos_json.append({
@@ -189,13 +186,13 @@ def registrar_compra(cliente_nombre, cliente_email, cliente_telefono, productos,
                 'cantidad': int(producto['cantidad'])
             })
         
-        # Insertar compra
         cursor.execute("""
             INSERT INTO compras (
                 cliente_nombre, cliente_email, cliente_telefono,
                 productos, subtotal, igv, total,
                 metodo_pago, estado, observaciones, vendedor_id, tenant_id
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         """, (
             cliente_nombre,
             cliente_email,
@@ -205,13 +202,13 @@ def registrar_compra(cliente_nombre, cliente_email, cliente_telefono, productos,
             igv,
             total,
             metodo_pago,
-            'pagado',  # Estado por defecto
+            'pagado',
             observaciones,
             vendedor_id,
             obtener_tenant_id()
         ))
         
-        compra_id = cursor.lastrowid
+        compra_id = cursor.fetchone()[0]
         conexion.commit()
         
         return compra_id
@@ -262,16 +259,15 @@ def obtener_estadisticas_compras(fecha_inicio=None, fecha_fin=None):
         conexion = obtener_conexion()
         cursor = conexion.cursor()
         
-        # Query base
         where_clause = ""
         params = []
         
         if fecha_inicio:
-            where_clause += " AND DATE(fecha_compra) >= %s"
+            where_clause += " AND c.fecha_compra::date >= %s"
             params.append(fecha_inicio)
             
         if fecha_fin:
-            where_clause += " AND DATE(fecha_compra) <= %s"
+            where_clause += " AND c.fecha_compra::date <= %s"
             params.append(fecha_fin)
         
         # Total de ventas
@@ -281,7 +277,7 @@ def obtener_estadisticas_compras(fecha_inicio=None, fecha_fin=None):
                 SUM(total) as total_vendido,
                 AVG(total) as promedio_venta,
                 SUM(CASE WHEN estado = 'pagado' THEN total ELSE 0 END) as total_pagado
-            FROM compras 
+            FROM compras c
             WHERE 1=1 {where_clause}
         """, params)
         
@@ -293,7 +289,7 @@ def obtener_estadisticas_compras(fecha_inicio=None, fecha_fin=None):
                 metodo_pago,
                 COUNT(*) as cantidad,
                 SUM(total) as total
-            FROM compras 
+            FROM compras c
             WHERE estado = 'pagado' {where_clause}
             GROUP BY metodo_pago
             ORDER BY total DESC
@@ -301,14 +297,15 @@ def obtener_estadisticas_compras(fecha_inicio=None, fecha_fin=None):
         
         ventas_por_metodo = cursor.fetchall()
         
-        # Productos más vendidos
+        # Productos más vendidos desplegando el arreglo JSON
         cursor.execute(f"""
             SELECT 
-                JSON_UNQUOTE(JSON_EXTRACT(productos, '$[*].nombre')) as producto_nombres,
-                SUM(JSON_UNQUOTE(JSON_EXTRACT(productos, '$[*].cantidad'))) as total_vendido
-            FROM compras 
-            WHERE estado = 'pagado' {where_clause}
-            GROUP BY producto_nombres
+                elem->>'nombre' as producto_nombre,
+                SUM((elem->>'cantidad')::numeric) as total_vendido
+            FROM compras c,
+            LATERAL jsonb_array_elements(c.productos::jsonb) as elem
+            WHERE c.estado = 'pagado' {where_clause}
+            GROUP BY elem->>'nombre'
             ORDER BY total_vendido DESC
             LIMIT 10
         """, params)
@@ -355,8 +352,8 @@ def buscar_compras_por_cliente(termino_busqueda, limit=20):
                 c.fecha_compra,
                 c.estado
             FROM compras c
-            WHERE c.cliente_nombre LIKE %s 
-               OR c.cliente_email LIKE %s
+            WHERE c.cliente_nombre ILIKE %s 
+               OR c.cliente_email ILIKE %s
             ORDER BY c.fecha_compra DESC
             LIMIT %s
         """, (f"%{termino_busqueda}%", f"%{termino_busqueda}%", limit))

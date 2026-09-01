@@ -10,10 +10,11 @@ def insertar_cliente(nombre, email, telefono, direccion, documento=None):
         with conexion.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO clientes (nombre, email, telefono, direccion, documento, fecha_registro, tenant_id) 
-                   VALUES (%s, %s, %s, %s, %s, NOW(), %s)""",
+                   VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                   RETURNING id""",
                 (nombre, email, telefono, direccion, documento, tenant_id)
             )
-            cliente_id = cursor.lastrowid
+            cliente_id = cursor.fetchone()[0]
         conexion.commit()
     except Exception as e:
         conexion.rollback()
@@ -36,21 +37,18 @@ def obtener_cliente_por_email(email):
     return cliente
 
 def guardar_tarjeta_cliente(cliente_id, numero_tarjeta, nombre_titular, expiracion, tipo_tarjeta):
-    """Guarda una tarjeta de crédito/débito para un cliente (con número enmascarado por seguridad)."""
+    """Guarda una tarjeta para un cliente (con número enmascarado por seguridad)."""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
-        # Enmascarar número de tarjeta (solo mostrar últimos 4 dígitos)
         numero_limpio = numero_tarjeta.replace(' ', '').replace('-', '')
         numero_enmascarado = '**** **** **** ' + numero_limpio[-4:]
-        
-        # Hash del número completo para validación futura (no almacenar número real)
         numero_hash = hashlib.sha256(numero_limpio.encode()).hexdigest()
         
         with conexion.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO tarjetas_cliente (cliente_id, numero_enmascarado, numero_hash, nombre_titular, expiracion, tipo_tarjeta, fecha_registro, tenant_id) 
-                   VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)""",
                 (cliente_id, numero_enmascarado, numero_hash, nombre_titular, expiracion, tipo_tarjeta, tenant_id)
             )
         conexion.commit()
@@ -94,13 +92,13 @@ def obtener_historial_completo():
                     COUNT(DISTINCT c.id) as total_citas,
                     COUNT(DISTINCT p.id) as total_pedidos,
                     COALESCE(SUM(p.total), 0) as total_gastado,
-                    MAX(DATE(c.fecha)) as ultima_cita,
-                    MAX(DATE(p.fecha_pedido)) as ultimo_pedido
+                    MAX(c.fecha::date) as ultima_cita,
+                    MAX(p.fecha_pedido::date) as ultimo_pedido
                 FROM clientes cl
                 LEFT JOIN citas c ON cl.email = c.cliente_email AND c.tenant_id = %s
                 LEFT JOIN pedidos p ON cl.id = p.cliente_id
                 WHERE cl.tenant_id = %s
-                GROUP BY cl.id, cl.nombre, cl.email, cl.telefono, cl.direccion, cl.fecha_registro
+                GROUP BY cl.id, cl.nombre, cl.email, cl.telefono, cl.direccion, cl.fecha_registro, c.cliente_nombre
                 
                 UNION ALL
                 
@@ -110,12 +108,12 @@ def obtener_historial_completo():
                     c.cliente_email as email,
                     NULL as telefono,
                     NULL as direccion,
-                    NULL as fecha_registro,
+                    NULL::timestamp as fecha_registro,
                     COUNT(DISTINCT c.id) as total_citas,
                     0 as total_pedidos,
-                    0 as total_gastado,
-                    MAX(DATE(c.fecha)) as ultima_cita,
-                    NULL as ultimo_pedido
+                    0.0 as total_gastado,
+                    MAX(c.fecha::date) as ultima_cita,
+                    NULL::date as ultimo_pedido
                 FROM citas c
                 LEFT JOIN clientes cl ON c.cliente_email = cl.email AND cl.tenant_id = %s
                 WHERE cl.id IS NULL AND c.cliente_email IS NOT NULL AND c.tenant_id = %s
@@ -134,7 +132,6 @@ def obtener_detalles_cliente(cliente_id=None, email=None):
     detalles = {}
     try:
         with conexion.cursor() as cursor:
-            # Información básica del cliente
             if cliente_id:
                 cursor.execute(
                     "SELECT id, nombre, email, telefono, direccion, fecha_registro FROM clientes WHERE id = %s",
@@ -160,8 +157,8 @@ def obtener_detalles_cliente(cliente_id=None, email=None):
             if cliente_email:
                 cursor.execute("""
                     SELECT c.id, c.cliente_nombre, c.cliente_email, s.nombre as servicio, 
-                           DATE(c.fecha) as fecha, 
-                           TIME_FORMAT(c.hora, '%%H:%%i') as hora,
+                           c.fecha::date as fecha, 
+                           TO_CHAR(c.hora::time, 'HH24:MI') as hora,
                            c.estado, c.created_at,
                            c.mascota_nombre, c.mascota_especie, c.mascota_raza, c.mascota_edad, c.mascota_peso
                     FROM citas c
@@ -180,7 +177,7 @@ def obtener_detalles_cliente(cliente_id=None, email=None):
                     FROM pedidos p
                     LEFT JOIN detalle_pedidos dp ON p.id = dp.pedido_id
                     WHERE p.cliente_id = %s
-                    GROUP BY p.id
+                    GROUP BY p.id, p.subtotal, p.igv, p.total, p.metodo_pago, p.estado, p.fecha_pedido, p.fecha_pago, p.fecha_entrega
                     ORDER BY p.fecha_pedido DESC
                 """, (cliente_id,))
                 detalles['pedidos'] = cursor.fetchall()
@@ -208,21 +205,19 @@ def insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal=None, 
     tenant_id = obtener_tenant_id()
     pedido_id = None
     try:
-        # Si no se proporcionan subtotal e igv, calcularlos del total_final
         if subtotal is None or igv is None:
-            subtotal = round(total_final / 1.18, 2)  # Deducir subtotal del total
+            subtotal = round(total_final / 1.18, 2)
             igv = round(total_final - subtotal, 2)
         
         with conexion.cursor() as cursor:
-            # Insertar pedido con subtotal, IGV y total
             cursor.execute(
                 """INSERT INTO pedidos (cliente_id, subtotal, igv, total, metodo_pago, estado, fecha_pedido, tenant_id) 
-                   VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                   RETURNING id""",
                 (cliente_id, subtotal, igv, total_final, metodo_pago, estado, tenant_id)
             )
-            pedido_id = cursor.lastrowid
+            pedido_id = cursor.fetchone()[0]
             
-            # Insertar detalles del pedido
             for item in items:
                 cursor.execute(
                     """INSERT INTO detalle_pedidos (pedido_id, producto_id, cantidad, precio_unitario, subtotal, tenant_id) 
@@ -273,7 +268,7 @@ def obtener_todos_clientes():
                         c.cliente_email as email,
                         NULL as telefono,
                         NULL as direccion,
-                        NULL as fecha_registro,
+                        NULL::timestamp as fecha_registro,
                         COUNT(DISTINCT c.id) as total_citas
                     FROM citas c
                     LEFT JOIN clientes cl ON c.cliente_email = cl.email AND cl.tenant_id = %s
@@ -290,36 +285,33 @@ def obtener_todos_clientes():
 def actualizar_cliente(email_anterior, nuevo_email, telefono='', direccion=''):
     """Actualiza la información de un cliente (excepto el nombre)"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            # Verificar si el cliente existe en la tabla clientes
-            cursor.execute("SELECT id FROM clientes WHERE email = %s", (email_anterior,))
+            cursor.execute("SELECT id FROM clientes WHERE email = %s AND tenant_id = %s", (email_anterior, tenant_id))
             cliente = cursor.fetchone()
             
             if cliente:
-                # Actualizar cliente existente
                 cursor.execute("""
                     UPDATE clientes 
                     SET email = %s, telefono = %s, direccion = %s 
-                    WHERE email = %s
-                """, (nuevo_email, telefono, direccion, email_anterior))
+                    WHERE email = %s AND tenant_id = %s
+                """, (nuevo_email, telefono, direccion, email_anterior, tenant_id))
             else:
-                # Crear nuevo registro en clientes si solo existe en citas
-                cursor.execute("SELECT DISTINCT cliente_nombre FROM citas WHERE cliente_email = %s LIMIT 1", (email_anterior,))
+                cursor.execute("SELECT DISTINCT cliente_nombre FROM citas WHERE cliente_email = %s AND tenant_id = %s LIMIT 1", (email_anterior, tenant_id))
                 cita_info = cursor.fetchone()
                 if cita_info:
                     cursor.execute("""
-                        INSERT INTO clientes (nombre, email, telefono, direccion, fecha_registro) 
-                        VALUES (%s, %s, %s, %s, NOW())
-                    """, (cita_info[0], nuevo_email, telefono, direccion))
+                        INSERT INTO clientes (nombre, email, telefono, direccion, fecha_registro, tenant_id) 
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                    """, (cita_info[0], nuevo_email, telefono, direccion, tenant_id))
             
-            # Actualizar email en todas las citas si cambió
             if email_anterior != nuevo_email:
                 cursor.execute("""
                     UPDATE citas 
                     SET cliente_email = %s 
-                    WHERE cliente_email = %s
-                """, (nuevo_email, email_anterior))
+                    WHERE cliente_email = %s AND tenant_id = %s
+                """, (nuevo_email, email_anterior, tenant_id))
         
         conexion.commit()
     except Exception as e:
