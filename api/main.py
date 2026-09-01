@@ -212,6 +212,10 @@ def requiere_autenticacion(roles_permitidos=None):
 # def query_db(...): ...
 # def hash_password(...): ...
 
+@app.route('/')
+def home():
+    return "App funcionando en Vercel"
+
 @app.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static', 'img'),
