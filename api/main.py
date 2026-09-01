@@ -28,7 +28,6 @@ app = Flask(
     template_folder=os.path.join(os.path.dirname(__file__), '../templates'),
     static_folder=os.path.join(os.path.dirname(__file__), '../static')
 )
-
 # Configuración de cookies de sesión seguras
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')
 use_secure_cookies = os.environ.get('FLASK_ENV', '').lower() == 'production' or os.environ.get('USE_SECURE_COOKIES', '') == 'True'
