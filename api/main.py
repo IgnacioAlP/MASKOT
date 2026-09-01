@@ -1,11 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory
 import logging
 import time
 from datetime import datetime, date
 import hashlib
 import os
 from werkzeug.utils import secure_filename
-from flask import send_from_directory
 from functools import wraps
 from bd import obtener_conexion, obtener_tenant_id
 
@@ -32,10 +31,12 @@ app.config['SESSION_COOKIE_SECURE'] = bool(use_secure_cookies)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 # Configuración para uploads (compatible con Vercel)
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
+
 if os.environ.get('VERCEL'):
     UPLOAD_FOLDER = '/tmp/uploads'
 else:
@@ -108,9 +109,15 @@ def dateformat(value, format='%d/%m/%Y'):
     if isinstance(value, str):
         try:
             value = datetime.strptime(value, '%Y-%m-%d').date()
-        except:
+        except Exception:
             return value
-    return value.strftime(format)
+    elif isinstance(value, datetime):
+        value = value.date()
+    
+    if hasattr(value, 'strftime'):
+        return value.strftime(format)
+    return str(value)
+
 
 @app.template_filter('days_until')
 def days_until(value):
@@ -119,11 +126,17 @@ def days_until(value):
     if isinstance(value, str):
         try:
             value = datetime.strptime(value, '%Y-%m-%d').date()
-        except:
+        except Exception:
             return 999
-    today = date.today()
-    delta = value - today
-    return delta.days
+    elif isinstance(value, datetime):
+        value = value.date()
+    
+    if hasattr(value, '__sub__'):
+        today = date.today()
+        delta = value - today
+        return delta.days
+    return 999
+
 
 @app.context_processor
 def utility_processor():
@@ -133,9 +146,14 @@ def utility_processor():
         if isinstance(date_value, str):
             try:
                 date_value = datetime.strptime(date_value, '%Y-%m-%d').date()
-            except:
+            except Exception:
                 return date_value
-        return date_value.strftime(format)
+        elif isinstance(date_value, datetime):
+            date_value = date_value.date()
+        
+        if hasattr(date_value, 'strftime'):
+            return date_value.strftime(format)
+        return str(date_value)
     
     def today():
         return date.today()
@@ -149,8 +167,10 @@ def utility_processor():
         if isinstance(date1, str):
             try:
                 date1 = datetime.strptime(date1, '%Y-%m-%d').date()
-            except:
+            except Exception:
                 return 999
+        elif isinstance(date1, datetime):
+            date1 = date1.date()
         return (date1 - date2).days
     
     def calculate_work_hours(entrada, salida):
@@ -168,7 +188,7 @@ def utility_processor():
             
             delta = salida_dt - entrada_dt
             return round(delta.total_seconds() / 3600, 1)
-        except:
+        except Exception:
             return 0
     
     return dict(
@@ -191,24 +211,25 @@ def cart_context():
         total_qty = 0
     return dict(cart_count=total_qty)
 
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def requiere_autenticacion(roles_permitidos=None):
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
             if 'usuario' not in session or 'rol' not in session:
-                flash('Debes iniciar sesión para acceder a esta página.')
+                flash('Debes iniciar sesión para acceder a esta página.', 'warning')
                 return redirect(url_for('login'))
             
             if session['rol'] == 'superadmin':
                 return f(*args, **kwargs)
             
-            if roles_permitidos:
-                if session['rol'] not in roles_permitidos:
-                    flash('No tienes permisos para acceder a esta página.')
-                    return redirect(url_for('dashboard'))
+            if roles_permitidos and session['rol'] not in roles_permitidos:
+                flash('No tienes permisos para acceder a esta página.', 'error')
+                return redirect(url_for('dashboard'))
             
             return f(*args, **kwargs)
         return wrapper
@@ -220,6 +241,7 @@ def favicon():
     return send_from_directory(os.path.join(app.root_path, 'static', 'img'),
                                'maskot-favicon.ico', mimetype='image/vnd.microsoft.icon')
 
+
 @app.route('/')
 def index():
     if 'usuario' in session:
@@ -230,8 +252,10 @@ def index():
 def _get_cart():
     return session.setdefault('cart', {})
 
+
 def _save_cart(cart):
     session['cart'] = cart
+
 
 def _add_service_to_cart(servicio_id, quantity=1):
     cart = _get_cart()
@@ -242,10 +266,35 @@ def _add_service_to_cart(servicio_id, quantity=1):
     _save_cart(cart)
     return True
 
-# Si en tu main.py / app.py la función se llama diferente:
-@app.route('/asistencia')
-def asistencia():  # <-- Este es el nombre del endpoint
-    return render_template('asistencia.html')
+
+@app.route('/asistencia', methods=['GET', 'POST'])
+def asistencia():
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+        
+    if request.method == 'POST':
+        try:
+            usuario_id = session.get('user_id')
+            tipo = request.form.get('tipo', 'entrada')
+            if hasattr(asistencia_controlador, 'registrar_asistencia'):
+                asistencia_controlador.registrar_asistencia(usuario_id, tipo)
+            flash('Asistencia registrada correctamente.', 'success')
+        except Exception as e:
+            logger.error(f"Error registrando asistencia: {e}")
+            flash('Error al registrar la asistencia.', 'error')
+        return redirect(url_for('asistencia'))
+
+    registros = []
+    try:
+        if hasattr(asistencia_controlador, 'obtener_asistencia_hoy'):
+            registros = asistencia_controlador.obtener_asistencia_hoy()
+        elif hasattr(asistencia_controlador, 'obtener_registros'):
+            registros = asistencia_controlador.obtener_registros()
+    except Exception as e:
+        logger.warning(f"Error cargando registros de asistencia: {e}")
+
+    return render_template('asistencia.html', registros=registros)
+
 
 @app.route('/carrito')
 def ver_carrito():
@@ -335,7 +384,7 @@ def agregar_al_carrito():
     stock = producto[3] or 0
     if cantidad <= 0 or stock < 1:
         flash('Cantidad inválida o producto agotado.', 'warning')
-        return redirect(url_for('ver_producto', id=producto_id))
+        return redirect(url_for('index'))
 
     cart = _get_cart()
     key = str(producto_id)
@@ -397,6 +446,7 @@ def carrito_actualizar():
     _save_cart(cart)
     return 'OK', 200
 
+
 @app.route('/checkout')
 def checkout():
     cart = _get_cart()
@@ -405,22 +455,22 @@ def checkout():
         return redirect(url_for('ver_carrito'))
     
     items = []
-    subtotal = 0
+    subtotal = 0.0
     for id_str, data in cart.items():
         try:
             pid = int(id_str)
-        except:
+        except Exception:
             continue
         producto = productos_controlador.obtener_producto_por_id(pid)
         if not producto:
             continue
         qty = int(data.get('qty', 0))
-        precio_unitario = 10000
+        precio_unitario = float(producto[4] or 0)
         subtotal_item = precio_unitario * qty
         items.append({
             'id': pid,
             'nombre': producto[1],
-            'imagen': producto[6],
+            'imagen': producto[7],
             'qty': qty,
             'precio_unitario': precio_unitario,
             'subtotal': subtotal_item
@@ -431,6 +481,7 @@ def checkout():
     total_final = subtotal + igv
     
     return render_template('checkout.html', items=items, total=subtotal, igv=igv, total_final=total_final)
+
 
 @app.route('/procesar-pago', methods=['POST'])
 def procesar_pago():
@@ -452,17 +503,17 @@ def procesar_pago():
             return redirect(url_for('checkout'))
         
         items = []
-        subtotal = 0
+        subtotal = 0.0
         for id_str, data in cart.items():
             try:
                 pid = int(id_str)
-            except:
+            except Exception:
                 continue
             producto = productos_controlador.obtener_producto_por_id(pid)
             if not producto:
                 continue
             qty = int(data.get('qty', 0))
-            precio_unitario = 10000
+            precio_unitario = float(producto[4] or 0)
             subtotal_item = precio_unitario * qty
             items.append({
                 'id': pid,
@@ -476,13 +527,17 @@ def procesar_pago():
         igv = round(subtotal * 0.18, 2)
         total_final = subtotal + igv
         
-        cliente = clientes_controlador.obtener_cliente_por_email(email)
-        if cliente:
-            cliente_id = cliente[0]
-        else:
+        cliente_id = None
+        if hasattr(clientes_controlador, 'obtener_cliente_por_email'):
+            cliente = clientes_controlador.obtener_cliente_por_email(email)
+            if cliente:
+                cliente_id = cliente[0]
+        
+        if not cliente_id and hasattr(clientes_controlador, 'insertar_cliente'):
             cliente_id = clientes_controlador.insertar_cliente(nombre, email, telefono, direccion, documento)
         
-        pedido_id = clientes_controlador.insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal, igv)
+        if hasattr(clientes_controlador, 'insertar_pedido'):
+            clientes_controlador.insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal, igv)
         
         session.pop('cart', None)
         flash('¡Pago procesado exitosamente!', 'success')
@@ -492,6 +547,7 @@ def procesar_pago():
         logger.error(f"Error procesando pago: {e}")
         flash('Hubo un error procesando tu pago.', 'error')
         return redirect(url_for('checkout'))
+
 
 @app.route('/agendar_cita', methods=['POST'])
 def agendar_cita():
@@ -517,6 +573,7 @@ def agendar_cita():
         flash(f'Error al agendar la cita: {str(e)}', 'error')
     
     return redirect(url_for('index'))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -548,7 +605,7 @@ def login():
         session['user_id'] = user[0]
         session['usuario'] = user[1]
         session['rol'] = user[3]
-        session['tenant_id'] = user[5] if len(user) > 5 else 1
+        session['tenant_id'] = user[5] if len(user) > 5 and user[5] else 1
         
         flash(f"¡Bienvenido de nuevo, {user[1]}!", 'success')
         if next_url and next_url.startswith('/'):
@@ -576,20 +633,51 @@ def dashboard():
     rol = session['rol']
     hoy = date.today().strftime('%Y-%m-%d')
     
-    citas_hoy = citas_controlador.obtener_citas_por_fecha(hoy) if rol in ['admin', 'empleado', 'dueño'] else []
+    citas_hoy = []
     alertas_fidelizacion = []
     
     if rol in ['admin', 'empleado', 'dueño']:
         try:
-            fidelizacion.sincronizar_fidelizacion_desde_citas()
-            alertas_fidelizacion = fidelizacion.obtener_alertas_recientes(limit=10)
+            citas_hoy = citas_controlador.obtener_citas_por_fecha(hoy)
+        except Exception as e:
+            logger.warning(f"Error obteniendo citas de hoy: {e}")
+            
+        try:
+            if hasattr(fidelizacion, 'sincronizar_fidelizacion_desde_citas'):
+                fidelizacion.sincronizar_fidelizacion_desde_citas()
+            if hasattr(fidelizacion, 'obtener_alertas_recientes'):
+                alertas_fidelizacion = fidelizacion.obtener_alertas_recientes(limit=10)
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
     
     if rol == 'dueño':
-        total_empleados = len(personal_controlador.obtener_personal())
-        servicios_activos = len(servicios_controlador.obtener_servicios_activos())
-        productos_bajos = productos_controlador.obtener_productos_stock_bajo()
+        total_empleados = 0
+        servicios_activos = 0
+        productos_bajos = []
+        
+        try:
+            if hasattr(personal_controlador, 'obtener_personal'):
+                total_empleados = len(personal_controlador.obtener_personal())
+            elif hasattr(personal_controlador, 'obtener_empleados'):
+                total_empleados = len(personal_controlador.obtener_empleados())
+        except Exception as e:
+            logger.warning(f"Error personal dashboard: {e}")
+
+        try:
+            if hasattr(servicios_controlador, 'obtener_servicios_activos'):
+                servicios_activos = len(servicios_controlador.obtener_servicios_activos())
+            elif hasattr(servicios_controlador, 'obtener_servicios'):
+                servicios_activos = len(servicios_controlador.obtener_servicios())
+        except Exception as e:
+            logger.warning(f"Error servicios dashboard: {e}")
+
+        try:
+            if hasattr(productos_controlador, 'obtener_productos_bajo_stock'):
+                productos_bajos = productos_controlador.obtener_productos_bajo_stock()
+            elif hasattr(productos_controlador, 'obtener_productos_stock_bajo'):
+                productos_bajos = productos_controlador.obtener_productos_stock_bajo()
+        except Exception as e:
+            logger.warning(f"Error productos stock bajo dashboard: {e}")
         
         return render_template('dashboard.html', citas_hoy=citas_hoy, total_empleados=total_empleados,
                                servicios_activos=servicios_activos, productos_bajos=productos_bajos,
@@ -605,10 +693,20 @@ def citas():
         return redirect(url_for('dashboard'))
     
     fecha_filtro = request.args.get('fecha', default=date.today().strftime('%Y-%m-%d'))
-    citas = citas_controlador.obtener_citas_por_fecha(fecha_filtro)
-    servicios_lista = servicios_controlador.obtener_servicios()
     
-    return render_template('citas.html', citas=citas, fecha_filtro=fecha_filtro, servicios=servicios_lista)
+    try:
+        citas_list = citas_controlador.obtener_citas_por_fecha(fecha_filtro)
+    except Exception as e:
+        logger.error(f"Error al obtener citas: {e}")
+        citas_list = []
+        
+    try:
+        servicios_lista = servicios_controlador.obtener_servicios()
+    except Exception as e:
+        logger.error(f"Error al obtener servicios: {e}")
+        servicios_lista = []
+    
+    return render_template('citas.html', citas=citas_list, fecha_filtro=fecha_filtro, servicios=servicios_lista)
 
 
 # ======================= RUTAS DE GESTIÓN DE CITAS =======================
@@ -618,8 +716,9 @@ def cambiar_estado_cita(cita_id):
     if 'usuario' not in session or session.get('rol') not in ['admin', 'empleado', 'dueño']:
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     
+    conexion = None
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         nuevo_estado = data.get('status')
         motivo = data.get('motivo', '')
         
@@ -631,7 +730,6 @@ def cambiar_estado_cita(cita_id):
         
         cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (nuevo_estado, cita_id))
         
-        # PostgreSQL / Supabase: reemplazo de IF/IFNULL por CASE WHEN
         if motivo:
             cursor.execute("""
                 UPDATE citas 
@@ -645,9 +743,11 @@ def cambiar_estado_cita(cita_id):
         conexion.commit()
         return jsonify({'success': True, 'message': 'Estado actualizado'})
     except Exception as e:
+        if conexion:
+            conexion.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
-        if 'conexion' in locals():
+        if conexion:
             conexion.close()
 
 
@@ -656,6 +756,7 @@ def eliminar_cita(cita_id):
     if session.get('rol') not in ['admin', 'dueño']:
         return jsonify({'success': False, 'error': 'Sin permisos'}), 403
     
+    conexion = None
     try:
         conexion = obtener_conexion()
         cursor = conexion.cursor()
@@ -667,9 +768,11 @@ def eliminar_cita(cita_id):
         conexion.commit()
         return jsonify({'success': True, 'message': 'Cita eliminada permanentemente'})
     except Exception as e:
+        if conexion:
+            conexion.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
-        if 'conexion' in locals():
+        if conexion:
             conexion.close()
 
 # ─── Gestión de Tenants (solo superadmin) ────────────────────────────────────
@@ -706,7 +809,6 @@ def crear_tenant():
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # PostgreSQL: Usar RETURNING id para obtener la clave generada
             cursor.execute(
                 "INSERT INTO tenants (nombre, slug) VALUES (%s, %s) RETURNING id", 
                 (nombre, slug)
@@ -736,7 +838,6 @@ def toggle_tenant(tenant_id):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # PostgreSQL: compatible con columnas booleanas
             cursor.execute("UPDATE tenants SET activo = NOT activo WHERE id = %s", (tenant_id,))
         conexion.commit()
         flash('Estado del tenant actualizado.', 'success')
