@@ -49,6 +49,9 @@ try:
 except Exception:
     pass
 
+# Almacenamiento temporal en memoria para sincronización de escáner remoto en tiempo real
+RECENT_SCANS = []
+
 
 def _ensure_schema():
     """Migración ligera al arranque adaptada para PostgreSQL / Supabase."""
@@ -374,7 +377,7 @@ def punto_de_venta():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    productos_lista = productos_controlador.obtener_productos_tienda() if hasattr(productos_controlador, 'obtener_productos_tienda') else []
+    productos_lista = productos_controlador.obtener_productos_tienda() if hasattr(productos_controlador, 'obtener_productos_tienda') else productos_controlador.obtener_productos()
     servicios_lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
     return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
 
@@ -389,6 +392,15 @@ def productos():
     return render_template('productos.html', productos=lista)
 
 
+@app.route('/producto/<int:producto_id>')
+def ver_producto(producto_id):
+    producto = productos_controlador.obtener_producto_por_id(producto_id)
+    if not producto:
+        flash('Producto no encontrado.', 'error')
+        return redirect(url_for('productos'))
+    return render_template('ver_producto.html', producto=producto)
+
+
 @app.route('/servicios')
 def servicios():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
@@ -396,7 +408,65 @@ def servicios():
         return redirect(url_for('dashboard'))
     
     lista = servicios_controlador.obtener_servicios()
-    return render_template('servicios.html', servicios=lista)
+    return render_template('gestion_servicios.html', servicios=lista)
+
+
+@app.route('/servicios/agregar', methods=['POST'])
+def agregar_servicio():
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        nombre = request.form.get('nombre')
+        descripcion = request.form.get('descripcion', '')
+        precio = float(request.form.get('precio', 0.0))
+        duracion = int(request.form.get('duracion_minutos', 30))
+        
+        if hasattr(servicios_controlador, 'insertar_servicio'):
+            servicios_controlador.insertar_servicio(nombre, descripcion, precio, duracion)
+        flash('Servicio registrado exitosamente.', 'success')
+        return redirect(url_for('servicios'))
+    except Exception as e:
+        flash(f'Error al registrar servicio: {e}', 'error')
+        return redirect(url_for('servicios'))
+
+
+@app.route('/servicios/editar', methods=['POST'])
+def editar_servicio():
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        servicio_id = int(request.form.get('id'))
+        nombre = request.form.get('nombre')
+        descripcion = request.form.get('descripcion', '')
+        precio = float(request.form.get('precio', 0.0))
+        duracion = int(request.form.get('duracion_minutos', 30))
+        
+        if hasattr(servicios_controlador, 'actualizar_servicio'):
+            servicios_controlador.actualizar_servicio(servicio_id, nombre, descripcion, precio, duracion)
+        flash('Servicio actualizado exitosamente.', 'success')
+        return redirect(url_for('servicios'))
+    except Exception as e:
+        flash(f'Error al actualizar servicio: {e}', 'error')
+        return redirect(url_for('servicios'))
+
+
+@app.route('/servicios/cambiar-estado', methods=['POST'])
+def cambiar_estado_servicio():
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        data = request.get_json() or {}
+        servicio_id = data.get('id')
+        activo = data.get('activo', True)
+        
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("UPDATE servicios SET activo = %s WHERE id = %s", (activo, servicio_id))
+        conexion.commit()
+        conexion.close()
+        return jsonify({'success': True, 'message': 'Estado del servicio actualizado'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/clientes')
@@ -425,8 +495,26 @@ def personal():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    lista = personal_controlador.obtener_empleados()
-    return render_template('personal.html', empleados=lista)
+    empleados = personal_controlador.obtener_empleados() if hasattr(personal_controlador, 'obtener_empleados') else []
+    usuarios = usuarios_controlador.obtener_usuarios() if hasattr(usuarios_controlador, 'obtener_usuarios') else []
+    return render_template('personal.html', empleados=empleados, usuarios=usuarios)
+
+
+@app.route('/personal/agregar', methods=['POST'])
+def agregar_personal():
+    if session.get('rol') not in ['admin', 'dueño']:
+        flash('Sin permisos.', 'error')
+        return redirect(url_for('personal'))
+    try:
+        nombre = request.form.get('nombre')
+        cargo = request.form.get('cargo')
+        salario = float(request.form.get('salario', 0.0))
+        if hasattr(personal_controlador, 'insertar_empleado'):
+            personal_controlador.insertar_empleado(nombre, cargo, salario)
+        flash('Personal agregado correctamente.', 'success')
+    except Exception as e:
+        flash(f'Error al agregar personal: {e}', 'error')
+    return redirect(url_for('personal'))
 
 
 @app.route('/compras')
@@ -439,7 +527,8 @@ def compras():
     return render_template('compras.html', compras=lista)
 
 
-@app.route('/ventas')
+@app.route('/ventas', endpoint='historial_ventas')
+@app.route('/historial_ventas')
 def ventas():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
@@ -447,6 +536,22 @@ def ventas():
     
     lista = ventas_controlador.obtener_ventas_por_fecha() if hasattr(ventas_controlador, 'obtener_ventas_por_fecha') else []
     return render_template('ventas.html', ventas=lista)
+
+
+@app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
+def ver_ticket_venta(venta_id):
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+    
+    venta = None
+    if hasattr(ventas_controlador, 'obtener_venta_por_id'):
+        venta = ventas_controlador.obtener_venta_por_id(venta_id)
+    
+    if not venta:
+        flash('Venta no encontrada.', 'error')
+        return redirect(url_for('historial_ventas'))
+        
+    return render_template('ticket_venta.html', venta=venta)
 
 
 @app.route('/fidelizacion')
@@ -499,6 +604,31 @@ def citas():
     servicios_lista = servicios_controlador.obtener_servicios()
     
     return render_template('citas.html', citas=citas_list, fecha_filtro=fecha_filtro, servicios=servicios_lista)
+
+
+@app.route('/cita/<int:cita_id>', endpoint='ver_detalles_cita')
+@app.route('/cita/recibo/<int:cita_id>')
+def ver_recibo_cita(cita_id):
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+    
+    cita = citas_controlador.obtener_cita_por_id(cita_id) if hasattr(citas_controlador, 'obtener_cita_por_id') else None
+    if not cita:
+        flash('Cita no encontrada.', 'error')
+        return redirect(url_for('citas'))
+    return render_template('recibo_cita.html', cita=cita)
+
+
+@app.route('/cita/ticket/<int:cita_id>', endpoint='ticket_cita')
+def ver_ticket_cita(cita_id):
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+    
+    cita = citas_controlador.obtener_cita_por_id(cita_id) if hasattr(citas_controlador, 'obtener_cita_por_id') else None
+    if not cita:
+        flash('Cita no encontrada.', 'error')
+        return redirect(url_for('citas'))
+    return render_template('ticket_cita.html', cita=cita)
 
 
 # ─── ACCIONES CITAS ──────────────────────────────────────────────────────────
@@ -594,6 +724,142 @@ def agendar_cita():
     return redirect(url_for('index'))
 
 
+# ─── API POS & TRANSACCIONES EN TIEMPO REAL ─────────────────────────────────
+
+@app.route('/api/ventas/buscar-productos')
+def api_buscar_productos():
+    q = request.args.get('q', '').strip()
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            if q:
+                cursor.execute("""
+                    SELECT id, nombre, precio, stock, codigo_barra 
+                    FROM productos 
+                    WHERE (nombre ILIKE %s OR codigo_barra = %s) AND activo = true
+                    LIMIT 20
+                """, (f"%{q}%", q))
+            else:
+                cursor.execute("SELECT id, nombre, precio, stock, codigo_barra FROM productos WHERE activo = true LIMIT 30")
+            
+            rows = cursor.fetchall()
+            productos = [{
+                'id': r[0],
+                'nombre': r[1],
+                'precio': float(r[2] or 0),
+                'stock': r[3] or 0,
+                'codigo_barra': r[4] or ''
+            } for r in rows]
+        conexion.close()
+        return jsonify({'success': True, 'productos': productos})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/ventas/validar-stock', methods=['POST'])
+def api_validar_stock():
+    data = request.get_json() or {}
+    items = data.get('items', [])
+    errores = []
+    
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            for item in items:
+                pid = item.get('id')
+                cant = int(item.get('cantidad', 1))
+                cursor.execute("SELECT nombre, stock FROM productos WHERE id = %s", (pid,))
+                row = cursor.fetchone()
+                if not row:
+                    errores.append(f"Producto ID {pid} no encontrado.")
+                elif row[1] < cant:
+                    errores.append(f"Stock insuficiente para {row[0]}. Disponible: {row[1]}, Solicitado: {cant}")
+        conexion.close()
+        
+        if errores:
+            return jsonify({'success': False, 'message': 'Validation failed', 'errors': errores}), 400
+        return jsonify({'success': True, 'message': 'Stock verificado correctamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/ventas/procesar', methods=['POST'])
+def procesar_venta_pos():
+    if 'usuario' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json() or {}
+        items = data.get('items', [])
+        cliente_nombre = data.get('cliente_nombre', 'Cliente General')
+        cliente_doc = data.get('cliente_documento', '')
+        metodo_pago = data.get('metodo_pago', 'efectivo')
+        monto_recibido = float(data.get('monto_recibido', 0.0))
+        subtotal = float(data.get('subtotal', 0.0))
+        igv = float(data.get('igv', 0.0))
+        total = float(data.get('total', 0.0))
+        cambio = float(data.get('cambio', 0.0))
+        
+        if not items:
+            return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
+
+        vendedor_nombre = session.get('usuario', 'Cajero')
+        tenant_id = session.get('tenant_id', 1)
+        num_venta = f"VNT-{int(time.time())}"
+        
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO ventas (numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
+                                    vendedor_nombre, metodo_pago, subtotal, igv, total, 
+                                    monto_recibido, cambio_entregado, estado, tenant_id)
+                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada', %s)
+                RETURNING id
+            """, (num_venta, cliente_nombre, cliente_doc, vendedor_nombre, metodo_pago,
+                  subtotal, igv, total, monto_recibido, cambio, tenant_id))
+            
+            venta_id = cursor.fetchone()[0]
+            
+            for item in items:
+                pid = item.get('id')
+                cant = int(item.get('cantidad', 1))
+                precio = float(item.get('precio', 0.0))
+                cursor.execute("""
+                    INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (venta_id, pid, cant, precio, cant * precio))
+                
+                cursor.execute("UPDATE productos SET stock = stock - %s WHERE id = %s", (cant, pid))
+                
+        conexion.commit()
+        conexion.close()
+        
+        ticket_url = url_for('ticket_venta', venta_id=venta_id)
+        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
+    except Exception as e:
+        logger.error(f"Error procesando venta POS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/ventas/scan-push', methods=['POST'])
+def scan_push():
+    data = request.get_json() or {}
+    code = data.get('code')
+    if code:
+        RECENT_SCANS.append({'code': code, 'timestamp': time.time()})
+        if len(RECENT_SCANS) > 20:
+            RECENT_SCANS.pop(0)
+        return jsonify({'success': True, 'code': code})
+    return jsonify({'success': False, 'error': 'Código no enviado'}), 400
+
+
+@app.route('/ventas/scan-poll')
+def scan_poll():
+    last_time = float(request.args.get('since', 0))
+    scans = [s for s in RECENT_SCANS if s['timestamp'] > last_time]
+    return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
+
+
 # ─── CARRITO Y CHECKOUT TIENDA ───────────────────────────────────────────────
 
 @app.route('/carrito')
@@ -650,7 +916,7 @@ def ver_carrito():
                 items.append({
                     'id': pid,
                     'nombre': producto[1],
-                    'imagen': producto[7],
+                    'imagen': producto[7] if len(producto) > 7 else None,
                     'precio_unitario': precio_unitario,
                     'qty': qty,
                     'subtotal': subtotal,
@@ -770,7 +1036,7 @@ def checkout():
         items.append({
             'id': pid,
             'nombre': producto[1],
-            'imagen': producto[7],
+            'imagen': producto[7] if len(producto) > 7 else None,
             'qty': qty,
             'precio_unitario': precio_unitario,
             'subtotal': subtotal_item
