@@ -1,10 +1,17 @@
-import pymysql
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-def obtener_conexion():
-    return pymysql.connect(host='MASKOT.mysql.pythonanywhere-services.com',
-                           user='MASKOT',
-                           password='J161402i',
-                           db='MASKOT$NC')
+def get_db_connection():
+    connection = psycopg2.connect(
+        host=os.environ.get("DB_HOST", "db.zpgwjgslescslwlwrwdw.supabase.co"),
+        port=os.environ.get("DB_PORT", "5432"),
+        dbname=os.environ.get("DB_NAME", "postgres"),
+        user=os.environ.get("DB_USER", "postgres"),
+        password=os.environ.get("DB_PASSWORD"),
+        cursor_factory=RealDictCursor
+    )
+    return connection
 
 def obtener_tenant_id():
     """Retorna el tenant_id de la sesión Flask activa. Siempre devuelve un int."""

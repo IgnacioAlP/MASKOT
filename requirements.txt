@@ -1,5 +1,5 @@
 # Dependencias principales del proyecto MASKOT Veterinaria
-PyMySQL>=1.0.0
+psycopg2-binary
 Flask>=2.0.0
 
 # Dependencias opcionales para funcionalidades avanzadas
