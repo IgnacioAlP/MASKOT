@@ -24,8 +24,8 @@ from controladores import (
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
 # Obtener la ruta de la carpeta raíz del proyecto (MASKOT)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # Ruta de /api
-ROOT_DIR = os.path.dirname(BASE_DIR)                   # Ruta de /MASKOT
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # MASKOT/api
+ROOT_DIR = os.path.dirname(BASE_DIR)                   # MASKOT
 
 app = Flask(
     __name__,
@@ -33,8 +33,6 @@ app = Flask(
     static_folder=os.path.join(ROOT_DIR, 'static'),
     static_url_path='/static'
 )
-print(">>> Ruta static:", app.static_folder)
-print(">>> ¿Existe main.js?:", os.path.exists(os.path.join(app.static_folder, 'js', 'main.js')))
 
 # Configuración de cookies de sesión seguras
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')
