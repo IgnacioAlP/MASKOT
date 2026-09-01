@@ -26,12 +26,11 @@ from controladores import fidelizacion_controlador as fidelizacion
 
 app = Flask(__name__)
 # Leer SECRET_KEY desde variable de entorno para seguridad
-app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), '../templates'))
+app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')  # Cambia en prod y configura en el entorno
 
 # Configuración de cookies de sesión seguras
 # Session cookie security: enable secure cookies in production only (require HTTPS).
 # For local development (HTTP) we must keep this False so the browser accepts the session cookie.
-app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')  # Cambia en prod y configura en el entorno
 use_secure_cookies = os.environ.get('FLASK_ENV', '').lower() == 'production' or os.environ.get('USE_SECURE_COOKIES', '') == 'True'
 app.config['SESSION_COOKIE_SECURE'] = bool(use_secure_cookies)
 app.config['SESSION_COOKIE_HTTPONLY'] = True

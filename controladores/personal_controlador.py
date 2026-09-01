@@ -1,4 +1,4 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 from datetime import datetime
 
 def obtener_personal_por_usuario_id(usuario_id):
@@ -25,12 +25,13 @@ def obtener_personal_por_usuario_id(usuario_id):
 def insertar_personal(usuario_id, cargo, salario):
     """Inserta nuevo registro en personal"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         cursor = conexion.cursor()
         cursor.execute("""
-            INSERT INTO personal (usuario_id, cargo, salario, activo)
-            VALUES (%s, %s, %s, TRUE)
-        """, (usuario_id, cargo, salario))
+            INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
+            VALUES (%s, %s, %s, TRUE, %s)
+        """, (usuario_id, cargo, salario, tenant_id))
         conexion.commit()
         personal_id = cursor.lastrowid
         cursor.close()
@@ -47,6 +48,7 @@ def insertar_personal(usuario_id, cargo, salario):
 def obtener_empleados():
     """Obtiene todos los empleados registrados"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     empleados = []
     try:
         cursor = conexion.cursor()
@@ -54,8 +56,9 @@ def obtener_empleados():
             SELECT p.id, p.usuario_id, u.username, p.cargo, p.salario, p.activo, u.rol
             FROM personal p
             JOIN usuarios u ON p.usuario_id = u.id
+            WHERE p.tenant_id = %s
             ORDER BY u.username
-        """)
+        """, (tenant_id,))
         empleados = cursor.fetchall()
         cursor.close()
     except Exception as e:
@@ -157,6 +160,7 @@ def activar_empleado(personal_id):
 def obtener_empleados_activos():
     """Obtiene solo los empleados activos"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     empleados = []
     try:
         cursor = conexion.cursor()
@@ -164,9 +168,9 @@ def obtener_empleados_activos():
             SELECT p.id, u.username, p.cargo, p.salario
             FROM personal p
             JOIN usuarios u ON p.usuario_id = u.id
-            WHERE p.activo = TRUE
+            WHERE p.activo = TRUE AND p.tenant_id = %s
             ORDER BY u.username
-        """)
+        """, (tenant_id,))
         empleados = cursor.fetchall()
         cursor.close()
     except Exception as e:

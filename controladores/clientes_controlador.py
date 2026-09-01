@@ -1,16 +1,17 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 import hashlib
 
 def insertar_cliente(nombre, email, telefono, direccion, documento=None):
     """Inserta un nuevo cliente en la base de datos."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     cliente_id = None
     try:
         with conexion.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO clientes (nombre, email, telefono, direccion, documento, fecha_registro) 
-                   VALUES (%s, %s, %s, %s, %s, NOW())""",
-                (nombre, email, telefono, direccion, documento)
+                """INSERT INTO clientes (nombre, email, telefono, direccion, documento, fecha_registro, tenant_id) 
+                   VALUES (%s, %s, %s, %s, %s, NOW(), %s)""",
+                (nombre, email, telefono, direccion, documento, tenant_id)
             )
             cliente_id = cursor.lastrowid
         conexion.commit()
@@ -24,10 +25,11 @@ def insertar_cliente(nombre, email, telefono, direccion, documento=None):
 def obtener_cliente_por_email(email):
     """Obtiene un cliente por su email."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     cliente = None
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT id, nombre, email, telefono, direccion, documento FROM clientes WHERE email = %s", (email,))
+            cursor.execute("SELECT id, nombre, email, telefono, direccion, documento FROM clientes WHERE email = %s AND tenant_id = %s", (email, tenant_id))
             cliente = cursor.fetchone()
     finally:
         conexion.close()
@@ -36,6 +38,7 @@ def obtener_cliente_por_email(email):
 def guardar_tarjeta_cliente(cliente_id, numero_tarjeta, nombre_titular, expiracion, tipo_tarjeta):
     """Guarda una tarjeta de crédito/débito para un cliente (con número enmascarado por seguridad)."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         # Enmascarar número de tarjeta (solo mostrar últimos 4 dígitos)
         numero_limpio = numero_tarjeta.replace(' ', '').replace('-', '')
@@ -46,9 +49,9 @@ def guardar_tarjeta_cliente(cliente_id, numero_tarjeta, nombre_titular, expiraci
         
         with conexion.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO tarjetas_cliente (cliente_id, numero_enmascarado, numero_hash, nombre_titular, expiracion, tipo_tarjeta, fecha_registro) 
-                   VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
-                (cliente_id, numero_enmascarado, numero_hash, nombre_titular, expiracion, tipo_tarjeta)
+                """INSERT INTO tarjetas_cliente (cliente_id, numero_enmascarado, numero_hash, nombre_titular, expiracion, tipo_tarjeta, fecha_registro, tenant_id) 
+                   VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)""",
+                (cliente_id, numero_enmascarado, numero_hash, nombre_titular, expiracion, tipo_tarjeta, tenant_id)
             )
         conexion.commit()
     except Exception as e:
@@ -60,12 +63,13 @@ def guardar_tarjeta_cliente(cliente_id, numero_tarjeta, nombre_titular, expiraci
 def obtener_tarjetas_cliente(cliente_id):
     """Obtiene las tarjetas guardadas de un cliente."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     tarjetas = []
     try:
         with conexion.cursor() as cursor:
             cursor.execute(
-                "SELECT id, numero_enmascarado, nombre_titular, expiracion, tipo_tarjeta FROM tarjetas_cliente WHERE cliente_id = %s ORDER BY fecha_registro DESC",
-                (cliente_id,)
+                "SELECT id, numero_enmascarado, nombre_titular, expiracion, tipo_tarjeta FROM tarjetas_cliente WHERE cliente_id = %s AND tenant_id = %s ORDER BY fecha_registro DESC",
+                (cliente_id, tenant_id)
             )
             tarjetas = cursor.fetchall()
     finally:
@@ -75,10 +79,10 @@ def obtener_tarjetas_cliente(cliente_id):
 def obtener_historial_completo():
     """Obtiene el historial completo de clientes con sus citas y pedidos"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     historial = []
     try:
         with conexion.cursor() as cursor:
-            # Simplificamos la consulta para evitar problemas con UNION y tipos de datos
             cursor.execute("""
                 SELECT DISTINCT 
                     COALESCE(cl.id, 0) as cliente_id,
@@ -93,8 +97,9 @@ def obtener_historial_completo():
                     MAX(DATE(c.fecha)) as ultima_cita,
                     MAX(DATE(p.fecha_pedido)) as ultimo_pedido
                 FROM clientes cl
-                LEFT JOIN citas c ON cl.email = c.cliente_email
+                LEFT JOIN citas c ON cl.email = c.cliente_email AND c.tenant_id = %s
                 LEFT JOIN pedidos p ON cl.id = p.cliente_id
+                WHERE cl.tenant_id = %s
                 GROUP BY cl.id, cl.nombre, cl.email, cl.telefono, cl.direccion, cl.fecha_registro
                 
                 UNION ALL
@@ -112,12 +117,12 @@ def obtener_historial_completo():
                     MAX(DATE(c.fecha)) as ultima_cita,
                     NULL as ultimo_pedido
                 FROM citas c
-                LEFT JOIN clientes cl ON c.cliente_email = cl.email
-                WHERE cl.id IS NULL AND c.cliente_email IS NOT NULL
+                LEFT JOIN clientes cl ON c.cliente_email = cl.email AND cl.tenant_id = %s
+                WHERE cl.id IS NULL AND c.cliente_email IS NOT NULL AND c.tenant_id = %s
                 GROUP BY c.cliente_nombre, c.cliente_email
                 
                 ORDER BY ultima_cita DESC, ultimo_pedido DESC
-            """)
+            """, (tenant_id, tenant_id, tenant_id, tenant_id))
             historial = cursor.fetchall()
     finally:
         conexion.close()
@@ -200,6 +205,7 @@ def obtener_detalles_cliente(cliente_id=None, email=None):
 def insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal=None, igv=None, estado='pendiente'):
     """Inserta un nuevo pedido en la base de datos con cálculo de IGV."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     pedido_id = None
     try:
         # Si no se proporcionan subtotal e igv, calcularlos del total_final
@@ -210,18 +216,18 @@ def insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal=None, 
         with conexion.cursor() as cursor:
             # Insertar pedido con subtotal, IGV y total
             cursor.execute(
-                """INSERT INTO pedidos (cliente_id, subtotal, igv, total, metodo_pago, estado, fecha_pedido) 
-                   VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
-                (cliente_id, subtotal, igv, total_final, metodo_pago, estado)
+                """INSERT INTO pedidos (cliente_id, subtotal, igv, total, metodo_pago, estado, fecha_pedido, tenant_id) 
+                   VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)""",
+                (cliente_id, subtotal, igv, total_final, metodo_pago, estado, tenant_id)
             )
             pedido_id = cursor.lastrowid
             
             # Insertar detalles del pedido
             for item in items:
                 cursor.execute(
-                    """INSERT INTO detalle_pedidos (pedido_id, producto_id, cantidad, precio_unitario, subtotal) 
-                       VALUES (%s, %s, %s, %s, %s)""",
-                    (pedido_id, item['id'], item['qty'], item['precio_unitario'], item['subtotal'])
+                    """INSERT INTO detalle_pedidos (pedido_id, producto_id, cantidad, precio_unitario, subtotal, tenant_id) 
+                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (pedido_id, item['id'], item['qty'], item['precio_unitario'], item['subtotal'], tenant_id)
                 )
         
         conexion.commit()
@@ -235,10 +241,10 @@ def insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal=None, 
 def obtener_todos_clientes():
     """Obtiene todos los clientes únicos tanto de la tabla clientes como de citas"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     clientes = []
     try:
         with conexion.cursor() as cursor:
-            # Obtener clientes de ambas fuentes usando UNION
             cursor.execute("""
                 SELECT 
                     nombre,
@@ -248,7 +254,6 @@ def obtener_todos_clientes():
                     fecha_registro,
                     total_citas
                 FROM (
-                    -- Clientes de la tabla clientes con sus citas
                     SELECT DISTINCT 
                         cl.nombre as nombre,
                         cl.email as email,
@@ -257,12 +262,12 @@ def obtener_todos_clientes():
                         cl.fecha_registro,
                         COUNT(DISTINCT c.id) as total_citas
                     FROM clientes cl
-                    LEFT JOIN citas c ON cl.email = c.cliente_email
+                    LEFT JOIN citas c ON cl.email = c.cliente_email AND c.tenant_id = %s
+                    WHERE cl.tenant_id = %s
                     GROUP BY cl.id, cl.nombre, cl.email, cl.telefono, cl.direccion, cl.fecha_registro
                     
                     UNION
                     
-                    -- Clientes solo de citas (que no están en tabla clientes)
                     SELECT DISTINCT 
                         c.cliente_nombre as nombre,
                         c.cliente_email as email,
@@ -271,12 +276,12 @@ def obtener_todos_clientes():
                         NULL as fecha_registro,
                         COUNT(DISTINCT c.id) as total_citas
                     FROM citas c
-                    LEFT JOIN clientes cl ON c.cliente_email = cl.email
-                    WHERE cl.id IS NULL AND c.cliente_email IS NOT NULL
+                    LEFT JOIN clientes cl ON c.cliente_email = cl.email AND cl.tenant_id = %s
+                    WHERE cl.id IS NULL AND c.cliente_email IS NOT NULL AND c.tenant_id = %s
                     GROUP BY c.cliente_nombre, c.cliente_email
                 ) AS todos_clientes
                 ORDER BY nombre ASC
-            """)
+            """, (tenant_id, tenant_id, tenant_id, tenant_id))
             clientes = cursor.fetchall()
     finally:
         conexion.close()

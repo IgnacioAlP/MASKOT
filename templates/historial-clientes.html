@@ -61,7 +61,7 @@
                 <i class="fas fa-calendar-check"></i>
                 <div class="stat-info">
                     <h3 id="totalCitas">
-                        {{ historial|sum(attribute='6') or 0 }}
+                        {{ total_citas }}
                     </h3>
                     <p>Total Citas</p>
                 </div>
@@ -70,7 +70,7 @@
                 <i class="fas fa-shopping-cart"></i>
                 <div class="stat-info">
                     <h3 id="totalPedidos">
-                        {{ historial|sum(attribute='7') or 0 }}
+                        {{ total_pedidos }}
                     </h3>
                     <p>Total Pedidos</p>
                 </div>
@@ -79,7 +79,7 @@
                 <i class="fas fa-dollar-sign"></i>
                 <div class="stat-info">
                     <h3 id="ingresosTotales">
-                        S/. {{ "%.2f"|format(historial|sum(attribute='8') or 0) }}
+                        S/. {{ "%.2f"|format(total_gastado) }}
                     </h3>
                     <p>Ingresos Totales</p>
                 </div>

@@ -1,4 +1,4 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 import os
 from datetime import datetime
 
@@ -26,29 +26,29 @@ def _log(text):
         f.write(f"{now} | {text}\n")
 
 
-def _get_fidelizacion_row(cursor, email):
-    cursor.execute("SELECT id, cliente_email, cliente_nombre, contador FROM fidelizacion WHERE cliente_email = %s", (email,))
+def _get_fidelizacion_row(cursor, email, tenant_id):
+    cursor.execute("SELECT id, cliente_email, cliente_nombre, contador FROM fidelizacion WHERE cliente_email = %s AND tenant_id = %s", (email, tenant_id))
     return cursor.fetchone()
 
 
-def _create_or_update_fidelizacion(cursor, nombre, email):
-    row = _get_fidelizacion_row(cursor, email)
+def _create_or_update_fidelizacion(cursor, nombre, email, tenant_id):
+    row = _get_fidelizacion_row(cursor, email, tenant_id)
     if row:
         # incrementar contador
         new_count = row[3] + 1
         cursor.execute("UPDATE fidelizacion SET contador = %s, cliente_nombre = %s WHERE id = %s", (new_count, nombre, row[0]))
         return new_count
     else:
-        cursor.execute("INSERT INTO fidelizacion (cliente_email, cliente_nombre, contador) VALUES (%s, %s, %s)", (email, nombre, 1))
+        cursor.execute("INSERT INTO fidelizacion (cliente_email, cliente_nombre, contador, tenant_id) VALUES (%s, %s, %s, %s)", (email, nombre, 1, tenant_id))
         return 1
 
 
-def _insert_historial(cursor, email, evento, descripcion=''):
-    cursor.execute("INSERT INTO fidelizacion_historial (cliente_email, evento, descripcion) VALUES (%s, %s, %s)", (email, evento, descripcion))
+def _insert_historial(cursor, email, evento, descripcion='', tenant_id=1):
+    cursor.execute("INSERT INTO fidelizacion_historial (cliente_email, evento, descripcion, tenant_id) VALUES (%s, %s, %s, %s)", (email, evento, descripcion, tenant_id))
 
 
-def _get_cliente_telefono(cursor, email):
-    cursor.execute("SELECT telefono FROM clientes WHERE email = %s LIMIT 1", (email,))
+def _get_cliente_telefono(cursor, email, tenant_id):
+    cursor.execute("SELECT telefono FROM clientes WHERE email = %s AND tenant_id = %s LIMIT 1", (email, tenant_id))
     row = cursor.fetchone()
     if row:
         return row[0]
@@ -95,6 +95,7 @@ def obtener_alertas_recientes(limit=10):
     """Obtiene las alertas de fidelización más recientes para mostrar en el dashboard"""
     conexion = obtener_conexion()
     alertas = []
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
                 # Unir con la tabla clientes para obtener teléfono y nombre real cuando esté disponible.
@@ -106,11 +107,11 @@ def obtener_alertas_recientes(limit=10):
                         fh.descripcion,
                         fh.created_at
                     FROM fidelizacion_historial fh
-                    LEFT JOIN clientes c ON fh.cliente_email = c.email
-                    WHERE fh.evento IN ('alerta_5', 'alerta_10')
+                    LEFT JOIN clientes c ON fh.cliente_email = c.email AND c.tenant_id = fh.tenant_id
+                    WHERE fh.evento IN ('alerta_5', 'alerta_10') AND fh.tenant_id = %s
                     ORDER BY fh.created_at DESC
                     LIMIT %s
-                """, (limit,))
+                """, (tenant_id, limit))
                 alertas = cursor.fetchall()
     finally:
         conexion.close()
@@ -126,15 +127,16 @@ def sincronizar_fidelizacion_desde_citas():
     Esta función es idempotente y puede ejecutarse periódicamente.
     """
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             # Contar citas completadas agrupadas por cliente_email
             cursor.execute("""
                 SELECT cliente_email, cliente_nombre, COUNT(*) as total
                 FROM citas
-                WHERE estado = 'completada' AND cliente_email IS NOT NULL
+                WHERE estado = 'completada' AND cliente_email IS NOT NULL AND tenant_id = %s
                 GROUP BY cliente_email, cliente_nombre
-            """)
+            """, (tenant_id,))
             resultados = cursor.fetchall()
 
             for row in resultados:
@@ -143,7 +145,7 @@ def sincronizar_fidelizacion_desde_citas():
                 total = int(row[2] or 0)
 
                 # Obtener fila existente
-                cursor.execute("SELECT id, contador FROM fidelizacion WHERE cliente_email = %s", (email,))
+                cursor.execute("SELECT id, contador FROM fidelizacion WHERE cliente_email = %s AND tenant_id = %s", (email, tenant_id))
                 existente = cursor.fetchone()
 
                 if existente:
@@ -151,33 +153,33 @@ def sincronizar_fidelizacion_desde_citas():
                     if contador_actual != total:
                         cursor.execute("UPDATE fidelizacion SET contador = %s, cliente_nombre = %s WHERE id = %s", (total, nombre, fid_id))
                 else:
-                    cursor.execute("INSERT INTO fidelizacion (cliente_email, cliente_nombre, contador) VALUES (%s, %s, %s)", (email, nombre, total))
+                    cursor.execute("INSERT INTO fidelizacion (cliente_email, cliente_nombre, contador, tenant_id) VALUES (%s, %s, %s, %s)", (email, nombre, total, tenant_id))
 
                 # Generar alertas si corresponde: insertar en historial cuando se cruza 5 o 10
                 # Verificar si ya existe alerta_5/alerta_10 reciente para evitar duplicados
                 if total >= 5:
                     # Inssert or update alerta_5 para este email con el mensaje actualizado
-                    telefono = _get_cliente_telefono(cursor, email) or 'sin teléfono'
+                    telefono = _get_cliente_telefono(cursor, email, tenant_id) or 'sin teléfono'
                     mensaje_5 = f"¡Increíble! El {nombre} ha acumulado {total} citas. Tiene un 10% de descuento en su próximo baño. Contactarse a ({telefono})"
-                    cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_5' ORDER BY created_at DESC LIMIT 1", (email,))
+                    cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_5' AND tenant_id=%s ORDER BY created_at DESC LIMIT 1", (email, tenant_id))
                     row_alerta5 = cursor.fetchone()
                     if row_alerta5:
                         cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=NOW() WHERE id=%s", (mensaje_5, row_alerta5[0]))
                     else:
-                        _insert_historial(cursor, email, 'alerta_5', mensaje_5)
+                        _insert_historial(cursor, email, 'alerta_5', mensaje_5, tenant_id)
 
                 if total >= 10:
-                    telefono = _get_cliente_telefono(cursor, email) or 'sin teléfono'
+                    telefono = _get_cliente_telefono(cursor, email, tenant_id) or 'sin teléfono'
                     mensaje_10 = f"¡Increíble! El {nombre} ha acumulado {total} citas. Tiene un 20% de descuento en su próximo baño. Contactarse a ({telefono})"
-                    cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_10' ORDER BY created_at DESC LIMIT 1", (email,))
+                    cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_10' AND tenant_id=%s ORDER BY created_at DESC LIMIT 1", (email, tenant_id))
                     row_alerta10 = cursor.fetchone()
                     if row_alerta10:
                         cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=NOW() WHERE id=%s", (mensaje_10, row_alerta10[0]))
                     else:
-                        _insert_historial(cursor, email, 'alerta_10', mensaje_10)
+                        _insert_historial(cursor, email, 'alerta_10', mensaje_10, tenant_id)
                     # Reiniciar contador a 0 después de otorgar el beneficio
-                    cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s", (email,))
-                    _insert_historial(cursor, email, 'reinicio', f'contador reiniciado tras alcanzar {total}')
+                    cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s AND tenant_id = %s", (email, tenant_id))
+                    _insert_historial(cursor, email, 'reinicio', f'contador reiniciado tras alcanzar {total}', tenant_id)
 
             conexion.commit()
     finally:
@@ -196,11 +198,12 @@ def procesar_fidelizacion_para_cliente(cliente_nombre, cliente_email, enviar_aut
         return result
 
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             # Incrementar contador en la tabla fidelizacion
-            total = _create_or_update_fidelizacion(cursor, cliente_nombre, cliente_email)
-            _insert_historial(cursor, cliente_email, 'incremento', f'contador ahora {total}')
+            total = _create_or_update_fidelizacion(cursor, cliente_nombre, cliente_email, tenant_id)
+            _insert_historial(cursor, cliente_email, 'incremento', f'contador ahora {total}', tenant_id)
 
             # Commit temporal para persistir cambios
             conexion.commit()
@@ -209,17 +212,17 @@ def procesar_fidelizacion_para_cliente(cliente_nombre, cliente_email, enviar_aut
 
             mensaje = None
             if total == 5:
-                telefono = _get_cliente_telefono(cursor, cliente_email) or 'sin teléfono'
+                telefono = _get_cliente_telefono(cursor, cliente_email, tenant_id) or 'sin teléfono'
                 mensaje = f"¡Increíble! El {cliente_nombre} ha acumulado {total} citas. Tiene un 10% de descuento en su próximo baño. Contactarse a ({telefono})"
-                _insert_historial(cursor, cliente_email, 'alerta_5', mensaje)
+                _insert_historial(cursor, cliente_email, 'alerta_5', mensaje, tenant_id)
             elif total >= 10:
-                telefono = _get_cliente_telefono(cursor, cliente_email) or 'sin teléfono'
+                telefono = _get_cliente_telefono(cursor, cliente_email, tenant_id) or 'sin teléfono'
                 mensaje = f"¡Increíble! El {cliente_nombre} ha acumulado {total} citas. Tiene un 20% de descuento en su próximo baño. Contactarse a ({telefono})"
-                _insert_historial(cursor, cliente_email, 'alerta_10', mensaje)
+                _insert_historial(cursor, cliente_email, 'alerta_10', mensaje, tenant_id)
 
                 # Reiniciar contador a 0 automáticamente
-                cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s", (cliente_email,))
-                _insert_historial(cursor, cliente_email, 'reinicio', f'contador reiniciado tras alcanzar {total}')
+                cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s AND tenant_id = %s", (cliente_email, tenant_id))
+                _insert_historial(cursor, cliente_email, 'reinicio', f'contador reiniciado tras alcanzar {total}', tenant_id)
                 conexion.commit()
                 result['total_citas'] = 0
 

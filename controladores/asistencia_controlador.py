@@ -1,5 +1,5 @@
 from flask import render_template, request, redirect, url_for, session, flash, jsonify
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 from datetime import datetime, date, time, timedelta
 
 def asistencia():
@@ -26,6 +26,7 @@ def asistencia():
         
         asistencia_hoy = cursor.fetchone()
         
+        tenant_id = obtener_tenant_id()
         # Si es admin o admin, mostrar asistencia de todos
         if session.get('rol') in ['admin']:
             cursor.execute("""
@@ -34,9 +35,9 @@ def asistencia():
                 FROM asistencia a
                 LEFT JOIN personal p ON a.personal_id = p.id
                 LEFT JOIN usuarios u ON p.usuario_id = u.id
-                WHERE DATE(a.fecha) = %s
+                WHERE DATE(a.fecha) = %s AND a.tenant_id = %s
                 ORDER BY a.fecha DESC, a.hora_entrada DESC
-            """, (hoy,))
+            """, (hoy, tenant_id))
             asistencias_del_dia = cursor.fetchall()
         else:
             asistencias_del_dia = []
@@ -77,11 +78,12 @@ def marcar_entrada(personal_id=None, fecha=None, hora=None):
         # Fecha a usar
         hoy = fecha if fecha is not None else date.today()
 
+        tenant_id = obtener_tenant_id()
         # Verificar si ya marcó entrada hoy
         cursor.execute("""
             SELECT id FROM asistencia
-            WHERE personal_id = %s AND DATE(fecha) = %s
-        """, (personal_id, hoy))
+            WHERE personal_id = %s AND DATE(fecha) = %s AND tenant_id = %s
+        """, (personal_id, hoy, tenant_id))
 
         if cursor.fetchone():
             cursor.close()
@@ -104,9 +106,9 @@ def marcar_entrada(personal_id=None, fecha=None, hora=None):
             ahora_dt = datetime.now().time()
 
         cursor.execute("""
-            INSERT INTO asistencia (personal_id, fecha, hora_entrada)
-            VALUES (%s, %s, %s)
-        """, (personal_id, hoy, ahora_dt))
+            INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
+            VALUES (%s, %s, %s, %s)
+        """, (personal_id, hoy, ahora_dt, tenant_id))
 
         conexion.commit()
         cursor.close()
@@ -139,12 +141,14 @@ def marcar_salida(personal_id=None, fecha=None, hora=None):
         conexion = obtener_conexion()
         cursor = conexion.cursor()
 
+        tenant_id = obtener_tenant_id()
         hoy = fecha if fecha is not None else date.today()
         # Buscar registro de entrada de hoy sin salida
         cursor.execute("""
             SELECT id, hora_entrada FROM asistencia
             WHERE personal_id = %s AND DATE(fecha) = %s AND hora_salida IS NULL
-        """, (personal_id, hoy))
+            AND tenant_id = %s
+        """, (personal_id, hoy, tenant_id))
 
         asistencia = cursor.fetchone()
         if not asistencia:
@@ -198,15 +202,16 @@ def obtener_asistencias():
         conexion = obtener_conexion()
         cursor = conexion.cursor()
         
+        tenant_id = obtener_tenant_id()
         cursor.execute("""
             SELECT a.id, u.username, a.fecha, a.hora_entrada, a.hora_salida,
                    TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600 as horas_trabajadas
             FROM asistencia a
             LEFT JOIN personal p ON a.personal_id = p.id
             LEFT JOIN usuarios u ON p.usuario_id = u.id
-            WHERE DATE(a.fecha) BETWEEN %s AND %s
+            WHERE DATE(a.fecha) BETWEEN %s AND %s AND a.tenant_id = %s
             ORDER BY a.fecha DESC, a.hora_entrada DESC
-        """, (fecha_desde, fecha_hasta))
+        """, (fecha_desde, fecha_hasta, tenant_id))
         
         asistencias = cursor.fetchall()
         cursor.close()
@@ -239,6 +244,7 @@ def obtener_resumen_asistencia():
         conexion = obtener_conexion()
         cursor = conexion.cursor()
         
+        tenant_id = obtener_tenant_id()
         cursor.execute("""
             SELECT u.username,
                    COUNT(a.id) as dias_trabajados,
@@ -247,9 +253,9 @@ def obtener_resumen_asistencia():
             FROM usuarios u
             JOIN personal p ON u.id = p.usuario_id
             LEFT JOIN asistencia a ON p.id = a.personal_id AND DATE_FORMAT(a.fecha, '%Y-%m') = %s
-            WHERE p.activo = TRUE
+            WHERE p.activo = TRUE AND p.tenant_id = %s
             GROUP BY u.id, u.username
-        """, (mes,))
+        """, (mes, tenant_id))
         
         resumen = cursor.fetchall()
         cursor.close()
@@ -275,6 +281,7 @@ def obtener_historial_completo():
     historial = []
     try:
         cursor = conexion.cursor()
+        tenant_id = obtener_tenant_id()
         cursor.execute("""
             SELECT 
                 a.id,
@@ -294,9 +301,9 @@ def obtener_historial_completo():
             FROM asistencia a
             LEFT JOIN personal p ON a.personal_id = p.id
             LEFT JOIN usuarios u ON p.usuario_id = u.id
-            WHERE u.username IS NOT NULL
+            WHERE u.username IS NOT NULL AND a.tenant_id = %s
             ORDER BY a.fecha DESC, a.hora_entrada DESC
-        """)
+        """, (tenant_id,))
         historial = cursor.fetchall()
         cursor.close()
     except Exception as e:

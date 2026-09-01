@@ -1,4 +1,4 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 from datetime import datetime
 import json
 
@@ -13,14 +13,16 @@ def obtener_productos_venta():
     """Obtiene productos disponibles para venta"""
     conexion = obtener_conexion()
     productos = []
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT id, nombre, precio, cantidad, imagen
                 FROM productos 
                 WHERE activo = 1 AND cantidad > 0 AND tipo = 'venta'
+                AND tenant_id = %s
                 ORDER BY nombre
-            """)
+            """, (tenant_id,))
             productos = cursor.fetchall()
     finally:
         conexion.close()
@@ -57,9 +59,11 @@ def procesar_venta(datos_venta):
                 datos_venta['igv'] = tot['igv']
                 datos_venta['total'] = tot['total']
 
-            # Antes de insertar, validar stock disponible en productos
+            # Antes de insertar, validar stock disponible en productos (no aplica a servicios)
             productos = datos_venta.get('productos', []) or []
             for p in productos:
+                if p.get('tipo') == 'servicio':
+                    continue  # Los servicios no tienen stock
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
                 if cantidad <= 0:
@@ -79,25 +83,42 @@ def procesar_venta(datos_venta):
                     conexion.rollback()
                     return {'success': False, 'error': f'Stock insuficiente para el producto "{nombre_db}" (disponible {stock_actual})'}
 
+            tenant_id = obtener_tenant_id()
+            # Resolver nombre del vendedor para columnas NOT NULL legacy
+            vendedor_id = datos_venta.get('vendedor_id')
+            vendedor_nombre = None
+            if vendedor_id:
+                try:
+                    cursor.execute("SELECT username FROM usuarios WHERE id = %s", (vendedor_id,))
+                    row = cursor.fetchone()
+                    vendedor_nombre = row[0] if row else str(vendedor_id)
+                except Exception:
+                    vendedor_nombre = str(vendedor_id)
             # Insertar venta (incluye referencia_pago y datos de cliente si existen)
             cursor.execute("""
                 INSERT INTO ventas (
                     numero_venta, fecha_venta, subtotal, igv, total,
                     metodo_pago, monto_recibido, cambio_entregado, referencia_pago,
-                    estado, vendedor_id, productos, cliente_nombre, cliente_documento, notas
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    estado, vendedor_id, vendedor_nombre, productos,
+                    cliente_nombre, cliente_documento, notas,
+                    tenant_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 numero_venta, datetime.now(), datos_venta['subtotal'],
                 datos_venta['igv'], datos_venta['total'], datos_venta['metodo_pago'],
                 datos_venta.get('monto_recibido', None), datos_venta.get('cambio_entregado', datos_venta.get('cambio', 0)),
                 referencia,
-                'completada', datos_venta['vendedor_id'], json.dumps(productos), cliente_nombre, cliente_documento, notas
+                'completada', vendedor_id, vendedor_nombre, json.dumps(productos),
+                cliente_nombre, cliente_documento, notas,
+                tenant_id
             ))
 
             venta_id = cursor.lastrowid
 
-            # Reducir stock de los productos vendidos dentro de la misma transacción
+            # Reducir stock de los productos vendidos dentro de la misma transacción (no aplica a servicios)
             for p in productos:
+                if p.get('tipo') == 'servicio':
+                    continue  # Los servicios no tienen stock que descontar
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
                 cursor.execute("UPDATE productos SET cantidad = cantidad - %s WHERE id = %s AND cantidad >= %s", (cantidad, pid, cantidad))
@@ -265,10 +286,11 @@ def obtener_ventas_por_fecha(fecha_inicio=None, fecha_fin=None, vendedor_id=None
     Los parámetros fecha_inicio/fecha_fin deben estar en formato 'YYYY-MM-DD' o None.
     """
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            where = []
-            params = []
+            where = ['tenant_id = %s']
+            params = [tenant_id]
             if fecha_inicio:
                 where.append('DATE(fecha_venta) >= %s')
                 params.append(fecha_inicio)
@@ -378,17 +400,18 @@ def calcular_totales_venta(productos):
 def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
     """Devuelve estadísticas básicas de ventas en un rango de fechas."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            where = []
-            params = []
+            where = ['tenant_id = %s']
+            params = [tenant_id]
             if fecha_inicio:
                 where.append('DATE(fecha_venta) >= %s')
                 params.append(fecha_inicio)
             if fecha_fin:
                 where.append('DATE(fecha_venta) <= %s')
                 params.append(fecha_fin)
-            where_clause = (' WHERE ' + ' AND '.join(where)) if where else ''
+            where_clause = ' WHERE ' + ' AND '.join(where)
 
             # Total de ventas y suma total vendida
             cursor.execute(f"SELECT COUNT(*) as cnt, COALESCE(SUM(total),0) as total_vendido FROM ventas {where_clause}", tuple(params))
@@ -496,17 +519,18 @@ def obtener_estadisticas_ventas(fecha_inicio=None, fecha_fin=None):
 def obtener_productos_mas_vendidos(fecha_inicio=None, fecha_fin=None, limit=10):
     """Agrega los productos desde el campo JSON 'productos' de las ventas y retorna los más vendidos."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            where = []
-            params = []
+            where = ['tenant_id = %s']
+            params = [tenant_id]
             if fecha_inicio:
                 where.append('DATE(fecha_venta) >= %s')
                 params.append(fecha_inicio)
             if fecha_fin:
                 where.append('DATE(fecha_venta) <= %s')
                 params.append(fecha_fin)
-            where_clause = (' WHERE ' + ' AND '.join(where)) if where else ''
+            where_clause = ' WHERE ' + ' AND '.join(where)
 
             cursor.execute(f"SELECT productos FROM ventas {where_clause}", tuple(params))
             agregados = {}

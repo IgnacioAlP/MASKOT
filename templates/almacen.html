@@ -96,6 +96,28 @@
         <div id="formularioProducto" class="form-card" style="display: none;">
             <h2><i class="fas fa-plus-circle"></i> Nuevo Producto</h2>
             <form method="POST" class="product-form no-animation" enctype="multipart/form-data">
+
+                <!-- Código de barras con botón escáner -->
+                <div class="form-row" style="margin-bottom:0">
+                    <div class="form-group" style="flex:1">
+                        <label for="codigo_barra">
+                            <i class="fas fa-barcode"></i> Código de Barras
+                            <span style="font-weight:400;color:#888;font-size:.82em">(opcional)</span>
+                        </label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="text" id="codigo_barra" name="codigo_barra"
+                                   placeholder="Escaneá o escribí el código"
+                                   style="flex:1" oninput="buscarPorCodigo(this.value)">
+                            <button type="button" onclick="abrirEscaner()"
+                                    class="btn btn-primary"
+                                    style="white-space:nowrap;padding:10px 16px">
+                                <i class="fas fa-camera"></i> Escanear
+                            </button>
+                        </div>
+                        <small id="barcode-status" style="color:#888"></small>
+                    </div>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="nombre">
@@ -129,6 +151,16 @@
                     </div>
                 </div>
                 
+                <!-- Campo para precio, condicional (solo venta) -->
+                <div id="precioContainer" class="form-row" style="display: none;">
+                    <div class="form-group">
+                        <label for="precio">
+                            <i class="fas fa-tag"></i> Precio de Venta (S/)
+                        </label>
+                        <input type="number" id="precio" name="precio" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                </div>
+
                 <!-- Campo para imagen, condicional -->
                 <div id="imagenContainer" class="form-group" style="display: none;">
                     <label for="imagen">
@@ -156,6 +188,29 @@
                     </button>
                 </div>
             </form>
+        </div>
+
+        <!-- ===== MODAL ESCÁNER DE CÓDIGO DE BARRAS ===== -->
+        <div id="scannerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:none;align-items:center;justify-content:center">
+            <div style="background:#fff;border-radius:16px;max-width:440px;width:94%;padding:24px;position:relative">
+                <button onclick="cerrarEscaner()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:1.5rem;cursor:pointer;color:#aaa">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h3 style="margin:0 0 6px;font-size:1.1rem"><i class="fas fa-barcode me-2" style="color:#ffa301"></i>Escanear código de barras</h3>
+                <p style="font-size:.82rem;color:#888;margin:0 0 14px">Apunta la cámara al código de barras del producto</p>
+                <!-- ZXing usa un elemento <video> directamente -->
+                <div style="position:relative;background:#000;border-radius:10px;overflow:hidden">
+                    <video id="scanner-video" style="width:100%;display:block;max-height:260px;object-fit:cover" playsinline muted autoplay></video>
+                    <!-- guía visual -->
+                    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+                        <div style="border:2px solid #ffa301;border-radius:6px;width:76%;height:44%;box-shadow:0 0 0 2000px rgba(0,0,0,0.35)"></div>
+                    </div>
+                </div>
+                <div id="scanner-result" style="margin-top:12px;font-size:.88rem;text-align:center;color:#666"></div>
+                <button onclick="cerrarEscaner()" class="btn btn-outline" style="width:100%;margin-top:14px">
+                    <i class="fas fa-times me-1"></i>Cerrar
+                </button>
+            </div>
         </div>
         
         <!-- Lista de productos -->
@@ -385,6 +440,138 @@
 
 {% block scripts %}
 <script>
+    /*** ===== BARCODE SCANNER (BarcodeDetector nativo + getUserMedia) ===== ***/
+    let scannerOpen  = false;
+    let videoStream  = null;
+    let scanInterval = null;
+    let barcodeTimeout = null;
+
+    async function abrirEscaner() {
+        const modal   = document.getElementById('scannerModal');
+        const statusEl = document.getElementById('scanner-result');
+        const video   = document.getElementById('scanner-video');
+
+        modal.style.display = 'flex';
+        scannerOpen = true;
+        statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Accediendo a la cámara...';
+
+        /* ── 1. Verificar contexto seguro ── */
+        if (!window.isSecureContext) {
+            statusEl.innerHTML =
+                '<span style="color:#dc3545">🔒 La cámara requiere HTTPS o localhost.<br>' +
+                'Abrí la app desde el mismo dispositivo usando <strong>localhost</strong>.</span>';
+            return;
+        }
+
+        /* ── 2. Obtener stream de cámara ── */
+        try {
+            // Intenta cámara trasera (celular); si falla, usa cualquier cámara (laptop)
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+            } catch (_) {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            }
+            video.srcObject = videoStream;
+            await video.play();
+        } catch (err) {
+            let msg = 'Error al acceder a la cámara: ' + err.message;
+            if (err.name === 'NotAllowedError')  msg = '🚫 Permiso denegado. Habilitá la cámara en tu navegador.';
+            if (err.name === 'NotFoundError')    msg = '📷 No se encontró ninguna cámara en este dispositivo.';
+            statusEl.innerHTML = '<span style="color:#dc3545">' + msg + '</span>';
+            return;
+        }
+
+        /* ── 3. Escaneo ── */
+        if ('BarcodeDetector' in window) {
+            /* Chrome 83+, Edge 83+, Samsung Internet 13+, Opera 69+ */
+            let detector;
+            try {
+                detector = new BarcodeDetector({
+                    formats: ['ean_13','ean_8','upc_a','upc_e',
+                              'code_128','code_39','code_93',
+                              'codabar','itf','qr_code','data_matrix','aztec']
+                });
+            } catch (_) {
+                detector = new BarcodeDetector(); // formatos por defecto
+            }
+
+            statusEl.innerHTML =
+                '<i class="fas fa-camera" style="color:#6ccae2"></i> Apuntá la cámara al código de barras';
+
+            scanInterval = setInterval(async () => {
+                if (!scannerOpen || video.readyState < 2) return;
+                try {
+                    const hits = await detector.detect(video);
+                    if (hits.length > 0) {
+                        const code = hits[0].rawValue;
+                        clearInterval(scanInterval);
+                        cerrarEscaner();
+                        document.getElementById('codigo_barra').value = code;
+                        buscarPorCodigo(code);
+                    }
+                } catch (_) {}
+            }, 150);
+
+        } else {
+            /* Navegador sin BarcodeDetector — fallback manual con canvas + jscanify no disponible */
+            statusEl.innerHTML =
+                '<span style="color:#e67e22">⚠️ Tu navegador no soporta escaneo automático.<br>' +
+                'Usá <strong>Chrome</strong> o <strong>Edge</strong> para escanear, o escribí el código a mano.</span>';
+            /* Igual dejamos la cámara encendida para que el usuario vea el código y lo tipee */
+        }
+    }
+
+    function cerrarEscaner() {
+        scannerOpen = false;
+        clearInterval(scanInterval);
+        scanInterval = null;
+        const video = document.getElementById('scanner-video');
+        if (video && video.srcObject) {
+            video.srcObject.getTracks().forEach(t => t.stop());
+            video.srcObject = null;
+        }
+        document.getElementById('scannerModal').style.display = 'none';
+    }
+
+    // Debounced live lookup when user types in the barcode field
+    function buscarPorCodigo(codigo) {
+        clearTimeout(barcodeTimeout);
+        const status = document.getElementById('barcode-status');
+        codigo = (codigo || '').trim();
+        if (!codigo) { status.textContent = ''; return; }
+        barcodeTimeout = setTimeout(() => {
+            status.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+            fetch('/almacen/buscar-barcode?codigo=' + encodeURIComponent(codigo))
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) { status.textContent = ''; return; }
+                    if (data.found) {
+                        const p = data.producto;
+                        status.innerHTML = '<span style="color:#ffa301"><i class="fas fa-box-open me-1"></i>Producto encontrado: <strong>' + p.nombre + '</strong> — Stock actual: ' + p.cantidad + '</span>';
+                        document.getElementById('nombre').value = p.nombre;
+                        const tipoSel = document.getElementById('tipo');
+                        if (tipoSel) tipoSel.value = p.tipo;
+                        document.getElementById('stock_min').value = p.stock_min;
+                        if (p.tipo === 'venta') {
+                            document.getElementById('precio').value = p.precio || '';
+                            toggleImageField();
+                        }
+                    } else {
+                        status.innerHTML = '<span style="color:#28a745"><i class="fas fa-plus-circle me-1"></i>Código nuevo — completá los datos.</span>';
+                    }
+                })
+                .catch(() => { status.textContent = ''; });
+        }, 600);
+    }
+
+    // Close scanner modal on background click
+    document.getElementById('scannerModal').addEventListener('click', function(e) {
+        if (e.target === this) cerrarEscaner();
+    });
+
+    /*** ===== EXISTING FUNCTIONS ===== ***/
     function toggleFormulario() {
         const formulario = document.getElementById('formularioProducto');
         if (formulario.style.display === 'none') {
@@ -398,13 +585,17 @@
     function toggleImageField() {
         const tipoSelect = document.getElementById('tipo');
         const imagenContainer = document.getElementById('imagenContainer');
+        const precioContainer = document.getElementById('precioContainer');
         
         if (tipoSelect.value === 'venta') {
             imagenContainer.style.display = 'block';
+            precioContainer.style.display = 'flex';
         } else {
             imagenContainer.style.display = 'none';
+            precioContainer.style.display = 'none';
             // Limpiar el input de imagen cuando se cambia a stock
             document.getElementById('imagen').value = '';
+            document.getElementById('precio').value = '';
         }
     }
     

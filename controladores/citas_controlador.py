@@ -1,7 +1,8 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 
 def obtener_citas():
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     citas = []
     with conexion.cursor() as cursor:
         cursor.execute("""
@@ -15,9 +16,10 @@ def obtener_citas():
             LEFT JOIN servicios s ON cs.servicio_id = s.id
             LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
             LEFT JOIN mascotas m ON cm.mascota_id = m.id
+            WHERE c.tenant_id = %s
             GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado
             ORDER BY c.fecha, c.hora
-        """)
+        """, (tenant_id,))
         citas = cursor.fetchall()
     conexion.close()
     return citas
@@ -32,10 +34,11 @@ def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servici
             cliente_id = verificar_o_insertar_cliente(cursor, cliente_nombre, cliente_email)
             
             # Insertar cita principal
+            tenant_id = obtener_tenant_id()
             cursor.execute("""
-                INSERT INTO citas (cliente_id, cliente_nombre, cliente_email, fecha, hora, estado, observaciones) 
-                VALUES (%s, %s, %s, %s, %s, 'pendiente', %s)
-            """, (cliente_id, cliente_nombre, cliente_email, fecha, hora, observaciones))
+                INSERT INTO citas (cliente_id, cliente_nombre, cliente_email, fecha, hora, estado, observaciones, tenant_id) 
+                VALUES (%s, %s, %s, %s, %s, 'pendiente', %s, %s)
+            """, (cliente_id, cliente_nombre, cliente_email, fecha, hora, observaciones, tenant_id))
             cita_id = cursor.lastrowid
             
             # Insertar mascotas y vincular con la cita
@@ -63,20 +66,24 @@ def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servici
         conexion.close()
     return cita_id
 
-def verificar_o_insertar_cliente(cursor, nombre, email):
+def verificar_o_insertar_cliente(cursor, nombre, email, tenant_id=None):
     """Verifica si existe un cliente o lo crea"""
-    cursor.execute("SELECT id FROM clientes WHERE email = %s", (email,))
+    if tenant_id is None:
+        tenant_id = obtener_tenant_id()
+    cursor.execute("SELECT id FROM clientes WHERE email = %s AND tenant_id = %s", (email, tenant_id))
     cliente = cursor.fetchone()
     
     if cliente:
         return cliente[0]
     else:
-        cursor.execute("INSERT INTO clientes (nombre, email, fecha_registro) VALUES (%s, %s, NOW())", 
-                      (nombre, email))
+        cursor.execute("INSERT INTO clientes (nombre, email, fecha_registro, tenant_id) VALUES (%s, %s, NOW(), %s)", 
+                      (nombre, email, tenant_id))
         return cursor.lastrowid
 
-def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data):
+def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data, tenant_id=None):
     """Inserta o obtiene una mascota existente"""
+    if tenant_id is None:
+        tenant_id = obtener_tenant_id()
     nombre = mascota_data.get('nombre', '')
     especie = mascota_data.get('especie', '')
     raza = mascota_data.get('raza', '')
@@ -86,8 +93,8 @@ def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data):
     # Buscar mascota existente
     cursor.execute("""
         SELECT id FROM mascotas 
-        WHERE cliente_id = %s AND nombre = %s AND especie = %s AND activo = 1
-    """, (cliente_id, nombre, especie))
+        WHERE cliente_id = %s AND nombre = %s AND especie = %s AND activo = 1 AND tenant_id = %s
+    """, (cliente_id, nombre, especie, tenant_id))
     mascota = cursor.fetchone()
     
     if mascota:
@@ -101,9 +108,9 @@ def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data):
     else:
         # Insertar nueva mascota
         cursor.execute("""
-            INSERT INTO mascotas (cliente_id, nombre, especie, raza, edad, peso, fecha_registro) 
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
-        """, (cliente_id, nombre, especie, raza, edad, peso))
+            INSERT INTO mascotas (cliente_id, nombre, especie, raza, edad, peso, fecha_registro, tenant_id) 
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+        """, (cliente_id, nombre, especie, raza, edad, peso, tenant_id))
         return cursor.lastrowid
 
 # Mantener funciones de compatibilidad hacia atrás
@@ -160,12 +167,13 @@ def obtener_cita_por_id(id):
 def contar_citas_por_servicio_y_fecha(servicio_id, fecha):
     """Cuenta el número de citas para un servicio en una fecha específica."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     with conexion.cursor() as cursor:
         cursor.execute("""
             SELECT COUNT(DISTINCT c.id) FROM citas c
             JOIN citas_servicios cs ON c.id = cs.cita_id
-            WHERE cs.servicio_id = %s AND c.fecha = %s AND c.estado = 'pendiente'
-        """, (servicio_id, fecha))
+            WHERE cs.servicio_id = %s AND c.fecha = %s AND c.estado = 'pendiente' AND c.tenant_id = %s
+        """, (servicio_id, fecha, tenant_id))
         count = cursor.fetchone()[0]
     conexion.close()
     return count
@@ -177,6 +185,7 @@ def contar_citas_pendientes(servicio_id, fecha):
 def obtener_citas_por_fecha(fecha):
     """Obtiene todas las citas para una fecha específica."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     with conexion.cursor() as cursor:
         cursor.execute("""
             SELECT c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado,
@@ -188,10 +197,10 @@ def obtener_citas_por_fecha(fecha):
             LEFT JOIN servicios s ON cs.servicio_id = s.id
             LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
             LEFT JOIN mascotas m ON cm.mascota_id = m.id
-            WHERE c.fecha=%s 
+            WHERE c.fecha=%s AND c.tenant_id = %s
             GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado
             ORDER BY c.hora
-        """, (fecha,))
+        """, (fecha, tenant_id))
         citas = cursor.fetchall()
     conexion.close()
     return citas

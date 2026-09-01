@@ -1,8 +1,9 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 
 def obtener_servicios():
     """Obtiene todos los servicios disponibles con datos completos para la gestión"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     servicios = []
     try:
         with conexion.cursor() as cursor:
@@ -28,11 +29,11 @@ def obtener_servicios():
                        s.max_citas_dia,
                        COUNT(c.id) as total_citas
                 FROM servicios s
-                LEFT JOIN citas c ON s.id = c.servicio_id
-                WHERE s.activo = TRUE
+                LEFT JOIN citas c ON s.id = c.servicio_id AND c.tenant_id = %s
+                WHERE s.activo = TRUE AND s.tenant_id = %s
                 GROUP BY s.id, s.nombre, s.precio, s.duracion, s.descripcion, s.activo, s.max_citas_dia
                 ORDER BY s.nombre ASC
-            """)
+            """, (tenant_id, tenant_id))
             servicios = cursor.fetchall()
     except Exception as e:
         print(f"Error en obtener_servicios: {e}")
@@ -94,6 +95,7 @@ def obtener_max_citas_dia(servicio_id):
 def insertar_servicio(nombre, descripcion, max_citas_dia, precio=0.00, duracion=30):
     """Inserta un nuevo servicio"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             # Verificar si existen las columnas precio y duracion
@@ -101,7 +103,6 @@ def insertar_servicio(nombre, descripcion, max_citas_dia, precio=0.00, duracion=
             columns = [col[0] for col in cursor.fetchall()]
             
             if 'precio' not in columns or 'duracion' not in columns:
-                # Agregar las columnas si no existen
                 if 'precio' not in columns:
                     cursor.execute("ALTER TABLE servicios ADD COLUMN precio DECIMAL(10,2) DEFAULT 0.00 AFTER descripcion")
                 if 'duracion' not in columns:
@@ -109,9 +110,9 @@ def insertar_servicio(nombre, descripcion, max_citas_dia, precio=0.00, duracion=
                 conexion.commit()
             
             cursor.execute("""
-                INSERT INTO servicios (nombre, descripcion, precio, duracion, max_citas_dia, activo) 
-                VALUES (%s, %s, %s, %s, %s, TRUE)
-            """, (nombre, descripcion, precio, duracion, max_citas_dia))
+                INSERT INTO servicios (nombre, descripcion, precio, duracion, max_citas_dia, activo, tenant_id) 
+                VALUES (%s, %s, %s, %s, %s, TRUE, %s)
+            """, (nombre, descripcion, precio, duracion, max_citas_dia, tenant_id))
             conexion.commit()
             return True
     except Exception as e:

@@ -4,7 +4,7 @@ Controlador para el manejo de compras y historial de compras
 
 import json
 from datetime import datetime, date
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 
 def obtener_compras_por_fecha(fecha_inicio=None, fecha_fin=None, cliente_email=None, estado=None, limit=50, offset=0):
     """
@@ -12,6 +12,7 @@ def obtener_compras_por_fecha(fecha_inicio=None, fecha_fin=None, cliente_email=N
     """
     try:
         conexion = obtener_conexion()
+        tenant_id = obtener_tenant_id()
         cursor = conexion.cursor()
         
         # Construir query dinámicamente
@@ -27,10 +28,10 @@ def obtener_compras_por_fecha(fecha_inicio=None, fecha_fin=None, cliente_email=N
                 c.fecha_compra,
                 JSON_LENGTH(c.productos) as cantidad_productos
             FROM compras c
-            WHERE 1=1
+            WHERE c.tenant_id = %s
         """
         
-        params = []
+        params = [tenant_id]
         
         # Filtros opcionales
         if fecha_inicio:
@@ -193,8 +194,8 @@ def registrar_compra(cliente_nombre, cliente_email, cliente_telefono, productos,
             INSERT INTO compras (
                 cliente_nombre, cliente_email, cliente_telefono,
                 productos, subtotal, igv, total,
-                metodo_pago, estado, observaciones, vendedor_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                metodo_pago, estado, observaciones, vendedor_id, tenant_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             cliente_nombre,
             cliente_email,
@@ -206,7 +207,8 @@ def registrar_compra(cliente_nombre, cliente_email, cliente_telefono, productos,
             metodo_pago,
             'pagado',  # Estado por defecto
             observaciones,
-            vendedor_id
+            vendedor_id,
+            obtener_tenant_id()
         ))
         
         compra_id = cursor.lastrowid

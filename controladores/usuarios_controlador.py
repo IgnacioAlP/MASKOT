@@ -1,6 +1,9 @@
-from bd import obtener_conexion
+from bd import obtener_conexion, obtener_tenant_id
 import hashlib
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 def hash_password(password):
     """Genera un hash SHA-256 de la contraseña"""
@@ -13,7 +16,7 @@ def obtener_usuario_por_nombre(username):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, username, password, rol, activo, created_at 
+                SELECT id, username, password, rol, activo, tenant_id 
                 FROM usuarios 
                 WHERE username = %s
             """, (username,))
@@ -23,16 +26,18 @@ def obtener_usuario_por_nombre(username):
     return usuario
 
 def obtener_todos_usuarios():
-    """Obtiene todos los usuarios del sistema"""
+    """Obtiene todos los usuarios del tenant actual"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     usuarios = []
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT id, username, rol, activo, created_at
                 FROM usuarios 
+                WHERE tenant_id = %s
                 ORDER BY created_at DESC
-            """)
+            """, (tenant_id,))
             usuarios = cursor.fetchall()
     finally:
         conexion.close()
@@ -46,7 +51,7 @@ def verificar_credenciales(username, password):
         if password_hash == usuario[2]:  # comparar hash
             return {
                 'success': True,
-                'user': usuario,  # tupla completa del usuario
+                'user': usuario,  # tupla: (id, username, password, rol, activo, tenant_id)
                 'message': 'Autenticación exitosa'
             }
     
@@ -57,20 +62,21 @@ def verificar_credenciales(username, password):
     }
 
 def insertar_usuario(username, password, rol='empleado'):
-    """Inserta un nuevo usuario en el sistema"""
+    """Inserta un nuevo usuario en el tenant actual"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             password_hash = hash_password(password)
             cursor.execute("""
-                INSERT INTO usuarios (username, password, rol, activo, created_at)
-                VALUES (%s, %s, %s, TRUE, NOW())
-            """, (username, password_hash, rol))
+                INSERT INTO usuarios (username, password, rol, activo, created_at, tenant_id)
+                VALUES (%s, %s, %s, TRUE, NOW(), %s)
+            """, (username, password_hash, rol, tenant_id))
             conexion.commit()
             return cursor.lastrowid
     except Exception as e:
         conexion.rollback()
-        print(f"Error al insertar usuario: {e}")
+        logger.error(f"Error al insertar usuario: {e}")
         return None
     finally:
         conexion.close()
@@ -78,19 +84,20 @@ def insertar_usuario(username, password, rol='empleado'):
 def actualizar_password(user_id, nueva_password):
     """Actualiza la contraseña de un usuario"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             password_hash = hash_password(nueva_password)
             cursor.execute("""
                 UPDATE usuarios 
                 SET password = %s 
-                WHERE id = %s
-            """, (password_hash, user_id))
+                WHERE id = %s AND tenant_id = %s
+            """, (password_hash, user_id, tenant_id))
             conexion.commit()
             return True
     except Exception as e:
         conexion.rollback()
-        print(f"Error al actualizar contraseña: {e}")
+        logger.error(f"Error al actualizar contraseña: {e}")
         return False
     finally:
         conexion.close()
@@ -98,18 +105,19 @@ def actualizar_password(user_id, nueva_password):
 def desactivar_usuario(user_id):
     """Desactiva un usuario del sistema"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE usuarios 
                 SET activo = FALSE 
-                WHERE id = %s
-            """, (user_id,))
+                WHERE id = %s AND tenant_id = %s
+            """, (user_id, tenant_id))
             conexion.commit()
             return True
     except Exception as e:
         conexion.rollback()
-        print(f"Error al desactivar usuario: {e}")
+        logger.error(f"Error al desactivar usuario: {e}")
         return False
     finally:
         conexion.close()
@@ -117,18 +125,19 @@ def desactivar_usuario(user_id):
 def activar_usuario(user_id):
     """Reactiva un usuario del sistema"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE usuarios 
                 SET activo = TRUE 
-                WHERE id = %s
-            """, (user_id,))
+                WHERE id = %s AND tenant_id = %s
+            """, (user_id, tenant_id))
             conexion.commit()
             return True
     except Exception as e:
         conexion.rollback()
-        print(f"Error al activar usuario: {e}")
+        logger.error(f"Error al activar usuario: {e}")
         return False
     finally:
         conexion.close()
@@ -136,18 +145,19 @@ def activar_usuario(user_id):
 def cambiar_rol_usuario(user_id, nuevo_rol):
     """Cambia el rol de un usuario"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE usuarios 
                 SET rol = %s 
-                WHERE id = %s
-            """, (nuevo_rol, user_id))
+                WHERE id = %s AND tenant_id = %s
+            """, (nuevo_rol, user_id, tenant_id))
             conexion.commit()
             return True
     except Exception as e:
         conexion.rollback()
-        print(f"Error al cambiar rol: {e}")
+        logger.error(f"Error al cambiar rol: {e}")
         return False
     finally:
         conexion.close()
@@ -167,14 +177,15 @@ def existe_usuario(username):
 def obtener_usuario_por_id(user_id):
     """Obtiene un usuario por su ID"""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     usuario = None
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT id, username, rol, activo, created_at
                 FROM usuarios 
-                WHERE id = %s
-            """, (user_id,))
+                WHERE id = %s AND tenant_id = %s
+            """, (user_id, tenant_id))
             usuario = cursor.fetchone()
     finally:
         conexion.close()

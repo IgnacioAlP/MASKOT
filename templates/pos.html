@@ -272,12 +272,18 @@ label {
     <div style="background: rgba(255, 255, 255, 0.95); border-radius: 25px; padding: 30px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);">
         <div class="row">
             <div class="col-md-8" style="background: #ffffff; border-radius: 15px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
-                <h3 style="color: white; font-size: 24px; font-weight: 700; margin: 0; padding: 25px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; margin-bottom: 25px;">
-                    <i class="fas fa-box-open" style="color: white; margin-right: 15px; font-size: 1.3em;"></i> 
-                    Productos Disponibles
-                </h3>
-                
-                <!-- Filtros rápidos por categoría -->
+                <!-- Tabs productos / servicios -->
+                <div style="display: flex; margin: 0;">
+                    <button id="tab-productos" onclick="cambiarTab('productos')" style="flex:1; padding: 20px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; background: linear-gradient(135deg, #ffa301, #6ccae2); color: white; transition: all 0.3s ease;">
+                        <i class="fas fa-box-open"></i> Productos
+                    </button>
+                    <button id="tab-servicios" onclick="cambiarTab('servicios')" style="flex:1; padding: 20px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; background: #e9ecef; color: #6c757d; transition: all 0.3s ease;">
+                        <i class="fas fa-concierge-bell"></i> Servicios
+                    </button>
+                </div>
+
+                <!-- Panel Productos -->
+                <div id="panel-productos">
                 <div style="padding: 0 25px; margin-bottom: 20px;">
                     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
                         <button onclick="filtrarPorCategoria('todos')" class="filtro-btn" data-categoria="todos" 
@@ -321,9 +327,37 @@ label {
                 
                 <!-- Filtro de búsqueda -->
                 <div style="padding: 0 25px 25px 25px;">
-                    <div style="position: relative; margin-bottom: 20px;">
-                        <input type="text" id="filtro-productos" placeholder="🔍 Buscar productos..." onkeyup="filtrarProductos()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 50px 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500; transition: all 0.3s ease;" onfocus="this.style.borderColor='#ffa301'; this.style.boxShadow='0 0 0 4px rgba(255, 163, 1, 0.15)'" onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'">
-                        <i class="fas fa-search" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 16px;"></i>
+                    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px;">
+                        <div style="position: relative; flex: 1;">
+                            <input type="text" id="filtro-productos" placeholder="🔍 Buscar productos..." onkeyup="filtrarProductos()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 50px 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500; transition: all 0.3s ease;" onfocus="this.style.borderColor='#ffa301'; this.style.boxShadow='0 0 0 4px rgba(255, 163, 1, 0.15)'" onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'">
+                            <i class="fas fa-search" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 16px;"></i>
+                        </div>
+                        <button onclick="abrirEscanerPOS()" title="Escanear código de barras" style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 15px rgba(255,163,1,0.3); transition: all 0.3s ease;" onmouseover="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'" onmouseout="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'">
+                            <i class="fas fa-barcode"></i> Escanear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modal escáner POS -->
+                <div id="pos-scanner-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:9999; backdrop-filter:blur(5px);">
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#1a1a2e; border-radius:24px; padding:30px; max-width:420px; width:92%; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                            <h3 style="color:white; margin:0; font-size:20px; font-weight:700;"><i class="fas fa-barcode" style="color:#ffa301; margin-right:10px;"></i> Escanear Producto</h3>
+                            <button onclick="cerrarEscanerPOS()" style="background:rgba(255,255,255,0.15); border:none; color:white; width:36px; height:36px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+                        </div>
+                        <div style="position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:4/3;">
+                            <video id="pos-scanner-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+                            <!-- Guía de encuadre -->
+                            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:75%; height:30%; border:3px solid #ffa301; border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,0.5);"></div>
+                            <div style="position:absolute; bottom:14px; left:0; right:0; text-align:center; color:#ffa301; font-size:13px; font-weight:600;">Apunta el código al recuadro</div>
+                        </div>
+                        <div id="pos-scan-status" style="margin-top:16px; min-height:40px; text-align:center; color:#aaa; font-size:14px;"></div>
+                        <!-- También acepta entrada manual desde lector USB -->
+                        <div style="margin-top:14px;">
+                            <input type="text" id="pos-manual-barcode" placeholder="O ingresa / pega el código aquí…" autofocus
+                                   style="width:100%; border:2px solid #444; border-radius:12px; padding:12px 16px; font-size:15px; background:#2a2a3e; color:white; box-sizing:border-box;"
+                                   onkeydown="if(event.key==='Enter') posLookupCode(this.value.trim())">
+                        </div>
                     </div>
                 </div>
                 
@@ -352,7 +386,47 @@ label {
                     </div>
                     {% endfor %}
                 </div>
-            </div>
+                </div><!-- /panel-productos -->
+
+                <!-- Panel Servicios -->
+                <div id="panel-servicios" style="display:none;">
+                    <div style="padding: 25px 25px 0 25px;">
+                        <input type="text" id="filtro-servicios" placeholder="🔍 Buscar servicios..." onkeyup="filtrarServicios()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.1); color: #2c3e50; font-weight: 500; margin-bottom: 20px;">
+                    </div>
+                    <div id="servicios-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
+                        {% for servicio in servicios %}
+                        {% if servicio[5] %}
+                        <div class="servicio-card" data-nombre="{{ servicio[1]|lower }}"
+                             style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(108, 202, 226, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #6ccae2;"
+                             onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(108, 202, 226, 0.25)'; this.style.borderLeftColor='#ffa301';"
+                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(108, 202, 226, 0.15)'; this.style.borderLeftColor='#6ccae2';">
+                            <div style="margin-bottom: 15px;">
+                                <strong style="display: block; color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{ servicio[1] }}</strong>
+                                <span style="display: block; color: #6ccae2; font-size: 22px; font-weight: 800; margin-bottom: 8px;">S/ {{ "%.2f"|format(servicio[2]) }}</span>
+                                {% if servicio[3] %}<span style="color: #6c757d; font-size: 13px;">⏱ {{ servicio[3] }} min</span>{% endif %}
+                                <span style="color: #6ccae2; font-size: 13px; font-weight: 600; background: rgba(108, 202, 226, 0.1); padding: 4px 12px; border-radius: 8px; display: inline-block; margin-left: 8px;">Servicio</span>
+                            </div>
+                            {% if servicio[4] %}
+                            <p style="color: #6c757d; font-size: 14px; margin-bottom: 15px;">{{ servicio[4][:80] }}{% if servicio[4]|length > 80 %}…{% endif %}</p>
+                            {% endif %}
+                            <button style="background: linear-gradient(135deg, #6ccae2, #5ab8d9); border: none; border-radius: 15px; color: white; padding: 14px 24px; font-weight: 700; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; text-transform: uppercase; transition: all 0.4s ease; box-shadow: 0 8px 25px rgba(108, 202, 226, 0.3);"
+                                    onmouseover="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'; this.style.transform='translateY(-2px)';"
+                                    onmouseout="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'; this.style.transform='translateY(0)';"
+                                    onclick='agregarServicio({{ servicio[0] }}, "{{ servicio[1].replace("\"", "\\\"") }}", {{ servicio[2] }})'>
+                                <i class="fas fa-plus"></i> Agregar
+                            </button>
+                        </div>
+                        {% endif %}
+                        {% else %}
+                        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #adb5bd;">
+                            <i class="fas fa-concierge-bell" style="font-size: 48px; margin-bottom: 15px; display: block;"></i>
+                            <p style="font-size: 16px;">No hay servicios disponibles</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div><!-- /panel-servicios -->
+
+            </div><!-- /col-md-8 -->
             
             <div class="col-md-4" style="background: #ffffff; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
                 <h2 style="color: white; font-size: 24px; font-weight: 700; margin: 0; padding: 25px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; justify-content: center; margin-bottom: 25px;">
@@ -368,6 +442,47 @@ label {
                     </div>
                     
                     <div id="carrito-items" style="display: none;"></div>
+                    
+                    <!-- Campo nombre del cliente con autocomplete -->
+                    <div style="background: #f5f5f5; border-radius: 15px; padding: 20px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5 style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center;">
+                            <i class="fas fa-user" style="color: #6ccae2; margin-right: 10px;"></i> Cliente (opcional)
+                        </h5>
+                        <div style="position: relative;" id="cliente-autocomplete-wrap">
+                            <input type="text" id="cliente_nombre"
+                                   placeholder="Buscar cliente por nombre o email..."
+                                   autocomplete="off"
+                                   style="border: 2px solid #e9ecef; border-radius: 12px; padding: 12px 16px; font-size: 15px; background: white; width: 100%; color: #2c3e50; box-sizing: border-box;"
+                                   onfocus="this.style.borderColor='#6ccae2';posClienteBuscar(this.value)"
+                                   onblur="this.style.borderColor='#e9ecef'; setTimeout(posClienteCerrar,200)"
+                                   oninput="posClienteBuscar(this.value)">
+                            <input type="hidden" id="cliente_id" value="">
+                            <!-- Dropdown de resultados -->
+                            <div id="cliente-dropdown"
+                                 style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #ddd; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.12); z-index:1000; max-height:220px; overflow-y:auto; margin-top:4px;"></div>
+                        </div>
+                        <button type="button" onclick="abrirModalNuevoCliente()"
+                                style="margin-top:10px; background:none; border:1px solid #6ccae2; color:#6ccae2; border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer;">
+                            <i class="fas fa-user-plus"></i> Registrar nuevo cliente
+                        </button>
+                    </div>
+
+                    <!-- Modal registro de nuevo cliente -->
+                    <div id="modal-nuevo-cliente" style="display:none; position:fixed; top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:3000;align-items:center;justify-content:center;">
+                        <div style="background:white;border-radius:18px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                            <h5 style="margin:0 0 20px;color:#2c3e50;font-size:1.2rem;"><i class="fas fa-user-plus" style="color:#6ccae2;margin-right:8px;"></i>Nuevo Cliente</h5>
+                            <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Nombre *</label>
+                            <input type="text" id="nc-nombre" placeholder="Nombre completo" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px;box-sizing:border-box;">
+                            <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Email</label>
+                            <input type="email" id="nc-email" placeholder="correo@ejemplo.com" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px;box-sizing:border-box;">
+                            <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Teléfono</label>
+                            <input type="text" id="nc-telefono" placeholder="999 999 999" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:20px;box-sizing:border-box;">
+                            <div style="display:flex;gap:12px;">
+                                <button type="button" onclick="cerrarModalNuevoCliente()" style="flex:1;padding:12px;border:1px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:14px;">Cancelar</button>
+                                <button type="button" onclick="guardarNuevoCliente()" style="flex:1;padding:12px;border:none;border-radius:10px;background:#6ccae2;color:white;cursor:pointer;font-size:14px;font-weight:600;">Guardar</button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
                         <h5 style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
@@ -493,6 +608,145 @@ document.getElementById('monto1')?.addEventListener('input', () => {
 
 // Ejecutar setup inicial si está disponible
 window.cambiarMetodoPago?.();
+
+// ─── Tab switcher: Productos / Servicios ───────────────────────────────────
+function cambiarTab(tab) {
+    const panelProd = document.getElementById('panel-productos');
+    const panelServ = document.getElementById('panel-servicios');
+    const btnProd = document.getElementById('tab-productos');
+    const btnServ = document.getElementById('tab-servicios');
+    if (tab === 'servicios') {
+        panelProd.style.display = 'none';
+        panelServ.style.display = 'block';
+        btnProd.style.background = '#e9ecef'; btnProd.style.color = '#6c757d';
+        btnServ.style.background = 'linear-gradient(135deg,#6ccae2,#5ab8d9)'; btnServ.style.color = 'white';
+    } else {
+        panelServ.style.display = 'none';
+        panelProd.style.display = 'block';
+        btnServ.style.background = '#e9ecef'; btnServ.style.color = '#6c757d';
+        btnProd.style.background = 'linear-gradient(135deg,#ffa301,#6ccae2)'; btnProd.style.color = 'white';
+    }
+}
+
+// ─── Autocomplete de clientes en POS ──────────────────────────────────────
+let _clienteTimer = null;
+function posClienteBuscar(q) {
+    clearTimeout(_clienteTimer);
+    _clienteTimer = setTimeout(() => {
+        fetch('/api/clientes-buscar?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) return;
+                posClienteRenderDropdown(data.clientes, q);
+            })
+            .catch(() => {});
+    }, 250);
+}
+
+function posClienteRenderDropdown(clientes, q) {
+    const dd = document.getElementById('cliente-dropdown');
+    if (!dd) return;
+    if (clientes.length === 0 && !q) { dd.style.display = 'none'; return; }
+    let html = '';
+    clientes.forEach(c => {
+        const sub = [c.email, c.telefono].filter(Boolean).join(' · ');
+        html += `<div class="pc-item" onclick="posClienteSeleccionar('${c.nombre.replace(/'/g,"\\'")}','${(c.email||'').replace(/'/g,"\\'")}','${(c.telefono||'').replace(/'/g,"\\'")}','')"`
+              + ` style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">`
+              + `<strong>${c.nombre}</strong>`
+              + (sub ? `<br><span style="color:#888;font-size:12px;">${sub}</span>` : '')
+              + `</div>`;
+    });
+    if (q) {
+        html += `<div onclick="abrirModalNuevoClienteConNombre('${q.replace(/'/g,"\\'")}')"`
+              + ` style="padding:10px 14px;cursor:pointer;color:#6ccae2;font-size:14px;font-weight:600;">`
+              + `<i class="fas fa-user-plus"></i> Registrar "${q}" como nuevo cliente</div>`;
+    }
+    dd.innerHTML = html;
+    dd.style.display = 'block';
+    // Hover effect
+    dd.querySelectorAll('.pc-item').forEach(el => {
+        el.addEventListener('mouseenter', () => el.style.background = '#f0f9ff');
+        el.addEventListener('mouseleave', () => el.style.background = 'white');
+    });
+}
+
+function posClienteSeleccionar(nombre, email, telefono, id) {
+    document.getElementById('cliente_nombre').value = nombre;
+    document.getElementById('cliente_id').value = id || '';
+    document.getElementById('cliente-dropdown').style.display = 'none';
+}
+
+function posClienteCerrar() {
+    const dd = document.getElementById('cliente-dropdown');
+    if (dd) dd.style.display = 'none';
+}
+
+function abrirModalNuevoCliente() {
+    document.getElementById('modal-nuevo-cliente').style.display = 'flex';
+    document.getElementById('nc-nombre').focus();
+}
+
+function abrirModalNuevoClienteConNombre(nombre) {
+    posClienteCerrar();
+    document.getElementById('nc-nombre').value = nombre;
+    document.getElementById('modal-nuevo-cliente').style.display = 'flex';
+}
+
+function cerrarModalNuevoCliente() {
+    document.getElementById('modal-nuevo-cliente').style.display = 'none';
+}
+
+function guardarNuevoCliente() {
+    const nombre = (document.getElementById('nc-nombre').value || '').trim();
+    const email = (document.getElementById('nc-email').value || '').trim();
+    const telefono = (document.getElementById('nc-telefono').value || '').trim();
+    if (!nombre) { alert('El nombre es requerido.'); return; }
+    fetch('/api/clientes-registrar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nombre, email, telefono})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            posClienteSeleccionar(data.nombre, data.email, data.telefono, data.cliente_id);
+            cerrarModalNuevoCliente();
+            document.getElementById('nc-nombre').value = '';
+            document.getElementById('nc-email').value = '';
+            document.getElementById('nc-telefono').value = '';
+            posToast?.('✅ Cliente "' + data.nombre + '" registrado', '#28a745');
+        } else {
+            alert(data.error || 'Error al registrar cliente.');
+        }
+    })
+    .catch(() => alert('Error de red al registrar cliente.'));
+}
+
+// Cerrar modal al hacer clic fuera
+document.getElementById('modal-nuevo-cliente').addEventListener('click', function(e) {
+    if (e.target === this) cerrarModalNuevoCliente();
+});
+
+// ─── Agrega un servicio al carrito (tipo: 'servicio') ──────────────────────
+window.agregarServicio = function(id, nombre, precio) {
+    const item = window.carrito.find(p => p.tipo === 'servicio' && p.id === id);
+    if (item) {
+        item.cantidad += 1;
+    } else {
+        window.carrito.push({ id: id, nombre: nombre, precio: precio, cantidad: 1, tipo: 'servicio' });
+    }
+    window.actualizarCarrito?.();
+    window.actualizarBotonPagar?.();
+    posToast?.('✅ ' + nombre + ' agregado', '#28a745');
+};
+
+// ─── Filtro de búsqueda de servicios ──────────────────────────────────────
+function filtrarServicios() {
+    const q = (document.getElementById('filtro-servicios')?.value || '').toLowerCase();
+    document.querySelectorAll('.servicio-card').forEach(card => {
+        card.style.display = card.dataset.nombre.includes(q) ? '' : 'none';
+    });
+}
 </script>
 
 <!-- Diagnostic helper: fetch main.js and log first chars to detect if server returns HTML -->
@@ -508,6 +762,150 @@ fetch('/static/js/main.js', {cache: 'no-store'})
         }
     })
     .catch(err => console.error('[diag] Error al fetch /static/js/main.js:', err));
+</script>
+
+<script>
+/* =====================================================================
+   ESCÁNER DE CÓDIGO DE BARRAS — POS
+   - Abre cámara del dispositivo actual (BarcodeDetector API)
+   - Acepta lector USB / manual
+   - Sincronización en tiempo real vía polling /ventas/scan-poll
+   ===================================================================== */
+
+// ID único por pestaña/dispositivo para evitar que el dispositivo que escanó
+// reciba de vuelta su propio escaneo desde la cola del servidor.
+const POS_DEVICE_ID = (function() {
+    let id = sessionStorage.getItem('pos_device_id');
+    if (!id) {
+        id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+        sessionStorage.setItem('pos_device_id', id);
+    }
+    return id;
+})();
+
+let posStream = null;
+let posScanInterval = null;
+let posDetector = null;
+let posPollTimer = null;
+
+// Toast notification
+function posToast(msg, color) {
+    let t = document.getElementById('pos-toast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'pos-toast';
+        t.style.cssText = 'position:fixed;bottom:30px;right:30px;z-index:99999;padding:14px 22px;border-radius:14px;font-size:15px;font-weight:700;color:white;box-shadow:0 8px 25px rgba(0,0,0,0.25);transition:opacity .4s;opacity:0;pointer-events:none;';
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = color || '#ffa301';
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+async function abrirEscanerPOS() {
+    document.getElementById('pos-scanner-modal').style.display = 'block';
+    document.getElementById('pos-manual-barcode').value = '';
+    document.getElementById('pos-scan-status').textContent = '';
+    setTimeout(() => document.getElementById('pos-manual-barcode').focus(), 150);
+
+    if (!('BarcodeDetector' in window)) {
+        document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ Tu navegador no soporta detección de cámara. Usa el campo manual o un lector USB.</span>';
+        return;
+    }
+    try {
+        posDetector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','codabar','itf','qr_code','data_matrix'] });
+    } catch {
+        document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ BarcodeDetector no disponible. Usa el campo manual.</span>';
+        return;
+    }
+    try {
+        posStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+        const video = document.getElementById('pos-scanner-video');
+        video.srcObject = posStream;
+        await video.play();
+        document.getElementById('pos-scan-status').innerHTML = '<span style="color:#6ccae2">📷 Cámara activa — apunta al código de barras</span>';
+        posScanInterval = setInterval(async () => {
+            if (!posStream) return;
+            try {
+                const barcodes = await posDetector.detect(video);
+                if (barcodes && barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    clearInterval(posScanInterval);
+                    posScanInterval = null;
+                    cerrarEscanerPOS();
+                    posLookupCode(code);
+                }
+            } catch { /* ignore frame errors */ }
+        }, 150);
+    } catch (e) {
+        document.getElementById('pos-scan-status').innerHTML = '<span style="color:#dc3545">❌ No se pudo acceder a la cámara. Usa el campo manual.</span>';
+    }
+}
+
+function cerrarEscanerPOS() {
+    document.getElementById('pos-scanner-modal').style.display = 'none';
+    if (posScanInterval) { clearInterval(posScanInterval); posScanInterval = null; }
+    if (posStream) { posStream.getTracks().forEach(t => t.stop()); posStream = null; }
+    const v = document.getElementById('pos-scanner-video');
+    if (v) { v.srcObject = null; }
+}
+
+function posLookupCode(codigo) {
+    if (!codigo) return;
+    document.getElementById('pos-manual-barcode').value = '';
+    fetch('/almacen/buscar-barcode?codigo=' + encodeURIComponent(codigo))
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success || !data.found) {
+                posToast('❌ Producto no encontrado: ' + codigo, '#dc3545');
+                return;
+            }
+            const p = data.producto;
+            window.agregarProducto(p.id, p.nombre, p.precio);
+            posToast('✅ ' + p.nombre + ' — S/ ' + parseFloat(p.precio).toFixed(2), '#28a745');            // Notificar a otros dispositivos (laptop ↔ celular sync)
+            fetch('/ventas/scan-push', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({codigo: codigo, device_id: POS_DEVICE_ID})
+            }).catch(() => {});        })
+        .catch(() => posToast('❌ Error al buscar producto', '#dc3545'));
+}
+
+// Cerrar modal al hacer clic fuera
+document.getElementById('pos-scanner-modal').addEventListener('click', function(e) {
+    if (e.target === this) cerrarEscanerPOS();
+});
+
+/* =====================================================================
+   POLLING: SINCRONIZACIÓN EN TIEMPO REAL (celular → laptop)
+   El celular llama a /ventas/scan-push con el código escaneado.
+   Este POS hace polling a /ventas/scan-poll cada 1.5 s para recibir
+   los productos encolados desde otro dispositivo.
+   ===================================================================== */
+function iniciarPollingRemoto() {
+    posPollTimer = setInterval(() => {
+        fetch('/ventas/scan-poll?device_id=' + encodeURIComponent(POS_DEVICE_ID))
+            .then(r => r.json())
+            .then(data => {
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        window.agregarProducto(item.id, item.nombre, item.precio);
+                        posToast('\ud83d\udcf1 ' + item.nombre + ' escaneado desde otro dispositivo', '#6ccae2');
+                    });
+                }
+            })
+            .catch(() => { /* ignore network errors silently */ });
+    }, 1500);
+}
+
+// Iniciar polling cuando la página carga
+document.addEventListener('DOMContentLoaded', iniciarPollingRemoto);
+// Fallback si DOMContentLoaded ya pasó
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(iniciarPollingRemoto, 0);
+}
 </script>
 
 {% endblock %}
