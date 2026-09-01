@@ -68,9 +68,12 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(m
 logger = logging.getLogger(__name__)
 
 # Configuración para uploads
-UPLOAD_FOLDER = 'static/images'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Detecta si está corriendo en Vercel o en local
+if os.environ.get('VERCEL'):
+    UPLOAD_FOLDER = '/tmp/images'
+else:
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../static/images')
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Manejador de errores global
