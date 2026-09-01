@@ -1,6 +1,5 @@
 import os
 import psycopg2
-from psycopg2.extras import RealDictCursor
 
 def obtener_conexion():
     return psycopg2.connect(
@@ -9,11 +8,11 @@ def obtener_conexion():
         dbname=os.environ.get("DB_NAME", "postgres"),
         user=os.environ.get("DB_USER", "postgres.zpgwjgslescslwlwrwdw"),
         password=os.environ.get("DB_PASSWORD"),
-        sslmode="require",
-        cursor_factory=RealDictCursor
+        sslmode="require"
     )
 
 def obtener_tenant_id():
+    """Retorna el tenant_id de la sesión Flask activa. Siempre devuelve un int."""
     try:
         from flask import session
         tid = session.get('tenant_id', 1)
