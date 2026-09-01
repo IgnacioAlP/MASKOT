@@ -2,7 +2,7 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-def get_db_connection():
+def obtener_conexion():
     connection = psycopg2.connect(
         host=os.environ.get("DB_HOST", "db.zpgwjgslescslwlwrwdw.supabase.co"),
         port=os.environ.get("DB_PORT", "5432"),
