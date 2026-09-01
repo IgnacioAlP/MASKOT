@@ -42,10 +42,18 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(m
 logger = logging.getLogger(__name__)
 
 # Configuración para uploads
-UPLOAD_FOLDER = 'static/images'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+# Configuración de carpeta de subidas compatible con Vercel
+if os.environ.get('VERCEL'):
+    UPLOAD_FOLDER = '/tmp/uploads'
+else:
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'static', 'images')
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except Exception:
+    pass
 
 # Sincronización cross-device de escaneos en tiempo real.
 # Cada dispositivo tiene su propia cola para recibir productos escaneados por OTROS dispositivos.
