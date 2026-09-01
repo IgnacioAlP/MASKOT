@@ -1,0 +1,485 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Compras - MASKOT Veterinaria{% endblock %}
+
+{% block content %}
+<section class="compras-section py-4">
+    <div class="container">
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1>
+                        <i class="fas fa-shopping-cart text-primary me-2"></i>
+                        Historial de Compras
+                    </h1>
+                    <div class="header-actions">
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filtrosModal">
+                            <i class="fas fa-filter me-2"></i>Filtros
+                        </button>
+                        <button class="btn btn-success" onclick="exportarCompras()">
+                            <i class="fas fa-download me-2"></i>Exportar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Estadísticas Rápidas -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <i class="fas fa-receipt text-primary fa-2x mb-2"></i>
+                        <h5 class="card-title">{{ estadisticas.total_compras }}</h5>
+                        <p class="card-text text-muted">Total Compras</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <i class="fas fa-dollar-sign text-success fa-2x mb-2"></i>
+                        <h5 class="card-title">${{ "%.2f"|format(estadisticas.total_vendido) }}</h5>
+                        <p class="card-text text-muted">Total Vendido</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <i class="fas fa-chart-line text-info fa-2x mb-2"></i>
+                        <h5 class="card-title">${{ "%.2f"|format(estadisticas.promedio_venta) }}</h5>
+                        <p class="card-text text-muted">Promedio por Venta</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body">
+                        <i class="fas fa-check-circle text-warning fa-2x mb-2"></i>
+                        <h5 class="card-title">${{ "%.2f"|format(estadisticas.total_pagado) }}</h5>
+                        <p class="card-text text-muted">Total Pagado</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Filtros Activos -->
+        {% if filtros.fecha_inicio or filtros.fecha_fin or filtros.cliente_email or filtros.estado %}
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-info d-flex align-items-center">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span class="me-auto">
+                        Filtros activos:
+                        {% if filtros.fecha_inicio %}<span class="badge bg-primary ms-1">Desde: {{ filtros.fecha_inicio }}</span>{% endif %}
+                        {% if filtros.fecha_fin %}<span class="badge bg-primary ms-1">Hasta: {{ filtros.fecha_fin }}</span>{% endif %}
+                        {% if filtros.cliente_email %}<span class="badge bg-primary ms-1">Cliente: {{ filtros.cliente_email }}</span>{% endif %}
+                        {% if filtros.estado %}<span class="badge bg-primary ms-1">Estado: {{ filtros.estado|title }}</span>{% endif %}
+                    </span>
+                    <a href="{{ url_for('historial_compras') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-times me-1"></i>Limpiar
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Tabla de Compras -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-list me-2"></i>Listado de Compras
+                            </h5>
+                            <div class="search-box">
+                                <input type="text" id="buscarCompra" class="form-control" placeholder="Buscar por cliente..." style="width: 250px;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if compras %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="tablaCompras">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Cliente</th>
+                                        <th>Email</th>
+                                        <th>Productos</th>
+                                        <th>Total</th>
+                                        <th>Método Pago</th>
+                                        <th>Estado</th>
+                                        <th>Fecha</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for compra in compras %}
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-secondary">#{{ compra[0] }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <i class="fas fa-user text-muted me-2"></i>
+                                                <div>
+                                                    <div class="fw-semibold">{{ compra[1] }}</div>
+                                                    {% if compra[3] %}
+                                                    <small class="text-muted">{{ compra[3] }}</small>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if compra[2] %}
+                                            <a href="mailto:{{ compra[2] }}" class="text-decoration-none">
+                                                {{ compra[2] }}
+                                            </a>
+                                            {% else %}
+                                            <span class="text-muted">No especificado</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ compra[8] }} productos</span>
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold text-success">${{ "%.2f"|format(compra[4]) }}</span>
+                                        </td>
+                                        <td>
+                                            {% set metodo_pago = (compra[5] or '')|lower %}
+                                            {% set online_keys = ['internet', 'online', 'web', 'mercadopago', 'paypal', 'stripe', 'mp'] %}
+                                            {% if metodo_pago in online_keys %}
+                                                <span class="badge bg-primary" title="{{ compra[5]|title }}">
+                                                    <i class="fas fa-globe me-1"></i>Compra en línea
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-primary">
+                                                    {% if compra[5] == 'efectivo' %}
+                                                        <i class="fas fa-money-bill-wave me-1"></i>Efectivo
+                                                    {% elif compra[5] == 'tarjeta' %}
+                                                        <i class="fas fa-credit-card me-1"></i>Tarjeta
+                                                    {% elif compra[5] == 'transferencia' %}
+                                                        <i class="fas fa-university me-1"></i>Transferencia
+                                                    {% elif compra[5] == 'credito' %}
+                                                        <i class="fas fa-handshake me-1"></i>Crédito
+                                                    {% else %}
+                                                        {{ compra[5]|title }}
+                                                    {% endif %}
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="status-badge status-{{ compra[6] }}">
+                                                {% if compra[6] == 'pagado' %}
+                                                    <i class="fas fa-check-circle me-1"></i>Pagado
+                                                {% elif compra[6] == 'pendiente' %}
+                                                    <i class="fas fa-clock me-1"></i>Pendiente
+                                                {% elif compra[6] == 'cancelado' %}
+                                                    <i class="fas fa-times-circle me-1"></i>Cancelado
+                                                {% elif compra[6] == 'reembolsado' %}
+                                                    <i class="fas fa-undo me-1"></i>Reembolsado
+                                                {% else %}
+                                                    {{ compra[6]|title }}
+                                                {% endif %}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="text-nowrap">
+                                                {{ compra[7].strftime('%d/%m/%Y') if compra[7] else 'No disponible' }}
+                                                <br>
+                                                <small class="text-muted">{{ compra[7].strftime('%H:%M') if compra[7] else '' }}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ url_for('detalle_compra', compra_id=compra[0]) }}" 
+                                                   class="btn btn-outline-primary" title="Ver Detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                {% if compra[6] == 'pagado' %}
+                                                <a href="{{ url_for('generar_ticket_compra', compra_id=compra[0]) }}" 
+                                                   class="btn btn-outline-success" title="Generar Ticket" target="_blank">
+                                                    <i class="fas fa-receipt"></i>
+                                                </a>
+                                                {% endif %}
+                                                {% if compra[6] != 'cancelado' %}
+                                                <div class="dropdown">
+                                                    <button class="btn btn-outline-secondary dropdown-toggle" 
+                                                            type="button" data-bs-toggle="dropdown">
+                                                        <i class="fas fa-cog"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        {% if compra[6] != 'pagado' %}
+                                                        <li><a class="dropdown-item" href="#" onclick="cambiarEstado({{ compra[0] }}, 'pagado')">
+                                                            <i class="fas fa-check text-success me-2"></i>Marcar como Pagado
+                                                        </a></li>
+                                                        {% endif %}
+                                                        {% if compra[6] == 'pagado' %}
+                                                        <li><a class="dropdown-item" href="#" onclick="cambiarEstado({{ compra[0] }}, 'reembolsado')">
+                                                            <i class="fas fa-undo text-warning me-2"></i>Reembolsar
+                                                        </a></li>
+                                                        {% endif %}
+                                                        <li><a class="dropdown-item" href="#" onclick="cambiarEstado({{ compra[0] }}, 'cancelado')">
+                                                            <i class="fas fa-times text-danger me-2"></i>Cancelar
+                                                        </a></li>
+                                                    </ul>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-shopping-cart text-muted" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3 text-muted">No hay compras registradas</h5>
+                            <p class="text-muted">Las compras aparecerán aquí cuando se realicen desde el carrito</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Paginación -->
+        {% if compras and compras|length == 20 %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <nav aria-label="Paginación de compras">
+                    <ul class="pagination justify-content-center">
+                        {% if pagina > 1 %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('historial_compras', pagina=pagina-1, **filtros) }}">
+                                <i class="fas fa-chevron-left"></i> Anterior
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="page-item active">
+                            <span class="page-link">Página {{ pagina }}</span>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('historial_compras', pagina=pagina+1, **filtros) }}">
+                                Siguiente <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Modal de Filtros -->
+<div class="modal fade" id="filtrosModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-filter me-2"></i>Filtrar Compras
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="GET" action="{{ url_for('historial_compras') }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="fecha_inicio" class="form-label">Fecha Inicio</label>
+                            <input type="date" class="form-control" id="fecha_inicio" name="fecha_inicio" 
+                                   value="{{ filtros.fecha_inicio or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="fecha_fin" class="form-label">Fecha Fin</label>
+                            <input type="date" class="form-control" id="fecha_fin" name="fecha_fin" 
+                                   value="{{ filtros.fecha_fin or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label for="cliente_email" class="form-label">Email del Cliente</label>
+                            <input type="email" class="form-control" id="cliente_email" name="cliente_email" 
+                                   placeholder="cliente@email.com" value="{{ filtros.cliente_email or '' }}">
+                        </div>
+                        <div class="col-12">
+                            <label for="estado" class="form-label">Estado</label>
+                            <select class="form-select" id="estado" name="estado">
+                                <option value="">Todos los estados</option>
+                                <option value="pendiente" {{ 'selected' if filtros.estado == 'pendiente' }}>Pendiente</option>
+                                <option value="pagado" {{ 'selected' if filtros.estado == 'pagado' }}>Pagado</option>
+                                <option value="cancelado" {{ 'selected' if filtros.estado == 'cancelado' }}>Cancelado</option>
+                                <option value="reembolsado" {{ 'selected' if filtros.estado == 'reembolsado' }}>Reembolsado</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <a href="{{ url_for('historial_compras') }}" class="btn btn-outline-warning">Limpiar Filtros</a>
+                    <button type="submit" class="btn btn-primary">Aplicar Filtros</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos para estados de compras */
+.status-badge {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-pagado {
+    background-color: #d1edff;
+    color: #0a58ca;
+    border: 1px solid #b6d7ff;
+}
+
+.status-pendiente {
+    background-color: #fff3cd;
+    color: #664d03;
+    border: 1px solid #ffecb5;
+}
+
+.status-cancelado {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c2c7;
+}
+
+.status-reembolsado {
+    background-color: #e2e3e5;
+    color: #41464b;
+    border: 1px solid #d3d6d8;
+}
+
+/* Estilos para la tabla */
+.table th {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #495057;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1rem 0.75rem;
+}
+
+.table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Estilos para búsqueda */
+#buscarCompra {
+    border-radius: 0.5rem;
+}
+
+/* Estilos para cards de estadísticas */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+}
+
+/* Animaciones para botones */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .header-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .search-box input {
+        width: 100% !important;
+    }
+}
+</style>
+
+<script>
+// Función para cambiar estado de compra
+function cambiarEstado(compraId, nuevoEstado) {
+    showConfirmModal(`¿Estás seguro de cambiar el estado a "${nuevoEstado}"?`).then(confirmed => {
+        if (!confirmed) return;
+        fetch(`/compra/${compraId}/estado`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ estado: nuevoEstado })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error: ' + (data.message || 'Error desconocido'), 'error'); else showMaskotNotification('Error: ' + (data.message || 'Error desconocido'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error al cambiar el estado', 'error'); else showMaskotNotification('Error al cambiar el estado', 'error');
+        });
+    });
+}
+
+// Función para exportar compras
+function exportarCompras() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', 'csv');
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+}
+
+// Búsqueda en tiempo real
+document.addEventListener('DOMContentLoaded', function() {
+    const buscarInput = document.getElementById('buscarCompra');
+    const tabla = document.getElementById('tablaCompras');
+    
+    if (buscarInput && tabla) {
+        buscarInput.addEventListener('input', function() {
+            const termino = this.value.toLowerCase();
+            const filas = tabla.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            
+            for (let fila of filas) {
+                const texto = fila.textContent.toLowerCase();
+                fila.style.display = texto.includes(termino) ? '' : 'none';
+            }
+        });
+    }
+    
+    // Auto-focus en búsqueda con tecla '/'
+    document.addEventListener('keydown', function(e) {
+        if (e.key === '/' && !e.ctrlKey && !e.altKey && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            buscarInput.focus();
+        }
+    });
+});
+</script>
+{% endblock %}

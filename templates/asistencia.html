@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Control de Asistencia - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<section class="asistencia-section">
+    <div class="container">
+        <div class="section-header">
+            <h1>
+                <i class="fas fa-clock"></i> 
+                Control de Asistencia
+            </h1>
+            <div class="date-info">
+                <i class="fas fa-calendar-day"></i>
+                {{ format_date(today()) }}
+            </div>
+        </div>
+        
+        <div class="asistencia-card">
+            {% if asistencia %}
+            <div class="asistencia-status">
+                <div class="status-item entrada">
+                    <div class="status-icon">
+                        <i class="fas fa-sign-in-alt"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Entrada Registrada</h3>
+                        <p class="time">{{ asistencia[3] }}</p>
+                        <span class="status-badge status-success">
+                            <i class="fas fa-check"></i> Confirmado
+                        </span>
+                    </div>
+                </div>
+                
+                {% if asistencia[4] %}
+                <div class="status-separator">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+                
+                <div class="status-item salida">
+                    <div class="status-icon">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Salida Registrada</h3>
+                        <p class="time">{{ asistencia[4] }}</p>
+                        <span class="status-badge status-completed">
+                            <i class="fas fa-check-double"></i> Jornada Completa
+                        </span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="status-separator">
+                    <i class="fas fa-clock"></i>
+                </div>
+                
+                <div class="status-item salida pending">
+                    <div class="status-icon">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </div>
+                    <div class="status-info">
+                        <h3>Marcar Salida</h3>
+                        <p>Pendiente de registro</p>
+                        <form method="POST" style="margin-top: 10px;">
+                            <input type="submit" name="salida" value="🚪 Marcar Salida" 
+                                   style="background: #dc3545; color: white; border: none; padding: 8px 16px; 
+                                          border-radius: 5px; cursor: pointer; font-size: 14px; 
+                                          transition: background 0.3s ease;"
+                                   onmouseover="this.style.background='#c82333'"
+                                   onmouseout="this.style.background='#dc3545'">
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            {% if asistencia[3] and asistencia[4] %}
+            <div class="tiempo-trabajado">
+                <h3><i class="fas fa-stopwatch"></i> Tiempo Trabajado</h3>
+                <div class="tiempo-info">
+                    {% set horas_trabajadas = calculate_work_hours(asistencia[3], asistencia[4]) %}
+                    <span class="tiempo-horas">{{ horas_trabajadas }} horas</span>
+                    <small>Entrada: {{ asistencia[3] }} - Salida: {{ asistencia[4] }}</small>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <div class="no-asistencia">
+                <div class="entrada-form">
+                    <div class="current-time">
+                        <i class="fas fa-clock"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                    
+                    <div class="entrada-info">
+                        <h2><i class="fas fa-sign-in-alt"></i> Marcar Entrada</h2>
+                        <p>¡Buen día! Marca tu entrada para comenzar la jornada laboral</p>
+                        
+                        <form method="POST">
+                            <input type="submit" name="entrada" value="🚪 REGISTRAR ENTRADA" style="
+                                background-color: #28a745; 
+                                color: white; 
+                                padding: 15px 30px; 
+                                border: none; 
+                                border-radius: 8px; 
+                                cursor: pointer; 
+                                font-weight: bold;
+                                font-size: 16px;
+                                transition: background-color 0.2s;
+                            " onmouseover="this.style.backgroundColor='#1e7e34'" onmouseout="this.style.backgroundColor='#28a745'">
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="asistencia-info">
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="info-icon">
+                        <i class="fas fa-business-time"></i>
+                    </div>
+                    <div class="info-content">
+                        <h4>Horario Laboral</h4>
+                        <p>8:00 AM - 6:00 PM</p>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">
+                        <i class="fas fa-coffee"></i>
+                    </div>
+                    <div class="info-content">
+                        <h4>Hora de Almuerzo</h4>
+                        <p>12:00 PM - 1:00 PM</p>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-icon">
+                        <i class="fas fa-calendar-week"></i>
+                    </div>
+                    <div class="info-content">
+                        <h4>Días Laborales</h4>
+                        <p>Lunes a Sábado</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('es-ES');
+        const timeElement = document.getElementById('currentTime');
+        if (timeElement) {
+            timeElement.textContent = timeString;
+        }
+    }
+    
+    // Actualizar tiempo cada segundo
+    setInterval(updateTime, 1000);
+    updateTime(); // Llamada inicial
+    
+    // Confirmación para marcar entrada/salida
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const isEntrada = form.querySelector('button[name="entrada"]');
+            const isSalida = form.querySelector('button[name="salida"]');
+            
+            let message = '';
+            if (isEntrada) {
+                message = '¿Confirmar entrada a las ' + new Date().toLocaleTimeString('es-ES') + '?';
+            } else if (isSalida) {
+                message = '¿Confirmar salida a las ' + new Date().toLocaleTimeString('es-ES') + '?';
+            }
+            
+            if (message && !confirm(message)) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}

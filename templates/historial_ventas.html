@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Ventas - Sistema Veterinaria{% endblock %}
+
+{% block extra_css %}
+<style>
+.stats-card {
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.stats-card h5 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.stats-card p {
+    opacity: 0.9;
+    margin: 0;
+}
+
+.method-badge {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+}
+
+.method-efectivo {
+    background: #28a745;
+    color: white;
+}
+
+.method-tarjeta {
+    background: #007bff;
+    color: white;
+}
+
+.method-yape {
+    background: #6f42c1;
+    color: white;
+}
+
+.status-badge {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 15px;
+}
+
+.status-completada {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-pendiente {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-cancelada {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.filter-card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 1.5rem;
+}
+
+.sales-table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table th {
+    background: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    color: #495057;
+}
+
+.action-buttons .btn {
+    margin-right: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.quick-filters {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.quick-filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #dee2e6;
+    background: white;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 0.9rem;
+}
+
+.quick-filter-btn.active,
+.quick-filter-btn:hover {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+.stats-default { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.stats-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+.stats-info { background: linear-gradient(135deg, #fc466b 0%, #3f5efb 100%); }
+.stats-warning { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+
+.stats-card .stat-value { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
+.stats-card .stat-label { opacity: 0.9; margin: 0; }
+
+.stats-method-card { border-radius: 10px; }
+.stats-method-card .method-emoji { font-size: 2rem; margin-bottom: 0.5rem; }
+.stats-method-card .method-title { text-transform: capitalize; font-weight: 600; margin-bottom: 0.25rem; }
+.stats-method-card .card-body { padding: 1.25rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-chart-line"></i> Historial de Ventas</h2>
+                <div>
+                    <a href="{{ url_for('punto_de_venta') }}" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Nueva Venta
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Estadísticas -->
+            {% if estadisticas %}
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="stats-card stats-default">
+                        <h5 class="stat-value">{{ estadisticas.total_ventas }}</h5>
+                        <p class="stat-label"><i class="fas fa-shopping-cart"></i> Total Ventas</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card stats-success">
+                        <h5 class="stat-value">S/ {{ "%.2f"|format(estadisticas.total_vendido) }}</h5>
+                        <p class="stat-label"><i class="fas fa-dollar-sign"></i> Total Vendido</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card stats-info">
+                        <h5 class="stat-value">S/ {{ "%.2f"|format(estadisticas.promedio_venta) }}</h5>
+                        <p class="stat-label"><i class="fas fa-chart-bar"></i> Promedio Venta</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stats-card stats-warning">
+                        <h5 class="stat-value">{{ estadisticas.vendedores_activos }}</h5>
+                        <p class="stat-label"><i class="fas fa-users"></i> Vendedores</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Filtros -->
+            <div class="filter-card">
+                <form method="GET" id="filtros-form">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Inicio:</label>
+                            <input type="date" name="fecha_inicio" class="form-control" 
+                                   value="{{ filtros.fecha_inicio or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Fin:</label>
+                            <input type="date" name="fecha_fin" class="form-control" 
+                                   value="{{ filtros.fecha_fin or '' }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Método:</label>
+                            <select name="metodo_pago" class="form-select">
+                                <option value="">Todos</option>
+                                <option value="efectivo" {{ 'selected' if filtros.metodo_pago == 'efectivo' }}>Efectivo</option>
+                                <option value="tarjeta" {{ 'selected' if filtros.metodo_pago == 'tarjeta' }}>Tarjeta</option>
+                                <option value="yape" {{ 'selected' if filtros.metodo_pago == 'yape' }}>Yape</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Estado:</label>
+                            <select name="estado" class="form-select">
+                                <option value="">Todos</option>
+                                <option value="completada" {{ 'selected' if filtros.estado == 'completada' }}>Completada</option>
+                                <option value="pendiente" {{ 'selected' if filtros.estado == 'pendiente' }}>Pendiente</option>
+                                <option value="cancelada" {{ 'selected' if filtros.estado == 'cancelada' }}>Cancelada</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter"></i> Filtrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtros rápidos -->
+                    <div class="quick-filters">
+                        <button type="button" class="quick-filter-btn" onclick="filtrarHoy()">Hoy</button>
+                        <button type="button" class="quick-filter-btn" onclick="filtrarSemana()">Esta Semana</button>
+                        <button type="button" class="quick-filter-btn" onclick="filtrarMes()">Este Mes</button>
+                        <button type="button" class="quick-filter-btn" onclick="limpiarFiltros()">Limpiar</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Tabla de ventas -->
+            <div class="sales-table">
+                {% if ventas %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Fecha/Hora</th>
+                                <th>Cliente</th>
+                                <th>Vendedor</th>
+                                <th>Productos</th>
+                                <th>Total</th>
+                                <th>Método</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for venta in ventas %}
+                            <tr>
+                                <td>
+                                    <strong>{{ venta.numero_venta }}</strong>
+                                </td>
+                                <td>
+                                    <div>{{ venta.fecha_venta.strftime('%d/%m/%Y') }}</div>
+                                    <small class="text-muted">{{ venta.fecha_venta.strftime('%H:%M') }}</small>
+                                </td>
+                                <td>{{ venta.cliente_nombre }}</td>
+                                <td>{{ venta.vendedor_nombre }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ venta.total_productos }} items</span>
+                                </td>
+                                <td>
+                                    <strong class="text-success">S/ {{ "%.2f"|format(venta.total|default(0)) }}</strong>
+                                </td>
+                                <td>
+                                    {% if venta.detalle_multipago %}
+                                        <div class="d-flex flex-wrap" style="gap:6px;">
+                                        {% for mp in venta.detalle_multipago %}
+                                            {% set metodo = mp.metodo if mp.metodo else mp['metodo'] %}
+                                            {% set monto = mp.monto if mp.monto is not none else mp['monto'] %}
+                                            {% if metodo %}
+                                                <span class="method-badge method-{{ metodo|lower }}" title="S/ {{ "%.2f"|format(monto|float) }}">
+                                                    {% if metodo|lower in ['efectivo','cash'] %}
+                                                        💵 Efectivo
+                                                    {% elif metodo|lower in ['tarjeta','card'] %}
+                                                        💳 Tarjeta
+                                                    {% elif metodo|lower in ['yape','yp'] %}
+                                                        📱 Yape
+                                                    {% else %}
+                                                        {{ metodo }}
+                                                    {% endif %}
+                                                    <small class="text-muted"> S/ {{ "%.2f"|format(monto|float) }}</small>
+                                                </span>
+                                            {% endif %}
+                                        {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="method-badge method-{{ venta.metodo_pago }}">
+                                            {% if venta.metodo_pago == 'efectivo' %}
+                                                💵 Efectivo
+                                            {% elif venta.metodo_pago == 'tarjeta' %}
+                                                💳 Tarjeta
+                                            {% elif venta.metodo_pago == 'yape' %}
+                                                📱 Yape
+                                            {% endif %}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="status-badge status-{{ venta.estado }}">
+                                        {% if venta.estado == 'completada' %}
+                                            ✅ Completada
+                                        {% elif venta.estado == 'pendiente' %}
+                                            ⏳ Pendiente
+                                        {% elif venta.estado == 'cancelada' %}
+                                            ❌ Cancelada
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <a href="{{ url_for('detalle_venta', venta_id=venta.id) }}" 
+                                           class="btn btn-sm btn-outline-primary" title="Ver Detalle">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <a href="{{ url_for('ticket_venta', venta_id=venta.id) }}" 
+                                           class="btn btn-sm btn-outline-success" title="Ticket" target="_blank">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginación -->
+                <div class="p-3 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            Mostrando {{ ventas|length }} ventas
+                        </div>
+                        <div>
+                            {% if pagina > 1 %}
+                            <a href="?pagina={{ pagina - 1 }}&{{ request.query_string.decode() }}" 
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-chevron-left"></i> Anterior
+                            </a>
+                            {% endif %}
+                            
+                            <span class="mx-3">Página {{ pagina }}</span>
+                            
+                            {% if ventas|length == 20 %}
+                            <a href="?pagina={{ pagina + 1 }}&{{ request.query_string.decode() }}" 
+                               class="btn btn-outline-primary btn-sm">
+                                Siguiente <i class="fas fa-chevron-right"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-receipt fa-4x mb-3"></i>
+                    <h4>No se encontraron ventas</h4>
+                    <p class="mb-3">No hay ventas que coincidan con los filtros seleccionados.</p>
+                    <a href="{{ url_for('punto_de_venta') }}" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Realizar Primera Venta
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Estadísticas por método de pago -->
+            {% if estadisticas and estadisticas.por_metodo_pago %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5><i class="fas fa-chart-pie"></i> Ventas por Método de Pago</h5>
+                    <div class="row">
+                        {% for metodo in estadisticas.por_metodo_pago %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card stats-method-card">
+                                <div class="card-body text-center">
+                                    <div class="method-icon">
+                                        {% if metodo.metodo == 'efectivo' %}
+                                            <div class="method-emoji">💵</div>
+                                        {% elif metodo.metodo == 'tarjeta' %}
+                                            <div class="method-emoji">💳</div>
+                                        {% elif metodo.metodo == 'yape' %}
+                                            <div class="method-emoji">📱</div>
+                                        {% else %}
+                                            <div class="method-emoji">🔖</div>
+                                        {% endif %}
+                                    </div>
+                                    <h5 class="method-title">{{ metodo.metodo|capitalize }}</h5>
+                                    <h4 class="text-success">S/ {{ "%.2f"|format(metodo.total) }}</h4>
+                                    <p class="text-muted small">{{ metodo.cantidad }} pagos</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrarHoy() {
+    const hoy = new Date().toISOString().split('T')[0];
+    document.querySelector('[name="fecha_inicio"]').value = hoy;
+    document.querySelector('[name="fecha_fin"]').value = hoy;
+    document.getElementById('filtros-form').submit();
+}
+
+function filtrarSemana() {
+    const hoy = new Date();
+    const inicioSemana = new Date(hoy.setDate(hoy.getDate() - hoy.getDay()));
+    const finSemana = new Date(hoy.setDate(hoy.getDate() - hoy.getDay() + 6));
+    
+    document.querySelector('[name="fecha_inicio"]').value = inicioSemana.toISOString().split('T')[0];
+    document.querySelector('[name="fecha_fin"]').value = finSemana.toISOString().split('T')[0];
+    document.getElementById('filtros-form').submit();
+}
+
+function filtrarMes() {
+    const hoy = new Date();
+    const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    
+    document.querySelector('[name="fecha_inicio"]').value = inicioMes.toISOString().split('T')[0];
+    document.querySelector('[name="fecha_fin"]').value = finMes.toISOString().split('T')[0];
+    document.getElementById('filtros-form').submit();
+}
+
+function limpiarFiltros() {
+    document.querySelector('[name="fecha_inicio"]').value = '';
+    document.querySelector('[name="fecha_fin"]').value = '';
+    document.querySelector('[name="metodo_pago"]').value = '';
+    document.querySelector('[name="estado"]').value = '';
+    document.getElementById('filtros-form').submit();
+}
+
+// Auto-actualizar cada 30 segundos si estamos viendo hoy
+document.addEventListener('DOMContentLoaded', function() {
+    const fechaInicio = document.querySelector('[name="fecha_inicio"]').value;
+    const hoy = new Date().toISOString().split('T')[0];
+    
+    if (fechaInicio === hoy) {
+        setInterval(() => {
+            location.reload();
+        }, 30000);
+    }
+});
+</script>
+{% endblock %}

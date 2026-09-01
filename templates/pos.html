@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+
+{% block title %}Punto de Venta - POS{% endblock %}
+
+{% block head %}
+<style>
+/* ESTILOS CRÍTICOS CON MÁXIMA PRIORIDAD */
+body, html {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.container-fluid {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(15px) !important;
+    border-radius: 20px !important;
+    margin: 20px !important;
+    padding: 30px !important;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
+}
+
+.col-md-8, .col-md-4 {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-radius: 20px !important;
+    padding: 0 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+    margin-bottom: 20px !important;
+    overflow: hidden !important;
+}
+
+/* Títulos con gradiente */
+h3 {
+    color: white !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    padding: 25px !important;
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    display: flex !important;
+    align-items: center !important;
+    margin-bottom: 25px !important;
+}
+
+h3 i {
+    color: white !important;
+    margin-right: 15px !important;
+    font-size: 1.3em !important;
+}
+
+/* Grid de productos moderno */
+.productos-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    gap: 20px !important;
+    padding: 25px !important;
+}
+
+/* Tarjetas de productos */
+.producto-item {
+    background: linear-gradient(145deg, #ffffff, #f8fafc) !important;
+    border: none !important;
+    border-radius: 16px !important;
+    padding: 25px !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12) !important;
+    transition: all 0.4s ease !important;
+    position: relative !important;
+    border-left: 5px solid #667eea !important;
+    transform: translateZ(0) !important;
+}
+
+.producto-item:hover {
+    transform: translateY(-8px) scale(1.02) !important;
+    box-shadow: 0 15px 40px rgba(102, 126, 234, 0.2) !important;
+}
+
+.producto-item strong {
+    display: block !important;
+    color: #2d3748 !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    margin-bottom: 12px !important;
+}
+
+.producto-item .precio {
+    display: block !important;
+    color: #667eea !important;
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    margin-bottom: 8px !important;
+}
+
+.producto-item .stock {
+    color: #48bb78 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    background: rgba(72, 187, 120, 0.1) !important;
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    display: inline-block !important;
+}
+
+/* Botones modernos */
+.btn-agregar {
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    border: none !important;
+    border-radius: 12px !important;
+    color: white !important;
+    padding: 14px 24px !important;
+    font-weight: 700 !important;
+    font-size: 16px !important;
+    cursor: pointer !important;
+    width: 100% !important;
+    margin-top: 15px !important;
+    text-transform: uppercase !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
+}
+
+.btn-agregar:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6) !important;
+}
+
+/* Carrito moderno */
+.col-md-4 h2 {
+    color: white !important;
+    font-size: 24px !important;
+    font-weight: 700 !important;
+    margin: 0 !important;
+    padding: 25px !important;
+    background: linear-gradient(135deg, #667eea, #764ba2) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin-bottom: 25px !important;
+}
+
+.col-md-4 h2 i {
+    color: white !important;
+    margin-right: 15px !important;
+}
+
+/* Contenido del carrito con padding */
+.col-md-4 > *:not(h2) {
+    padding: 0 25px 25px 25px !important;
+}
+
+/* Carrito vacío */
+#carrito-vacio {
+    text-align: center !important;
+    padding: 50px 25px !important;
+    color: #a0aec0 !important;
+    background: linear-gradient(145deg, #f7fafc, #edf2f7) !important;
+    border-radius: 15px !important;
+    border: 2px dashed #cbd5e0 !important;
+    margin: 0 25px 25px 25px !important;
+}
+
+#carrito-vacio i {
+    font-size: 64px !important;
+    margin-bottom: 20px !important;
+    color: #cbd5e0 !important;
+    display: block !important;
+}
+
+/* Secciones de pago */
+.metodo-pago, .dinero-section {
+    background: linear-gradient(145deg, #f7fafc, #ffffff) !important;
+    border-radius: 15px !important;
+    padding: 25px !important;
+    margin: 0 25px 25px 25px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
+}
+
+.metodo-pago h5, .dinero-section h5 {
+    color: #2d3748 !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    margin-bottom: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.metodo-pago h5 i {
+    color: #667eea !important;
+    margin-right: 12px !important;
+    background: rgba(102, 126, 234, 0.1) !important;
+    padding: 8px !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.dinero-section h5 i {
+    color: #48bb78 !important;
+    margin-right: 12px !important;
+    background: rgba(72, 187, 120, 0.1) !important;
+    padding: 8px !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Inputs modernos */
+select, input[type="number"] {
+    border: 2px solid #e2e8f0 !important;
+    border-radius: 12px !important;
+    padding: 15px 18px !important;
+    font-size: 16px !important;
+    background: white !important;
+    width: 100% !important;
+    margin-bottom: 15px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+    transition: all 0.3s ease !important;
+}
+
+select:focus, input[type="number"]:focus {
+    outline: none !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15) !important;
+    transform: translateY(-2px) !important;
+}
+
+.dinero-inputs {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 20px !important;
+}
+
+/* Labels */
+label {
+    color: #4a5568 !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
+    display: block !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container-fluid {
+        margin: 10px !important;
+        padding: 15px !important;
+    }
+    
+    .productos-grid {
+        grid-template-columns: 1fr !important;
+        padding: 15px !important;
+    }
+    
+    .dinero-inputs {
+        grid-template-columns: 1fr !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="background: #f5f5f5; min-height: 100vh; padding: 20px; margin: 0;">
+    <div style="background: rgba(255, 255, 255, 0.95); border-radius: 25px; padding: 30px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);">
+        <div class="row">
+            <div class="col-md-8" style="background: #ffffff; border-radius: 15px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
+                <h3 style="color: white; font-size: 24px; font-weight: 700; margin: 0; padding: 25px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; margin-bottom: 25px;">
+                    <i class="fas fa-box-open" style="color: white; margin-right: 15px; font-size: 1.3em;"></i> 
+                    Productos Disponibles
+                </h3>
+                
+                <!-- Filtros rápidos por categoría -->
+                <div style="padding: 0 25px; margin-bottom: 20px;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                        <button onclick="filtrarPorCategoria('todos')" class="filtro-btn" data-categoria="todos" 
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.3);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.3)';">
+                            <i class="fas fa-th-large"></i> Todos
+                        </button>
+                        <button onclick="filtrarPorCategoria('alimento')" class="filtro-btn" data-categoria="alimento" 
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                            <i class="fas fa-bone"></i> Alimentos
+                        </button>
+                        <button onclick="filtrarPorCategoria('medicina')" class="filtro-btn" data-categoria="medicina" 
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                            <i class="fas fa-pills"></i> Medicinas
+                        </button>
+                        <button onclick="filtrarPorCategoria('accesorio')" class="filtro-btn" data-categoria="accesorio" 
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                            <i class="fas fa-tags"></i> Accesorios
+                        </button>
+                        <button onclick="filtrarPorCategoria('juguete')" class="filtro-btn" data-categoria="juguete" 
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                            <i class="fas fa-baseball-ball"></i> Juguetes
+                        </button>
+                        <button onclick="filtrarPorCategoria('higiene')" class="filtro-btn" data-categoria="higiene" 
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                            <i class="fas fa-bath"></i> Higiene
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filtro de búsqueda -->
+                <div style="padding: 0 25px 25px 25px;">
+                    <div style="position: relative; margin-bottom: 20px;">
+                        <input type="text" id="filtro-productos" placeholder="🔍 Buscar productos..." onkeyup="filtrarProductos()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 50px 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500; transition: all 0.3s ease;" onfocus="this.style.borderColor='#ffa301'; this.style.boxShadow='0 0 0 4px rgba(255, 163, 1, 0.15)'" onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'">
+                        <i class="fas fa-search" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 16px;"></i>
+                    </div>
+                </div>
+                
+                <div id="productos-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
+                    {% for producto in productos %}
+                    <div class="producto-card" data-nombre="{{ producto[1]|lower }}" 
+                         data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower or 'vitamina' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower or 'cama' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower or 'pelota' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower or 'jabón' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
+                         style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #ffa301;" 
+                         onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.borderLeftColor='#6ccae2';" 
+                         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.borderLeftColor='#ffa301';">
+                        <div style="margin-bottom: 15px;">
+                            <strong style="display: block; color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{ producto[1] }}</strong>
+                            <span style="display: block; color: #ffa301; font-size: 22px; font-weight: 800; margin-bottom: 8px;">S/ {{ "%.2f"|format(producto[2]) }}</span>
+                            <span style="color: #28a745; font-size: 14px; font-weight: 600; background: rgba(40, 167, 69, 0.1); padding: 4px 12px; border-radius: 8px; display: inline-block;">Stock: {{ producto[3] }}</span>
+                        </div>
+                        <button style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 14px 24px; font-weight: 700; font-size: 16px; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);" 
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.background='linear-gradient(135deg, #6ccae2, #5ab8d9)';" 
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.background='linear-gradient(135deg, #ffa301, #e6920e)';"
+                                                                     {% if producto[1] and producto[2] is not none %}
+                                                                     onclick='agregarProducto({{ producto[0] }}, "{{ producto[1].replace("\"", "\\\"") }}", {{ producto[2] }})'
+                                                                     {% else %}
+                                                                     disabled
+                                                                     {% endif %}>
+                            <i class="fas fa-plus"></i> Agregar
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="col-md-4" style="background: #ffffff; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
+                <h2 style="color: white; font-size: 24px; font-weight: 700; margin: 0; padding: 25px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; justify-content: center; margin-bottom: 25px;">
+                    <i class="fas fa-shopping-cart" style="color: white; margin-right: 15px;"></i> 
+                    Carrito de Compras
+                </h2>
+                
+                <div style="padding: 0 25px 25px 25px;">
+                    <div id="carrito-vacio" style="display: block; text-align: center; padding: 50px 25px; color: #6c757d; background: #f5f5f5; border-radius: 15px; border: 2px dashed #adb5bd; margin: 0 0 25px 0;">
+                        <i class="fas fa-shopping-cart" style="font-size: 64px; margin-bottom: 20px; color: #adb5bd; display: block;"></i>
+                        <p style="color: #6c757d; font-weight: 600;">Tu carrito está vacío</p>
+                        <p style="color: #adb5bd;">Agrega productos haciendo clic en "Agregar"</p>
+                    </div>
+                    
+                    <div id="carrito-items" style="display: none;"></div>
+                    
+                    <div style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5 style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            <i class="fas fa-credit-card" style="color: #ffa301; margin-right: 12px; background: rgba(255, 163, 1, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i> 
+                            Método de Pago
+                        </h5>
+                        <label style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Método de Pago:</label>
+                        <select id="metodo_pago" onchange="cambiarMetodoPago()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500;">
+                            <option value="efectivo">💵 Efectivo</option>
+                            <option value="tarjeta">💳 Tarjeta</option>
+                            <option value="yape">📱 Yape</option>
+                            <option value="multipago">🔄 Multipago</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Sección de dinero (solo para efectivo y multipago) -->
+                    <div id="dinero-section" style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5 style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            <i class="fas fa-money-bill-wave" style="color: #28a745; margin-right: 12px; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i> 
+                            Dinero en Efectivo
+                        </h5>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <label style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Monto Recibido:</label>
+                                <input type="number" id="monto_recibido" step="0.01" value="0.00" onchange="calcularCambio()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 600;">
+                            </div>
+                            <div>
+                                <label style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Cambio: S/</label>
+                                <input type="number" id="cambio" step="0.01" value="0.00" readonly style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #6c757d; font-weight: 600;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de multipago -->
+                    <div id="multipago-section" style="display: none; background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5 style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            <i class="fas fa-layer-group" style="color: #6ccae2; margin-right: 12px; background: rgba(108, 202, 226, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i> 
+                            Configurar Multipago
+                        </h5>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Primer Método:</label>
+                            <select id="metodo1" onchange="calcularMultipago()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                <option value="efectivo">💵 Efectivo</option>
+                                <option value="tarjeta">💳 Tarjeta</option>
+                                <option value="yape">📱 Yape</option>
+                            </select>
+                            <input type="number" id="monto1" step="0.01" placeholder="Monto método 1" onchange="calcularMultipago()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Segundo Método:</label>
+                            <select id="metodo2" onchange="calcularMultipago()" style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                <option value="tarjeta">💳 Tarjeta</option>
+                                <option value="yape">📱 Yape</option>
+                                <option value="efectivo">💵 Efectivo</option>
+                            </select>
+                            <input type="number" id="monto2" step="0.01" placeholder="Monto método 2" readonly style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #6c757d;">
+                        </div>
+                    </div>
+
+                    <!-- Botones de acción -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 0 25px 25px 25px;">
+                        <button onclick="limpiarPedido()" style="background: #6c757d; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);" onmouseover="this.style.background='#5a6268'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='#6c757d'; this.style.transform='translateY(0)'">
+                            <i class="fas fa-trash"></i> Limpiar
+                        </button>
+                        <button id="btn-pagar" onclick="procesarPago()" disabled style="background: #adb5bd; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: not-allowed; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(173, 181, 189, 0.3);">
+                            <i class="fas fa-credit-card"></i> Pagar
+                        </button>
+                    </div>
+
+                    <!-- Modal de confirmación de pago -->
+                    <div id="modal-confirmacion" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; backdrop-filter: blur(5px);">
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 20px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <i class="fas fa-check-circle" style="font-size: 64px; color: #28a745; margin-bottom: 15px;"></i>
+                                <h3 style="color: #2c3e50; margin-bottom: 10px;">¡Pago Procesado!</h3>
+                                <p style="color: #6c757d;">La venta se ha registrado exitosamente</p>
+                            </div>
+                            
+                            <div id="resumen-venta" style="background: #f8f9fa; border-radius: 15px; padding: 20px; margin-bottom: 25px;">
+                                <!-- Aquí se mostrará el resumen -->
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <button onclick="imprimirTicket()" style="background: linear-gradient(135deg, #ffa301, #6ccae2); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
+                                    <i class="fas fa-print"></i> Imprimir Ticket
+                                </button>
+                                <button onclick="cerrarModal()" style="background: #6c757d; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
+                                    <i class="fas fa-times"></i> Cerrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Inicializador mínimo para usar las funciones globales exportadas por static/js/main.js
+window.carrito = window.carrito || [];
+window.total = window.total || 0;
+window.ultimaVenta = window.ultimaVenta || null;
+
+// Delegar la lógica a main.js; si las funciones no existen, mostrar un mensaje en consola
+if (!window.filtrarPorCategoria) console.warn('filtrarPorCategoria no está definida en main.js');
+if (!window.agregarProducto) console.warn('agregarProducto no está definida en main.js');
+if (!window.actualizarCarrito) console.warn('actualizarCarrito no está definida en main.js');
+if (!window.actualizarBotonPagar) console.warn('actualizarBotonPagar no está definida en main.js');
+
+// Conectar listeners ligeros si los elementos existen
+document.getElementById('monto_recibido')?.addEventListener('input', () => {
+    window.calcularCambio?.();
+    window.actualizarBotonPagar?.();
+});
+
+document.getElementById('monto1')?.addEventListener('input', () => {
+    window.calcularMultipago?.();
+    window.actualizarBotonPagar?.();
+});
+
+// Ejecutar setup inicial si está disponible
+window.cambiarMetodoPago?.();
+</script>
+
+<!-- Diagnostic helper: fetch main.js and log first chars to detect if server returns HTML -->
+<script>
+fetch('/static/js/main.js', {cache: 'no-store'})
+    .then(resp => resp.text().then(text => ({ok: resp.ok, status: resp.status, type: resp.headers.get('content-type'), text})))
+    .then(info => {
+        console.info('[diag] /static/js/main.js status=', info.status, 'content-type=', info.type);
+        const prefix = info.text.slice(0, 200);
+        console.info('[diag] /static/js/main.js prefix:', prefix.replace(/\n/g, '\\n'));
+        if (prefix.trim().startsWith('<')) {
+            console.error('[diag] Parece que /static/js/main.js devolvió HTML (por eso Unexpected token "<"). Revisa la ruta estática o autenticación.');
+        }
+    })
+    .catch(err => console.error('[diag] Error al fetch /static/js/main.js:', err));
+</script>
+
+{% endblock %}

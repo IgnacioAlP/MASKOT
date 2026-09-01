@@ -1,0 +1,730 @@
+{% extends "base.html" %}
+
+{% block title %}MASKOT - Petshop y Grooming | Tu compañero de confianza{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="maskot-hero">
+    <div class="hero-background">
+        <div class="floating-shapes">
+            <div class="shape shape-1"><i class="fas fa-paw"></i></div>
+            <div class="shape shape-2"><i class="fas fa-bone"></i></div>
+            <div class="shape shape-3"><i class="fas fa-heart"></i></div>
+            <div class="shape shape-4"><i class="fas fa-star"></i></div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row align-items-center min-vh-100">
+            <div class="col-lg-6">
+                <div class="hero-content">
+                    <div class="hero-badge mb-4">
+                        <i class="fas fa-award me-2"></i>
+                        #1 en cuidado de mascotas
+                    </div>
+                    <h1 class="hero-title mb-4">
+                        El <span class="text-gradient">mejor cuidado</span><br>
+                        para tu <span class="text-gradient">mejor amigo</span>
+                        <i class="fas fa-paw hero-paw"></i>
+                    </h1>
+                    <p class="hero-description mb-5">
+                        En MASKOT transformamos el cuidado de tu mascota en una experiencia extraordinaria. 
+                        Servicios profesionales de grooming, productos premium y amor incondicional en cada visita.
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="#citas" class="btn btn-maskot-primary btn-lg me-3">
+                            <i class="fas fa-calendar-plus me-2"></i>
+                            Agendar Cita
+                        </a>
+                        <a href="#servicios" class="btn btn-maskot-outline btn-lg">
+                            <i class="fas fa-play-circle me-2"></i>
+                            Ver Servicios
+                        </a>
+                    </div>
+                    <div class="hero-stats mt-5">
+                        <div class="row">
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-number">500+</div>
+                                    <div class="stat-label">Mascotas Felices</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-number">5★</div>
+                                    <div class="stat-label">Calificación</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-item">
+                                    <div class="stat-number">24/7</div>
+                                    <div class="stat-label">Disponibilidad</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="hero-image">
+                    <div class="image-container">
+                        <img src="{{ url_for('static', filename='img/LOGOTIPO EDITABLE MASKOT_Mesa de trabajo 1 copia.png') }}" alt="Mascota feliz" class="img-fluid hero-img">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Services Section -->
+<section id="servicios" class="services-section py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-badge mb-3">
+                <i class="fas fa-star me-2"></i>Servicios Destacados
+            </div>
+            <h2 class="section-title">
+                Los <span style="color: #ffa301; font-weight: 700;">más solicitados</span><br>
+                por nuestros clientes
+            </h2>
+            <p class="section-description">
+                Descubre nuestros 3 servicios más populares, elegidos por su calidad excepcional 
+                y la satisfacción de nuestros clientes.
+            </p>
+        </div>
+
+        <div class="row g-4">
+            {% for servicio in servicios %}
+            <div class="col-lg-4 col-md-6">
+                <div class="service-card-modern">
+                    <div class="service-icon-modern">
+                        {% if 'Baño' in servicio[1] and 'Corte' in servicio[1] %}
+                            <i class="fas fa-cut"></i>
+                        {% elif 'Grooming' in servicio[1] %}
+                            <i class="fas fa-spa"></i>
+                        {% elif 'Medicado' in servicio[1] %}
+                            <i class="fas fa-pills"></i>
+                        {% elif 'Revisión' in servicio[1] %}
+                            <i class="fas fa-stethoscope"></i>
+                        {% elif 'Consulta' in servicio[1] %}
+                            <i class="fas fa-user-md"></i>
+                        {% else %}
+                            <i class="fas fa-paw"></i>
+                        {% endif %}
+                    </div>
+                    <div class="featured-service-badge">
+                        <i class="fas fa-crown me-1"></i>#{{ loop.index }}
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">{{ servicio[1] }}</h4>
+                        <p class="service-description">
+                            {{ servicio[2] or 'Servicio profesional especializado para el bienestar y cuidado integral de tu mascota.' }}
+                        </p>
+                        <div class="service-features">
+                            <div class="feature">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                Profesionales certificados
+                            </div>
+                            <div class="feature">
+                                <i class="fas fa-calendar-day text-primary me-2"></i>
+                                Máximo {{ servicio[3] }} citas por día
+                            </div>
+                            <div class="feature">
+                                <i class="fas fa-award text-warning me-2"></i>
+                                Garantía de calidad
+                            </div>
+                        </div>
+                    </div>
+                    <div class="service-action">
+                        <button class="btn btn-maskot-outline w-100" onclick="selectService({{ loop.index }}, '{{ servicio[1] }}')">
+                            <i class="fas fa-plus me-2"></i>Seleccionar Servicio
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Ver todos los servicios button -->
+        <div class="text-center mt-5">
+            <a href="{{ url_for('servicios_completos') }}" class="btn btn-maskot-primary btn-lg">
+                <i class="fas fa-concierge-bell me-2"></i>Ver Todos los Servicios
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Products Section -->
+{% if productos_venta %}
+<section id="productos" class="productos-section py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-badge mb-3">
+                <i class="fas fa-shopping-bag me-2"></i>Productos Premium
+            </div>
+            <h2 class="section-title">
+                Los <span style="color: #6ccae2; font-weight: 800; background: linear-gradient(45deg, #6ccae2, #8dd4ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 1.3em; text-transform: uppercase; letter-spacing: 1px;">más vendidos</span><br>
+                para tu mascota
+            </h2>
+            <p class="section-description">
+                Descubre nuestra selección de los 4 productos más populares entre nuestros clientes
+            </p>
+        </div>
+
+        <div class="row g-4">
+            {% for producto in productos_venta %}
+            <div class="col-lg-3 col-md-6">
+                <div class="product-card-modern">
+                    <div class="product-image">
+                        {% if producto[7] %}
+                            <img src="{{ url_for('static', filename='images/' ~ producto[7]) }}" 
+                                 alt="{{ producto[1] }}" class="img-fluid">
+                        {% else %}
+                            <div class="no-image-placeholder">
+                                <i class="fas fa-box"></i>
+                            </div>
+                        {% endif %}
+                        <div class="product-badge">
+                            <i class="fas fa-fire text-danger"></i>
+                        </div>
+                        <div class="bestseller-badge">
+                            <i class="fas fa-medal me-1"></i>Top {{ loop.index }}
+                        </div>
+                    </div>
+                    <div class="product-content">
+                        <h5 class="product-title">{{ producto[1] }}</h5>
+                        <div class="product-stock">
+                            <i class="fas fa-boxes me-2"></i>
+                            {{ producto[3] }} disponibles
+                        </div>
+                    </div>
+                    {% if producto[3] == 0 %}
+                    <div class="sold-out-badge-index">
+                        <i class="fas fa-times-circle me-1"></i>AGOTADO
+                    </div>
+                    {% endif %}
+                    <div class="product-action">
+                        <a href="{{ url_for('ver_producto', id=producto[0]) }}" class="btn btn-maskot-secondary w-100">
+                            <i class="fas fa-shopping-cart me-2"></i>Consultar
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Ver todos los productos button -->
+        <div class="text-center mt-5">
+            <a href="{{ url_for('productos') }}" class="btn btn-maskot-primary btn-lg">
+                <i class="fas fa-th-large me-2"></i>Ver Todos los Productos
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Appointment Section -->
+<section id="citas" class="appointment-section py-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <div class="appointment-content">
+                    <div class="section-badge mb-3">
+                        <i class="fas fa-calendar-check me-2"></i>Agendar Cita
+                    </div>
+                    <h2 class="section-title mb-4">
+                        ¡Tu mascota merece <span style="color: #ffa301; font-weight: 800; background: linear-gradient(45deg, #ffa301, #ffb733); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 1px;">lo mejor</span>!
+                    </h2>
+                    <p class="mb-4">
+                        Agenda una cita con nuestros expertos y dale a tu mascota la experiencia 
+                        de cuidado que se merece. Proceso rápido y sencillo.
+                    </p>
+                    <div class="appointment-benefits">
+                        <div class="benefit-item">
+                            <i class="fas fa-clock text-primary me-3"></i>
+                            <div>
+                                <h6>Horarios flexibles</h6>
+                                <small class="text-muted">Disponibilidad de lunes a domingo</small>
+                            </div>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-user-md text-success me-3"></i>
+                            <div>
+                                <h6>Profesionales certificados</h6>
+                                <small class="text-muted">Equipo especializado en cuidado animal</small>
+                            </div>
+                        </div>
+                        <div class="benefit-item">
+                            <i class="fas fa-heart text-danger me-3"></i>
+                            <div>
+                                <h6>Trato personalizado</h6>
+                                <small class="text-muted">Cada mascota recibe atención individual</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="appointment-form-card">
+                    <h4 class="form-title mb-4">
+                        <i class="fas fa-paw me-2"></i>Reserva tu cita
+                    </h4>
+                    <form method="POST" action="{{ url_for('agendar_cita') }}" class="appointment-form-modern no-animation">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="cliente_nombre" name="cliente_nombre" 
+                                           placeholder="Nombre del propietario" required>
+                                    <label for="cliente_nombre">
+                                        <i class="fas fa-user me-2"></i>Nombre del propietario
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="email" class="form-control" id="cliente_email" name="cliente_email" 
+                                           placeholder="Email de contacto" required>
+                                    <label for="cliente_email">
+                                        <i class="fas fa-envelope me-2"></i>Email de contacto
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="tel" class="form-control" id="cliente_telefono" name="cliente_telefono" 
+                                           placeholder="Teléfono de contacto" required>
+                                    <label for="cliente_telefono">
+                                        <i class="fas fa-phone me-2"></i>Teléfono de contacto
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="cliente_direccion" name="cliente_direccion" 
+                                           placeholder="Dirección del cliente" required>
+                                    <label for="cliente_direccion">
+                                        <i class="fas fa-map-marker-alt me-2"></i>Dirección
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Información de las Mascotas -->
+                            <div class="col-12">
+                                <hr class="my-3">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-paw me-2"></i>Información de las Mascotas
+                                </h6>
+                            </div>
+                            
+                            <div id="mascotas-container" class="col-12">
+                                <!-- Primera mascota (obligatoria) -->
+                                <div class="mascota-form border rounded p-3 mb-3" data-mascota="0">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="text-secondary mb-0">
+                                            <i class="fas fa-heart me-2"></i>Mascota 1
+                                        </h6>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <input type="text" class="form-control mascota-nombre" name="mascota_nombre[]" 
+                                                       placeholder="Nombre de la mascota" required>
+                                                <label><i class="fas fa-heart me-2"></i>Nombre de la mascota</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-floating">
+                                                <select class="form-select mascota-especie" name="mascota_especie[]" required>
+                                                    <option value="">Selecciona la especie</option>
+                                                    <option value="perro">🐕 Perro</option>
+                                                    <option value="gato">🐱 Gato</option>
+                                                    <option value="conejo">🐰 Conejo</option>
+                                                    <option value="ave">🐦 Ave</option>
+                                                    <option value="reptil">🦎 Reptil</option>
+                                                    <option value="otro">🐾 Otro</option>
+                                                </select>
+                                                <label><i class="fas fa-paw me-2"></i>Especie</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <input type="text" class="form-control mascota-raza" name="mascota_raza[]" 
+                                                       placeholder="Raza de la mascota">
+                                                <label><i class="fas fa-dna me-2"></i>Raza (opcional)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <input type="number" class="form-control mascota-edad" name="mascota_edad[]" 
+                                                       min="0" max="30" placeholder="Edad en años">
+                                                <label><i class="fas fa-birthday-cake me-2"></i>Edad (años)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-floating">
+                                                <input type="number" class="form-control mascota-peso" name="mascota_peso[]" 
+                                                       step="0.1" min="0" max="100" placeholder="Peso en kg">
+                                                <label><i class="fas fa-weight me-2"></i>Peso (kg)</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarMascota()">
+                                    <i class="fas fa-plus me-2"></i>Agregar otra mascota
+                                </button>
+                            </div>
+                            
+                            <!-- Servicios -->
+                            <div class="col-12">
+                                <hr class="my-3">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-concierge-bell me-2"></i>Servicios Solicitados
+                                </h6>
+                            </div>
+                            
+                            <div id="servicios-container" class="col-12">
+                                <!-- Primer servicio (obligatorio) -->
+                                <div class="servicio-form border rounded p-3 mb-3" data-servicio="0">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="text-secondary mb-0">
+                                            <i class="fas fa-concierge-bell me-2"></i>Servicio 1
+                                        </h6>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <div class="form-floating">
+                                                <select class="form-select servicio-select" name="servicio_id[]" required>
+                                                    <option value="">Selecciona un servicio</option>
+                                                    {% for servicio in servicios %}
+                                                    <option value="{{ servicio[0] }}">{{ servicio[1] }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                                <label><i class="fas fa-concierge-bell me-2"></i>Servicio</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12 mb-3">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="agregarServicio()">
+                                    <i class="fas fa-plus me-2"></i>Agregar otro servicio
+                                </button>
+                            </div>
+                            
+                            <!-- Fecha y Hora -->
+                            <div class="col-12">
+                                <hr class="my-3">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-calendar me-2"></i>Fecha y Hora de la Cita
+                                </h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="date" class="form-control" id="fecha" name="fecha" required>
+                                    <label for="fecha">
+                                        <i class="fas fa-calendar-day me-2"></i>Fecha
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="time" class="form-control" id="hora" name="hora" required>
+                                    <label for="hora">
+                                        <i class="fas fa-clock me-2"></i>Hora
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-maskot-primary btn-lg w-100" id="btn-agendar-cita">
+                                    <i class="fas fa-calendar-plus me-2"></i>
+                                    Agendar Mi Cita
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section py-5">
+    <div class="container">
+        <div class="cta-card">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h3 class="cta-title">
+                        <i class="fas fa-mobile-alt me-3"></i>
+                        ¿Necesitas ayuda inmediata?
+                    </h3>
+                    <p class="cta-text mb-0">
+                        Contáctanos por WhatsApp para consultas urgentes o dudas sobre nuestros servicios
+                    </p>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <a href="https://wa.me/1234567890" class="btn btn-success btn-lg" target="_blank">
+                        <i class="fab fa-whatsapp me-2"></i>
+                        WhatsApp
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="info-section">
+    <div class="container">
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-user-md"></i>
+                </div>
+                <h3>Profesionales Certificados</h3>
+                <p>Nuestro equipo cuenta con veterinarios certificados y con amplia experiencia</p>
+            </div>
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-heart"></i>
+                </div>
+                <h3>Cuidado Personalizado</h3>
+                <p>Cada mascota recibe atención individualizada según sus necesidades específicas</p>
+            </div>
+            <div class="info-card">
+                <div class="info-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h3>Instalaciones Seguras</h3>
+                <p>Contamos con instalaciones modernas y protocolos de seguridad estrictos</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let mascotaCounter = 1;
+    let servicioCounter = 1;
+    
+    // Establecer fecha mínima como hoy
+    document.getElementById('fecha').min = new Date().toISOString().split('T')[0];
+    
+    // Función para agregar nueva mascota
+    function agregarMascota() {
+        const container = document.getElementById('mascotas-container');
+        const mascotaDiv = document.createElement('div');
+        mascotaDiv.className = 'mascota-form border rounded p-3 mb-3';
+        mascotaDiv.dataset.mascota = mascotaCounter;
+        
+        mascotaDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="text-secondary mb-0">
+                    <i class="fas fa-heart me-2"></i>Mascota ${mascotaCounter + 1}
+                </h6>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="eliminarMascota(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <input type="text" class="form-control mascota-nombre" name="mascota_nombre[]" 
+                               placeholder="Nombre de la mascota" required>
+                        <label><i class="fas fa-heart me-2"></i>Nombre de la mascota</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-floating">
+                        <select class="form-select mascota-especie" name="mascota_especie[]" required>
+                            <option value="">Selecciona la especie</option>
+                            <option value="perro">🐕 Perro</option>
+                            <option value="gato">🐱 Gato</option>
+                            <option value="conejo">🐰 Conejo</option>
+                            <option value="ave">🐦 Ave</option>
+                            <option value="reptil">🦎 Reptil</option>
+                            <option value="otro">🐾 Otro</option>
+                        </select>
+                        <label><i class="fas fa-paw me-2"></i>Especie</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-floating">
+                        <input type="text" class="form-control mascota-raza" name="mascota_raza[]" 
+                               placeholder="Raza de la mascota">
+                        <label><i class="fas fa-dna me-2"></i>Raza (opcional)</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-floating">
+                        <input type="number" class="form-control mascota-edad" name="mascota_edad[]" 
+                               min="0" max="30" placeholder="Edad en años">
+                        <label><i class="fas fa-birthday-cake me-2"></i>Edad (años)</label>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-floating">
+                        <input type="number" class="form-control mascota-peso" name="mascota_peso[]" 
+                               step="0.1" min="0" max="100" placeholder="Peso en kg">
+                        <label><i class="fas fa-weight me-2"></i>Peso (kg)</label>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(mascotaDiv);
+        mascotaCounter++;
+        
+        // Animación de entrada
+        mascotaDiv.style.opacity = '0';
+        mascotaDiv.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            mascotaDiv.style.transition = 'all 0.3s ease';
+            mascotaDiv.style.opacity = '1';
+            mascotaDiv.style.transform = 'translateY(0)';
+        }, 10);
+    }
+    
+    // Función para eliminar mascota
+    function eliminarMascota(button) {
+        const mascotaDiv = button.closest('.mascota-form');
+        mascotaDiv.style.transition = 'all 0.3s ease';
+        mascotaDiv.style.opacity = '0';
+        mascotaDiv.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            mascotaDiv.remove();
+        }, 300);
+    }
+    
+    // Función para agregar nuevo servicio
+    function agregarServicio() {
+        const container = document.getElementById('servicios-container');
+        const servicioDiv = document.createElement('div');
+        servicioDiv.className = 'servicio-form border rounded p-3 mb-3';
+        servicioDiv.dataset.servicio = servicioCounter;
+        
+        servicioDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="text-secondary mb-0">
+                    <i class="fas fa-concierge-bell me-2"></i>Servicio ${servicioCounter + 1}
+                </h6>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="eliminarServicio(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-floating">
+                        <select class="form-select servicio-select" name="servicio_id[]" required>
+                            <option value="">Selecciona un servicio</option>
+                            {% for servicio in servicios %}
+                            <option value="{{ servicio[0] }}">{{ servicio[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <label><i class="fas fa-concierge-bell me-2"></i>Servicio</label>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(servicioDiv);
+        servicioCounter++;
+        
+        // Animación de entrada
+        servicioDiv.style.opacity = '0';
+        servicioDiv.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            servicioDiv.style.transition = 'all 0.3s ease';
+            servicioDiv.style.opacity = '1';
+            servicioDiv.style.transform = 'translateY(0)';
+        }, 10);
+    }
+    
+    // Función para eliminar servicio
+    function eliminarServicio(button) {
+        const servicioDiv = button.closest('.servicio-form');
+        servicioDiv.style.transition = 'all 0.3s ease';
+        servicioDiv.style.opacity = '0';
+        servicioDiv.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            servicioDiv.remove();
+        }, 300);
+    }
+    
+    // Función para seleccionar servicio desde los cards destacados
+    function selectService(index, serviceName) {
+        const firstServiceSelect = document.querySelector('.servicio-select');
+        if (firstServiceSelect) {
+            // Buscar el option que coincida con el nombre del servicio
+            const options = firstServiceSelect.options;
+            for (let i = 0; i < options.length; i++) {
+                if (options[i].text === serviceName) {
+                    firstServiceSelect.value = options[i].value;
+                    break;
+                }
+            }
+        }
+        
+        // Scroll al formulario
+        document.querySelector('#citas').scrollIntoView({ 
+            behavior: 'auto',
+            block: 'start'
+        });
+    }
+    
+    // Validación simple del formulario
+    const citaForm = document.querySelector('form[action*="agendar_cita"]');
+    if (citaForm) {
+        citaForm.addEventListener('submit', function(e) {
+            // Validación básica - solo prevenir fechas muy pasadas (más de 1 día)
+            const fecha = document.getElementById('fecha').value;
+            const ayer = new Date();
+            ayer.setDate(ayer.getDate() - 1);
+            const ayerStr = ayer.toISOString().split('T')[0];
+            
+            if (fecha < ayerStr) {
+                e.preventDefault();
+                if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('No puedes agendar citas para fechas muy pasadas', 'warning'); else showMaskotNotification('No puedes agendar citas para fechas muy pasadas', 'warning');
+                return false;
+            }
+            
+            // Simplemente permitir que el formulario se envíe sin más validaciones JavaScript
+            console.log('Enviando formulario de cita...');
+            return true;
+        });
+    }
+</script>
+
+<style>
+/* Eliminar TODAS las transiciones del botón de agendar cita */
+#btn-agendar-cita,
+#btn-agendar-cita:hover,
+#btn-agendar-cita:focus,
+#btn-agendar-cita:active,
+#btn-agendar-cita:visited,
+button[type="submit"].btn-maskot-primary,
+button[type="submit"].btn-maskot-primary:hover,
+button[type="submit"].btn-maskot-primary:focus,
+button[type="submit"].btn-maskot-primary:active {
+    transition: none !important;
+    transform: none !important;
+    animation: none !important;
+    -webkit-transition: none !important;
+    -moz-transition: none !important;
+    -o-transition: none !important;
+    -ms-transition: none !important;
+}
+
+/* Forzar estilos estáticos */
+#btn-agendar-cita {
+    background: linear-gradient(135deg, #ffa301, #e6920e) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 15px rgba(255, 163, 1, 0.3) !important;
+}
+</style>
+{% endblock %}

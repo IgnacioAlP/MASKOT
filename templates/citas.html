@@ -1,0 +1,678 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Citas - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<section class="citas-section">
+    <div class="container">
+        <div class="section-header">
+            <h1>
+                <i class="fas fa-calendar-check"></i> 
+                Gestión de Citas - {{ format_date(today()) }}
+            </h1>
+            <div class="header-actions">
+                <button onclick="refreshCitas()" class="btn btn-outline">
+                    <i class="fas fa-sync-alt"></i> Actualizar
+                </button>
+            </div>
+        </div>
+        
+        {% if citas %}
+        <div class="citas-table-container">
+            <table class="citas-table">
+                <thead>
+                    <tr>
+                        <th><i class="fas fa-clock"></i> Hora</th>
+                        <th><i class="fas fa-user"></i> Cliente</th>
+                        <th><i class="fas fa-paw"></i> Mascota</th>
+                        <th><i class="fas fa-concierge-bell"></i> Servicio</th>
+                        <th><i class="fas fa-info-circle"></i> Estado</th>
+                        <th><i class="fas fa-cogs"></i> Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cita in citas %}
+                    <tr class="cita-row" data-id="{{ cita[0] }}">
+                        <td class="time-cell">
+                            <strong>{{ cita[4] }}</strong>
+                        </td>
+                        <td>
+                            <div class="client-info">
+                                <i class="fas fa-user-circle"></i>
+                                <div>
+                                    <strong>{{ cita[1] }}</strong>
+                                    <small>{{ cita[2] or '-' }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if cita[7] %}
+                            <div class="mascota-info">
+                                <div class="mascota-nombre">
+                                    <strong>{{ cita[7] }}</strong>
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="sin-mascota">
+                                <i class="fas fa-question-circle"></i>
+                                Sin información
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="service-badge">
+                                {{ cita[6] or 'Sin servicio' }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ cita[5] }}">
+                                {{ cita[5]|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                {% if cita[5] == 'pendiente' %}
+                                <button onclick="confirmarCita({{ cita[0] }})" class="btn btn-sm btn-info" title="Confirmar cita">
+                                    <i class="fas fa-check-circle"></i>
+                                </button>
+                                <button onclick="completarCita({{ cita[0] }})" class="btn btn-sm btn-success" title="Marcar como completada">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="cancelarCita({{ cita[0] }})" class="btn btn-sm btn-danger" title="Cancelar cita">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <button onclick="reprogramarCita({{ cita[0] }})" class="btn btn-sm btn-warning" title="Reprogramar">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </button>
+                                {% elif cita[5] == 'confirmada' %}
+                                <button onclick="completarCita({{ cita[0] }})" class="btn btn-sm btn-success" title="Marcar como completada">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="enProgresoeCita({{ cita[0] }})" class="btn btn-sm btn-primary" title="En progreso">
+                                    <i class="fas fa-play"></i>
+                                </button>
+                                <button onclick="cancelarCita({{ cita[0] }})" class="btn btn-sm btn-danger" title="Cancelar cita">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                {% elif cita[5] == 'en_progreso' %}
+                                <button onclick="completarCita({{ cita[0] }})" class="btn btn-sm btn-success" title="Marcar como completada">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button onclick="pausarCita({{ cita[0] }})" class="btn btn-sm btn-secondary" title="Pausar">
+                                    <i class="fas fa-pause"></i>
+                                </button>
+                                {% elif cita[5] == 'completada' %}
+                                <button onclick="verDetallesCita({{ cita[0] }})" class="btn btn-sm btn-outline-primary" title="Ver detalles">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button onclick="generarRecibo({{ cita[0] }})" class="btn btn-sm btn-outline-success" title="Generar recibo">
+                                    <i class="fas fa-receipt"></i>
+                                </button>
+                                {% elif cita[5] == 'cancelada' %}
+                                <button onclick="reactivarCita({{ cita[0] }})" class="btn btn-sm btn-outline-warning" title="Reactivar cita">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                                <button onclick="eliminarCita({{ cita[0] }})" class="btn btn-sm btn-outline-danger" title="Eliminar permanentemente">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% else %}
+                                <button onclick="verDetallesCita({{ cita[0] }})" class="btn btn-sm btn-outline-primary" title="Ver detalles">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% endif %}
+                                
+                                <!-- Botón de editar siempre disponible para citas no completadas -->
+                                {% if cita[5] not in ['completada', 'cancelada'] %}
+                                <button onclick="editarCita({{ cita[0] }})" class="btn btn-sm btn-outline-secondary" title="Editar cita">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-calendar-times"></i>
+            <h3>No hay citas programadas para hoy</h3>
+            <p>Las citas aparecerán aquí cuando sean agendadas</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+<style>
+.client-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.client-info i {
+    color: #007bff;
+}
+
+.client-info div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.client-info small {
+    color: #6c757d;
+    font-size: 0.8rem;
+}
+
+.mascota-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mascota-nombre {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.especie-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.especie-badge.perro {
+    background: #fff8e1;
+    color: #f57f17;
+}
+
+.especie-badge.gato {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.especie-badge.conejo {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.especie-badge.ave {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.especie-badge.reptil {
+    background: #f1f8e9;
+    color: #558b2f;
+}
+
+.especie-badge.otro {
+    background: #fafafa;
+    color: #616161;
+}
+
+.mascota-detalles {
+    color: #6c757d !important;
+    font-size: 0.8rem;
+}
+
+.sin-mascota {
+    color: #6c757d;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Estilos para botones de acción */
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.action-buttons .btn {
+    border-radius: 4px;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.action-buttons .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.action-buttons .btn i {
+    font-size: 0.8rem;
+}
+
+/* Estados de botones */
+.btn-info {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.btn-info:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #004085;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+.btn-warning:hover {
+    background-color: #e0a800;
+    border-color: #d39e00;
+    color: #212529;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+    border-color: #4e555b;
+}
+
+/* Botones outline */
+.btn-outline-primary {
+    color: #007bff;
+    border-color: #007bff;
+    background-color: transparent;
+}
+
+.btn-outline-primary:hover {
+    color: #fff;
+    background-color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-outline-success {
+    color: #28a745;
+    border-color: #28a745;
+    background-color: transparent;
+}
+
+.btn-outline-success:hover {
+    color: #fff;
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.btn-outline-warning {
+    color: #ffc107;
+    border-color: #ffc107;
+    background-color: transparent;
+}
+
+.btn-outline-warning:hover {
+    color: #212529;
+    background-color: #ffc107;
+    border-color: #ffc107;
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+    background-color: transparent;
+}
+
+.btn-outline-danger:hover {
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-outline-secondary {
+    color: #6c757d;
+    border-color: #6c757d;
+    background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+/* Responsive para botones en pantallas pequeñas */
+@media (max-width: 768px) {
+    .action-buttons {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .action-buttons .btn {
+        width: 100%;
+        min-width: unset;
+        justify-content: flex-start;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .action-buttons .btn i {
+        margin-right: 0.5rem;
+    }
+}
+</style>
+
+{% block scripts %}
+<script>
+    // Funciones para cambio de estado
+    function confirmarCita(id) {
+        if (confirm('¿Confirmar esta cita?')) {
+            updateCitaStatus(id, 'confirmada');
+        }
+    }
+    
+    function completarCita(id) {
+        if (confirm('¿Marcar esta cita como completada?')) {
+            updateCitaStatus(id, 'completada');
+        }
+    }
+    
+    function cancelarCita(id) {
+        const motivo = prompt('Motivo de cancelación (opcional):');
+        if (motivo !== null) { // Usuario no canceló el prompt
+            updateCitaStatus(id, 'cancelada', motivo);
+        }
+    }
+    
+    function enProgresoeCita(id) {
+        if (confirm('¿Marcar esta cita como en progreso?')) {
+            updateCitaStatus(id, 'en_progreso');
+        }
+    }
+    
+    function pausarCita(id) {
+        if (confirm('¿Pausar esta cita?')) {
+            updateCitaStatus(id, 'confirmada'); // Volver a confirmada
+        }
+    }
+    
+    function reactivarCita(id) {
+        if (confirm('¿Reactivar esta cita cancelada?')) {
+            updateCitaStatus(id, 'pendiente');
+        }
+    }
+    
+    // Funciones de acción
+    function reprogramarCita(id) {
+        const nuevaFecha = prompt('Nueva fecha (YYYY-MM-DD):');
+        const nuevaHora = prompt('Nueva hora (HH:MM):');
+        
+        if (nuevaFecha && nuevaHora) {
+            if (confirm(`¿Reprogramar para el ${nuevaFecha} a las ${nuevaHora}?`)) {
+                reprogramarCitaAjax(id, nuevaFecha, nuevaHora);
+            }
+        }
+    }
+    
+    function editarCita(id) {
+        // Redirigir a página de edición o abrir modal
+        window.location.href = `/cita/${id}/editar`;
+    }
+    
+    function verDetallesCita(id) {
+        // Abrir modal o redirigir a página de detalles
+        window.open(`/cita/${id}/detalles`, '_blank', 'width=800,height=600');
+    }
+    
+    function generarRecibo(id) {
+        if (confirm('¿Generar recibo para esta cita?')) {
+            window.open(`/cita/${id}/recibo`, '_blank');
+        }
+    }
+    
+    function eliminarCita(id) {
+        if (confirm('¿Estás seguro de eliminar permanentemente esta cita? Esta acción no se puede deshacer.')) {
+            if (confirm('¿Completamente seguro? Esta acción es irreversible.')) {
+                eliminarCitaAjax(id);
+            }
+        }
+    }
+    
+    // Funciones AJAX
+    function updateCitaStatus(id, status, motivo = null) {
+        const data = { status: status };
+        if (motivo) {
+            data.motivo = motivo;
+        }
+        
+        fetch(`/cita/${id}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message || 'Estado actualizado correctamente', 'success');
+                // Actualizar la fila sin recargar toda la página
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                showNotification(data.error || 'Error al actualizar el estado', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error de conexión', 'error');
+        });
+    }
+    
+    function reprogramarCitaAjax(id, fecha, hora) {
+        fetch(`/cita/${id}/reprogramar`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ fecha: fecha, hora: hora })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Cita reprogramada correctamente', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                showNotification(data.error || 'Error al reprogramar la cita', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error de conexión', 'error');
+        });
+    }
+    
+    function eliminarCitaAjax(id) {
+        fetch(`/cita/${id}/eliminar`, {
+            method: 'DELETE',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('Cita eliminada permanentemente', 'success');
+                // Remover la fila de la tabla
+                const row = document.querySelector(`tr[data-id="${id}"]`);
+                if (row) {
+                    row.style.transition = 'all 0.3s ease';
+                    row.style.opacity = '0';
+                    row.style.transform = 'translateX(-100%)';
+                    setTimeout(() => {
+                        row.remove();
+                    }, 300);
+                }
+            } else {
+                showNotification(data.error || 'Error al eliminar la cita', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error de conexión', 'error');
+        });
+    }
+    
+    function refreshCitas() {
+        showNotification('Actualizando citas...', 'info');
+        location.reload();
+    }
+    
+    // Sistema de notificaciones
+    function showNotification(message, type = 'info') {
+        // Remover notificaciones existentes
+        const existingNotifications = document.querySelectorAll('.notification');
+        existingNotifications.forEach(n => n.remove());
+        
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas fa-${getIconForType(type)}"></i>
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" class="notification-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // Estilos para la notificación
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            border-left: 4px solid ${getColorForType(type)};
+            min-width: 300px;
+            max-width: 500px;
+            animation: slideInRight 0.3s ease;
+        `;
+        
+        const content = notification.querySelector('.notification-content');
+        content.style.cssText = `
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            gap: 10px;
+        `;
+        
+        const icon = notification.querySelector('i');
+        icon.style.cssText = `
+            color: ${getColorForType(type)};
+            font-size: 18px;
+        `;
+        
+        const closeBtn = notification.querySelector('.notification-close');
+        closeBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            padding: 5px;
+            margin-left: auto;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remover después de 4 segundos
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideOutRight 0.3s ease forwards';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 300);
+            }
+        }, 4000);
+    }
+    
+    function getIconForType(type) {
+        switch(type) {
+            case 'success': return 'check-circle';
+            case 'error': return 'exclamation-circle';
+            case 'warning': return 'exclamation-triangle';
+            default: return 'info-circle';
+        }
+    }
+    
+    function getColorForType(type) {
+        switch(type) {
+            case 'success': return '#28a745';
+            case 'error': return '#dc3545';
+            case 'warning': return '#ffc107';
+            default: return '#17a2b8';
+        }
+    }
+    
+    // Agregar animaciones CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+{% endblock %}

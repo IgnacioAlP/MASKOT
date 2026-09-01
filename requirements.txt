@@ -1,0 +1,11 @@
+# Dependencias principales del proyecto MASKOT Veterinaria
+PyMySQL>=1.0.0
+Flask>=2.0.0
+
+# Dependencias opcionales para funcionalidades avanzadas
+# Para envío automático de WhatsApp Business (fidelización)
+requests>=2.28.0
+
+# Para desarrollo y testing (opcional)
+# pytest>=7.0.0
+# pytest-flask>=1.2.0

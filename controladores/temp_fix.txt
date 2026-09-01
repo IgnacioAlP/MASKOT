@@ -1,0 +1,2873 @@
+﻿from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime, date, time, timedelta
+
+def asistencia():
+    """Mostrar pÃ¡gina de asistencia"""
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    # admin_maskot tiene permisos completos
+    usuario = session.get('usuario', '')
+    if usuario == 'admin_maskot':
+        session['rol'] = 'dueÃ±o'
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener el registro de asistencia de hoy para el usuario actual
+        hoy = date.today()
+        cursor.execute("""
+            SELECT id, fecha, hora_entrada, hora_salida
+            FROM asistencia 
+            WHERE personal_id = %s AND DATE(fecha) = %s
+        """, (session['usuario_id'], hoy))
+        
+        asistencia_hoy = cursor.fetchone()
+        
+        # Si es dueÃ±o o admin, mostrar asistencia de todos
+        if session.get('rol') in ['dueÃ±o', 'admin']:
+            cursor.execute("""
+                SELECT a.id, a.personal_id, u.username,
+                       a.fecha, a.hora_entrada, a.hora_salida
+                FROM asistencia a
+                LEFT JOIN personal p ON a.personal_id = p.id
+                LEFT JOIN usuarios u ON p.usuario_id = u.id
+                WHERE DATE(a.fecha) = %s
+                ORDER BY a.fecha DESC, a.hora_entrada DESC
+            """, (hoy,))
+            asistencias_del_dia = cursor.fetchall()
+        else:
+            asistencias_del_dia = []
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('asistencia.html', 
+                             asistencia_hoy=asistencia_hoy,
+                             asistencias_del_dia=asistencias_del_dia,
+                             fecha_hoy=hoy)
+    
+    except Exception as e:
+        flash(f'Error al cargar asistencia: {str(e)}', 'error')
+        return render_template('asistencia.html', 
+                             asistencia_hoy=None,
+                             asistencias_del_dia=[],
+                             fecha_hoy=date.today())
+
+def marcar_entrada():
+    """Marcar entrada del empleado"""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar si ya marcÃ³ entrada hoy
+        hoy = date.today()
+        cursor.execute("""
+            SELECT id FROM asistencia
+            WHERE personal_id = %s AND DATE(fecha) = %s
+        """, (session['usuario_id'], hoy))
+        
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya marcaste entrada hoy'}), 400
+        
+        # Registrar entrada
+        ahora = datetime.now()
+        cursor.execute("""
+            INSERT INTO asistencia (personal_id, fecha, hora_entrada)
+            VALUES (%s, %s, %s)
+        """, (session['usuario_id'], hoy, ahora.time()))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Entrada marcada a las {ahora.strftime("%H:%M")}'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al marcar entrada: {str(e)}'}), 500
+
+def marcar_salida():
+    """Marcar salida del empleado"""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Buscar registro de entrada de hoy
+        hoy = date.today()
+        cursor.execute("""
+            SELECT id, hora_entrada FROM asistencia
+            WHERE personal_id = %s AND DATE(fecha) = %s AND hora_salida IS NULL
+        """, (session['usuario_id'], hoy))
+        
+        asistencia = cursor.fetchone()
+        if not asistencia:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'No hay registro de entrada para hoy o ya marcaste salida'}), 400
+        
+        # Registrar salida
+        ahora = datetime.now()
+        cursor.execute("""
+            UPDATE asistencia 
+            SET hora_salida = %s
+            WHERE id = %s
+        """, (ahora.time(), asistencia[0]))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Salida marcada a las {ahora.strftime("%H:%M")}'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al marcar salida: {str(e)}'}), 500
+
+def obtener_asistencias():
+    """Obtener historial de asistencias"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        fecha_desde = request.args.get('fecha_desde', date.today().strftime('%Y-%m-%d'))
+        fecha_hasta = request.args.get('fecha_hasta', date.today().strftime('%Y-%m-%d'))
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT a.id, u.username, a.fecha, a.hora_entrada, a.hora_salida,
+                   TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600 as horas_trabajadas
+            FROM asistencia a
+            LEFT JOIN personal p ON a.personal_id = p.id
+            LEFT JOIN usuarios u ON p.usuario_id = u.id
+            WHERE DATE(a.fecha) BETWEEN %s AND %s
+            ORDER BY a.fecha DESC, a.hora_entrada DESC
+        """, (fecha_desde, fecha_hasta))
+        
+        asistencias = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        asistencias_list = []
+        for asistencia in asistencias:
+            asistencias_list.append({
+                'id': asistencia[0],
+                'usuario': asistencia[1],
+                'fecha': asistencia[2].strftime('%Y-%m-%d'),
+                'hora_entrada': str(asistencia[3]) if asistencia[3] else None,
+                'hora_salida': str(asistencia[4]) if asistencia[4] else None,
+                'horas_trabajadas': round(asistencia[5], 2) if asistencia[5] else 0
+            })
+        
+        return jsonify({'asistencias': asistencias_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener asistencias: {str(e)}'}), 500
+
+def obtener_resumen_asistencia():
+    """Obtener resumen de asistencia por empleado"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        mes = request.args.get('mes', date.today().strftime('%Y-%m'))
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT u.username,
+                   COUNT(a.id) as dias_trabajados,
+                   SUM(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600) as total_horas,
+                   AVG(TIME_TO_SEC(TIMEDIFF(a.hora_salida, a.hora_entrada))/3600) as promedio_horas_dia
+            FROM usuarios u
+            JOIN personal p ON u.id = p.usuario_id
+            LEFT JOIN asistencia a ON p.id = a.personal_id AND DATE_FORMAT(a.fecha, '%Y-%m') = %s
+            WHERE p.activo = TRUE
+            GROUP BY u.id, u.username
+        """, (mes,))
+        
+        resumen = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        resumen_list = []
+        for emp in resumen:
+            resumen_list.append({
+                'usuario': emp[0],
+                'dias_trabajados': emp[1] or 0,
+                'total_horas': round(emp[2] or 0, 2),
+                'promedio_horas_dia': round(emp[3] or 0, 2)
+            })
+        
+        return jsonify({'resumen': resumen_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener resumen: {str(e)}'}), 500
+from bd import obtener_conexion
+
+def obtener_citas():
+    conexion = obtener_conexion()
+    citas = []
+    with conexion.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.id, c.cliente_nombre, c.cliente_email, 
+                   GROUP_CONCAT(DISTINCT s.nombre SEPARATOR ', ') as servicios, 
+                   c.fecha, c.hora, c.estado,
+                   GROUP_CONCAT(DISTINCT m.nombre SEPARATOR ', ') as mascotas,
+                   c.precio_total, c.observaciones
+            FROM citas c
+            LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
+            LEFT JOIN servicios s ON cs.servicio_id = s.id
+            LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
+            LEFT JOIN mascotas m ON cm.mascota_id = m.id
+            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado
+            ORDER BY c.fecha, c.hora
+        """)
+        citas = cursor.fetchall()
+    conexion.close()
+    return citas
+
+def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servicios_ids, fecha, hora, observaciones=''):
+    """Inserta una cita con mÃºltiples mascotas y servicios"""
+    conexion = obtener_conexion()
+    cita_id = None
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar/insertar cliente
+            cliente_id = verificar_o_insertar_cliente(cursor, cliente_nombre, cliente_email)
+            
+            # Insertar cita principal
+            cursor.execute("""
+                INSERT INTO citas (cliente_id, cliente_nombre, cliente_email, fecha, hora, estado, observaciones) 
+                VALUES (%s, %s, %s, %s, %s, 'pendiente', %s)
+            """, (cliente_id, cliente_nombre, cliente_email, fecha, hora, observaciones))
+            cita_id = cursor.lastrowid
+            
+            # Insertar mascotas y vincular con la cita
+            for mascota_data in mascotas_data:
+                mascota_id = insertar_o_obtener_mascota(cursor, cliente_id, mascota_data)
+                cursor.execute("INSERT INTO citas_mascotas (cita_id, mascota_id) VALUES (%s, %s)", 
+                             (cita_id, mascota_id))
+            
+            # Vincular servicios con la cita
+            precio_total = 0
+            for servicio_id in servicios_ids:
+                cursor.execute("INSERT INTO citas_servicios (cita_id, servicio_id) VALUES (%s, %s)", 
+                             (cita_id, servicio_id))
+                # AquÃ­ podrÃ­as agregar lÃ³gica para calcular precios por servicio
+            
+            # Actualizar precio total si es necesario
+            if precio_total > 0:
+                cursor.execute("UPDATE citas SET precio_total = %s WHERE id = %s", (precio_total, cita_id))
+        
+        conexion.commit()
+    except Exception as e:
+        conexion.rollback()
+        raise e
+    finally:
+        conexion.close()
+    return cita_id
+
+def verificar_o_insertar_cliente(cursor, nombre, email):
+    """Verifica si existe un cliente o lo crea"""
+    cursor.execute("SELECT id FROM clientes WHERE email = %s", (email,))
+    cliente = cursor.fetchone()
+    
+    if cliente:
+        return cliente[0]
+    else:
+        cursor.execute("INSERT INTO clientes (nombre, email, fecha_registro) VALUES (%s, %s, NOW())", 
+                      (nombre, email))
+        return cursor.lastrowid
+
+def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data):
+    """Inserta o obtiene una mascota existente"""
+    nombre = mascota_data.get('nombre', '')
+    especie = mascota_data.get('especie', '')
+    raza = mascota_data.get('raza', '')
+    edad = mascota_data.get('edad')
+    peso = mascota_data.get('peso')
+    
+    # Buscar mascota existente
+    cursor.execute("""
+        SELECT id FROM mascotas 
+        WHERE cliente_id = %s AND nombre = %s AND especie = %s AND activo = 1
+    """, (cliente_id, nombre, especie))
+    mascota = cursor.fetchone()
+    
+    if mascota:
+        # Actualizar datos si es necesario
+        cursor.execute("""
+            UPDATE mascotas 
+            SET raza = %s, edad = %s, peso = %s 
+            WHERE id = %s
+        """, (raza, edad, peso, mascota[0]))
+        return mascota[0]
+    else:
+        # Insertar nueva mascota
+        cursor.execute("""
+            INSERT INTO mascotas (cliente_id, nombre, especie, raza, edad, peso, fecha_registro) 
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """, (cliente_id, nombre, especie, raza, edad, peso))
+        return cursor.lastrowid
+
+# Mantener funciones de compatibilidad hacia atrÃ¡s
+def insertar_cita(cliente_nombre, cliente_email, servicio_id, fecha, hora, 
+                  mascota_nombre, mascota_especie, mascota_raza=None, mascota_edad=None, mascota_peso=None):
+    """FunciÃ³n de compatibilidad para una sola mascota y servicio"""
+    mascotas_data = [{
+        'nombre': mascota_nombre,
+        'especie': mascota_especie,
+        'raza': mascota_raza,
+        'edad': mascota_edad,
+        'peso': mascota_peso
+    }]
+    return insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, [servicio_id], fecha, hora)
+
+def eliminar_cita(id):
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Las tablas relacionadas se eliminan automÃ¡ticamente por CASCADE
+            cursor.execute("DELETE FROM citas WHERE id = %s", (id,))
+            # Verificar si se eliminÃ³ alguna fila
+            if cursor.rowcount > 0:
+                conexion.commit()
+                return True
+            else:
+                return False
+    except Exception as e:
+        conexion.rollback()
+        raise e
+    finally:
+        conexion.close()
+
+def cambiar_estado_cita(id, estado):
+    """Cambia el estado de una cita ('pendiente', 'completada', 'cancelada')."""
+    conexion = obtener_conexion()
+    with conexion.cursor() as cursor:
+        cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (estado, id))
+    conexion.commit()
+    conexion.close()
+
+def obtener_cita_por_id(id):
+    conexion = obtener_conexion()
+    cita = None
+    with conexion.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado,
+                   c.observaciones, c.precio_total,
+                   GROUP_CONCAT(DISTINCT CONCAT(m.nombre, '|', m.especie, '|', COALESCE(m.raza, ''), '|', 
+                                              COALESCE(m.edad, ''), '|', COALESCE(m.peso, '')) SEPARATOR ';') as mascotas,
+                   GROUP_CONCAT(DISTINCT CONCAT(s.id, '|', s.nombre) SEPARATOR ';') as servicios
+            FROM citas c
+            LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
+            LEFT JOIN mascotas m ON cm.mascota_id = m.id
+            LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
+            LEFT JOIN servicios s ON cs.servicio_id = s.id
+            WHERE c.id = %s
+            GROUP BY c.id
+        """, (id,))
+        cita = cursor.fetchone()
+    conexion.close()
+    return cita
+
+def contar_citas_por_servicio_y_fecha(servicio_id, fecha):
+    """Cuenta el nÃºmero de citas para un servicio en una fecha especÃ­fica."""
+    conexion = obtener_conexion()
+    with conexion.cursor() as cursor:
+        cursor.execute("""
+            SELECT COUNT(DISTINCT c.id) FROM citas c
+            JOIN citas_servicios cs ON c.id = cs.cita_id
+            WHERE cs.servicio_id = %s AND c.fecha = %s AND c.estado = 'pendiente'
+        """, (servicio_id, fecha))
+        count = cursor.fetchone()[0]
+    conexion.close()
+    return count
+
+def contar_citas_pendientes(servicio_id, fecha):
+    """Cuenta el nÃºmero de citas para un servicio en una fecha especÃ­fica."""
+    return contar_citas_por_servicio_y_fecha(servicio_id, fecha)
+
+def obtener_citas_por_fecha(fecha):
+    """Obtiene todas las citas para una fecha especÃ­fica."""
+    conexion = obtener_conexion()
+    with conexion.cursor() as cursor:
+        cursor.execute("""
+            SELECT c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado,
+                   c.mascota_nombre, c.mascota_especie, c.mascota_raza, c.mascota_edad, c.mascota_peso,
+                   c.observaciones, c.precio_total,
+                   GROUP_CONCAT(DISTINCT s.nombre SEPARATOR ', ') as servicios,
+                   GROUP_CONCAT(DISTINCT m.nombre SEPARATOR ', ') as mascotas_adicionales
+            FROM citas c 
+            LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
+            LEFT JOIN servicios s ON cs.servicio_id = s.id
+            LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
+            LEFT JOIN mascotas m ON cm.mascota_id = m.id
+            WHERE c.fecha=%s 
+            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado,
+                     c.mascota_nombre, c.mascota_especie, c.mascota_raza, c.mascota_edad, c.mascota_peso,
+                     c.observaciones, c.precio_total
+            ORDER BY c.hora
+        """, (fecha,))
+        citas = cursor.fetchall()
+    conexion.close()
+    return citas
+
+def actualizar_cita(id, cliente_nombre, cliente_email, servicio_id, fecha, hora, estado):
+    conexion = obtener_conexion()
+    with conexion.cursor() as cursor:
+        cursor.execute(
+            "UPDATE citas SET cliente_nombre = %s, cliente_email = %s, fecha = %s, hora = %s, estado = %s WHERE id = %s",
+            (cliente_nombre, cliente_email, fecha, hora, estado, id)
+        )
+        # Actualizar servicio (simplificado para compatibilidad)
+        cursor.execute("DELETE FROM citas_servicios WHERE cita_id = %s", (id,))
+        cursor.execute("INSERT INTO citas_servicios (cita_id, servicio_id) VALUES (%s, %s)", (id, servicio_id))
+    conexion.commit()
+    conexion.close()
+
+def actualizar_estado_cita(id, nuevo_estado):
+    """Actualiza solo el estado de una cita especÃ­fica"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (nuevo_estado, id))
+            # Verificar si se actualizÃ³ alguna fila
+            if cursor.rowcount > 0:
+                conexion.commit()
+                return True
+            else:
+                return False
+    except Exception as e:
+        conexion.rollback()
+        raise e
+    finally:
+        conexion.close()
+
+def obtener_cita_completa_por_id(cita_id):
+    """Obtiene todos los datos de una cita incluyendo mascotas y servicios"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener datos principales de la cita
+            cursor.execute("""
+                SELECT id, cliente_nombre, cliente_email, fecha, hora, estado, 
+                       precio_total, observaciones
+                FROM citas WHERE id = %s
+            """, (cita_id,))
+            cita_data = cursor.fetchone()
+            
+            if not cita_data:
+                return None
+            
+            # Convertir a diccionario
+            cita = {
+                'id': cita_data[0],
+                'cliente_nombre': cita_data[1],
+                'cliente_email': cita_data[2],
+                'fecha': str(cita_data[3]),
+                'hora': str(cita_data[4]),
+                'estado': cita_data[5],
+                'precio_total': float(cita_data[6]) if cita_data[6] else None,
+                'observaciones': cita_data[7]
+            }
+            
+            # Obtener mascotas asociadas
+            cursor.execute("""
+                SELECT m.id, m.nombre, m.especie, m.raza, m.edad, m.peso
+                FROM mascotas m
+                INNER JOIN citas_mascotas cm ON m.id = cm.mascota_id
+                WHERE cm.cita_id = %s
+            """, (cita_id,))
+            mascotas_data = cursor.fetchall()
+            
+            cita['mascotas'] = []
+            for mascota in mascotas_data:
+                cita['mascotas'].append({
+                    'id': mascota[0],
+                    'nombre': mascota[1],
+                    'especie': mascota[2],
+                    'raza': mascota[3],
+                    'edad': mascota[4],
+                    'peso': float(mascota[5]) if mascota[5] else None
+                })
+            
+            # Obtener servicios asociados
+            cursor.execute("""
+                SELECT s.id, s.nombre, s.descripcion
+                FROM servicios s
+                INNER JOIN citas_servicios cs ON s.id = cs.servicio_id
+                WHERE cs.cita_id = %s
+            """, (cita_id,))
+            servicios_data = cursor.fetchall()
+            
+            cita['servicios'] = []
+            for servicio in servicios_data:
+                cita['servicios'].append({
+                    'id': servicio[0],
+                    'nombre': servicio[1],
+                    'descripcion': servicio[2]
+                })
+            
+            return cita
+    
+    except Exception as e:
+        raise e
+    finally:
+        conexion.close()
+
+def actualizar_cita_completa(cita_id, cliente_nombre, cliente_email, fecha, hora, estado, precio_total=None, observaciones=None):
+    """Actualiza los datos principales de una cita"""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE citas 
+                SET cliente_nombre = %s, cliente_email = %s, fecha = %s, hora = %s, 
+                    estado = %s, precio_total = %s, observaciones = %s
+                WHERE id = %s
+            """, (cliente_nombre, cliente_email, fecha, hora, estado, precio_total, observaciones, cita_id))
+            
+            # Verificar si se actualizÃ³ alguna fila
+            if cursor.rowcount > 0:
+                conexion.commit()
+                return True
+            else:
+                return False
+    
+    except Exception as e:
+        conexion.rollback()
+        raise e
+    finally:
+        conexion.close()
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime, date
+import hashlib
+
+def clientes():
+    """Mostrar pÃ¡gina de gestiÃ³n de clientes"""
+    if 'usuario_id' not in session or session.get('rol') not in ['admin', 'empleado']:
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener todos los clientes con sus mascotas
+        cursor.execute("""
+            SELECT c.id, c.nombre, c.email, c.telefono, c.direccion,
+                   c.fecha_registro, c.activo,
+                   COUNT(m.id) as total_mascotas,
+                   COUNT(ci.id) as total_citas
+            FROM clientes c
+            LEFT JOIN mascotas m ON c.id = m.cliente_id
+            LEFT JOIN citas ci ON c.id = ci.cliente_id
+            GROUP BY c.id
+            ORDER BY c.nombre
+        """)
+        clientes = cursor.fetchall()
+        
+        # EstadÃ­sticas rÃ¡pidas
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_clientes,
+                COUNT(CASE WHEN activo = TRUE THEN 1 END) as clientes_activos,
+                COUNT(CASE WHEN DATE(fecha_registro) = CURDATE() THEN 1 END) as nuevos_hoy
+            FROM clientes
+        """)
+        estadisticas = cursor.fetchone()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('historial-clientes.html', 
+                             clientes=clientes,
+                             estadisticas=estadisticas)
+    
+    except Exception as e:
+        flash(f'Error al cargar clientes: {str(e)}', 'error')
+        return render_template('historial-clientes.html', clientes=[], estadisticas=(0, 0, 0))
+
+def agregar_cliente():
+    """Agregar un nuevo cliente"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin', 'empleado']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        direccion = data.get('direccion', '').strip()
+        
+        if not nombre:
+            return jsonify({'error': 'El nombre es obligatorio'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar si el cliente ya existe (por email o telÃ©fono)
+        if email:
+            cursor.execute("SELECT id FROM clientes WHERE email = %s", (email,))
+            if cursor.fetchone():
+                cursor.close()
+                conexion.close()
+                return jsonify({'error': 'Ya existe un cliente con ese email'}), 400
+        
+        # Insertar el nuevo cliente
+        cursor.execute("""
+            INSERT INTO clientes (nombre, email, telefono, direccion, fecha_registro, activo)
+            VALUES (%s, %s, %s, %s, NOW(), TRUE)
+        """, (nombre, email, telefono, direccion))
+        
+        conexion.commit()
+        cliente_id = cursor.lastrowid
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cliente agregado correctamente',
+            'cliente_id': cliente_id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al agregar cliente: {str(e)}'}), 500
+
+def editar_cliente():
+    """Editar un cliente existente"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin', 'empleado']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        cliente_id = data.get('cliente_id')
+        nombre = data.get('nombre', '').strip()
+        email = data.get('email', '').strip()
+        telefono = data.get('telefono', '').strip()
+        direccion = data.get('direccion', '').strip()
+        
+        if not cliente_id or not nombre:
+            return jsonify({'error': 'ID del cliente y nombre son obligatorios'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el cliente existe
+        cursor.execute("SELECT id FROM clientes WHERE id = %s", (cliente_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Cliente no encontrado'}), 404
+        
+        # Verificar email Ãºnico (excluyendo el cliente actual)
+        if email:
+            cursor.execute("SELECT id FROM clientes WHERE email = %s AND id != %s", (email, cliente_id))
+            if cursor.fetchone():
+                cursor.close()
+                conexion.close()
+                return jsonify({'error': 'Ya existe otro cliente con ese email'}), 400
+        
+        # Actualizar el cliente
+        cursor.execute("""
+            UPDATE clientes 
+            SET nombre = %s, email = %s, telefono = %s, direccion = %s
+            WHERE id = %s
+        """, (nombre, email, telefono, direccion, cliente_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Cliente actualizado correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar cliente: {str(e)}'}), 500
+
+def cambiar_estado_cliente():
+    """Activar o desactivar un cliente"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        cliente_id = data.get('cliente_id')
+        activo = data.get('activo')
+        
+        if cliente_id is None or activo is None:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el cliente existe
+        cursor.execute("SELECT nombre FROM clientes WHERE id = %s", (cliente_id,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Cliente no encontrado'}), 404
+        
+        # Verificar si hay citas pendientes antes de desactivar
+        if not activo:
+            cursor.execute("""
+                SELECT COUNT(*) FROM citas 
+                WHERE id = %s AND estado IN ('pendiente', 'en_proceso')
+            """, (cliente_id,))
+            citas_pendientes = cursor.fetchone()[0]
+            
+            if citas_pendientes > 0:
+                cursor.close()
+                conexion.close()
+                return jsonify({
+                    'error': f'No se puede desactivar el cliente. Tiene {citas_pendientes} citas pendientes.'
+                }), 400
+        
+        # Cambiar estado
+        cursor.execute("""
+            UPDATE clientes 
+            SET activo = %s
+            WHERE id = %s
+        """, (activo, cliente_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        estado_texto = 'activado' if activo else 'desactivado'
+        return jsonify({
+            'success': True,
+            'message': f'Cliente "{cliente[0]}" {estado_texto} correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar estado del cliente: {str(e)}'}), 500
+
+def detalle_cliente():
+    """Mostrar detalles de un cliente especÃ­fico"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin', 'empleado']:
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    cliente_id = request.args.get('id')
+    if not cliente_id:
+        flash('ID de cliente no proporcionado.', 'error')
+        return redirect(url_for('clientes'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener datos del cliente
+        cursor.execute("""
+            SELECT id, nombre, email, telefono, direccion, fecha_registro, activo
+            FROM clientes 
+            WHERE id = %s
+        """, (cliente_id,))
+        cliente = cursor.fetchone()
+        
+        if not cliente:
+            cursor.close()
+            conexion.close()
+            flash('Cliente no encontrado.', 'error')
+            return redirect(url_for('clientes'))
+        
+        # Obtener mascotas del cliente
+        cursor.execute("""
+            SELECT id, nombre, especie, raza, edad, peso, color, observaciones
+            FROM mascotas 
+            WHERE id = %s
+            ORDER BY nombre
+        """, (cliente_id,))
+        mascotas = cursor.fetchall()
+        
+        # Obtener historial de citas
+        cursor.execute("""
+            SELECT c.id, c.fecha, c.hora, c.estado, c.observaciones,
+                   s.nombre as servicio, m.nombre as mascota
+            FROM citas c
+            LEFT JOIN servicios s ON c.servicio_id = s.id
+            LEFT JOIN mascotas m ON c.id = m.id
+            WHERE c.id = %s
+            ORDER BY c.fecha DESC, c.hora DESC
+            LIMIT 20
+        """, (cliente_id,))
+        citas = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('detalle-cliente.html',
+                             cliente=cliente,
+                             mascotas=mascotas,
+                             citas=citas)
+    
+    except Exception as e:
+        flash(f'Error al cargar detalles del cliente: {str(e)}', 'error')
+        return redirect(url_for('clientes'))
+
+def buscar_clientes():
+    """Buscar clientes por nombre, email o telÃ©fono"""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        termino = request.args.get('q', '').strip()
+        if len(termino) < 2:
+            return jsonify({'clientes': []})
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT id, nombre, email, telefono
+            FROM clientes 
+            WHERE activo = TRUE AND (
+                nombre LIKE %s OR 
+                email LIKE %s OR 
+                telefono LIKE %s
+            )
+            ORDER BY nombre
+            LIMIT 10
+        """, (f'%{termino}%', f'%{termino}%', f'%{termino}%'))
+        
+        clientes = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        clientes_list = []
+        for cliente in clientes:
+            clientes_list.append({
+                'id': cliente[0],
+                'nombre': cliente[1],
+                'email': cliente[2] or '',
+                'telefono': cliente[3] or ''
+            })
+        
+        return jsonify({'clientes': clientes_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error en la bÃºsqueda: {str(e)}'}), 500
+
+def obtener_clientes_api():
+    """API para obtener clientes (para uso en otras pÃ¡ginas)"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT id, nombre, email, telefono
+            FROM clientes 
+            WHERE activo = TRUE
+            ORDER BY nombre
+        """)
+        clientes = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        clientes_list = []
+        for cliente in clientes:
+            clientes_list.append({
+                'id': cliente[0],
+                'nombre': cliente[1],
+                'email': cliente[2] or '',
+                'telefono': cliente[3] or ''
+            })
+        
+        return jsonify({'clientes': clientes_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener clientes: {str(e)}'}), 500
+
+def obtener_cliente_por_email(email):
+    """Obtener cliente por email para otras funciones"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT id, nombre, email, telefono, direccion, fecha_registro, activo
+            FROM clientes 
+            WHERE email = %s
+        """, (email,))
+        
+        cliente = cursor.fetchone()
+        cursor.close()
+        conexion.close()
+        
+        return cliente
+    
+    except Exception as e:
+        print(f'Error al obtener cliente por email: {str(e)}')
+        return None
+
+def insertar_cliente(nombre, email, telefono, direccion, documento=None):
+    """Insertar nuevo cliente para otras funciones"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            INSERT INTO clientes (nombre, email, telefono, direccion, fecha_registro, activo)
+            VALUES (%s, %s, %s, %s, NOW(), TRUE)
+        """, (nombre, email, telefono, direccion))
+        
+        conexion.commit()
+        cliente_id = cursor.lastrowid
+        
+        cursor.close()
+        conexion.close()
+        
+        return cliente_id
+    
+    except Exception as e:
+        print(f'Error al insertar cliente: {str(e)}')
+        return None
+
+def guardar_tarjeta_cliente(cliente_id, numero_tarjeta, nombre_titular, expiracion, tipo):
+    """Guardar informaciÃ³n de tarjeta del cliente"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Hash del nÃºmero de tarjeta por seguridad
+        numero_hash = hashlib.sha256(numero_tarjeta.encode()).hexdigest()
+        
+        cursor.execute("""
+            INSERT INTO tarjetas_clientes (id, numero_hash, nombre_titular, expiracion, tipo, fecha_creacion)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+            ON DUPLICATE KEY UPDATE
+            nombre_titular = VALUES(nombre_titular),
+            expiracion = VALUES(expiracion),
+            tipo = VALUES(tipo)
+        """, (cliente_id, numero_hash, nombre_titular, expiracion, tipo))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return True
+    
+    except Exception as e:
+        print(f'Error al guardar tarjeta: {str(e)}')
+        return False
+
+def insertar_pedido(cliente_id, items, total, metodo_pago, subtotal, igv):
+    """Insertar nuevo pedido para el cliente"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Insertar pedido
+        cursor.execute("""
+            INSERT INTO pedidos (id, total, subtotal, igv, metodo_pago, estado, fecha_creacion)
+            VALUES (%s, %s, %s, %s, %s, 'procesando', NOW())
+        """, (cliente_id, total, subtotal, igv, metodo_pago))
+        
+        pedido_id = cursor.lastrowid
+        
+        # Insertar items del pedido
+        for item in items:
+            cursor.execute("""
+                INSERT INTO pedido_items (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (pedido_id, item['id'], item['qty'], item['precio_unitario'], item['subtotal']))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return pedido_id
+    
+    except Exception as e:
+        print(f'Error al insertar pedido: {str(e)}')
+        return None
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime, date
+
+def listar_mascotas():
+    """Mostrar pÃ¡gina de gestiÃ³n de mascotas"""
+    if 'usuario_id' not in session or session.get('rol') not in ['admin', 'empleado']:
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener todas las mascotas con informaciÃ³n del dueÃ±o
+        cursor.execute("""
+            SELECT m.id, m.nombre, m.especie, m.raza, m.edad, m.peso, 
+                   m.color, m.observaciones, m.fecha_registro,
+                   c.nombre as nombre_dueÃ±o, c.telefono, c.email,
+                   0 as total_citas
+            FROM mascotas m
+            JOIN clientes c ON m.cliente_id = c.id
+            GROUP BY m.id
+            ORDER BY m.fecha_registro DESC, m.nombre
+        """)
+        mascotas = cursor.fetchall()
+        
+        # EstadÃ­sticas rÃ¡pidas
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_mascotas,
+                COUNT(CASE WHEN m.especie = 'perro' THEN 1 END) as total_perros,
+                COUNT(CASE WHEN m.especie = 'gato' THEN 1 END) as total_gatos,
+                COUNT(CASE WHEN m.especie NOT IN ('perro', 'gato') THEN 1 END) as otras_especies,
+                COUNT(CASE WHEN DATE(m.fecha_registro) = CURDATE() THEN 1 END) as nuevas_hoy
+            FROM mascotas m
+        """)
+        estadisticas = cursor.fetchone()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('mascotas.html', 
+                             mascotas=mascotas,
+                             estadisticas=estadisticas)
+    
+    except Exception as e:
+        flash(f'Error al cargar mascotas: {str(e)}', 'error')
+        return render_template('mascotas.html', mascotas=[], estadisticas=(0, 0, 0, 0, 0))
+
+def agregar_mascota():
+    """Agregar una nueva mascota"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin', 'empleado']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre', '').strip()
+        especie = data.get('especie', '').strip().lower()
+        raza = data.get('raza', '').strip()
+        edad = data.get('edad')
+        peso = data.get('peso')
+        color = data.get('color', '').strip()
+        observaciones = data.get('observaciones', '').strip()
+        id_cliente = data.get('id_cliente')
+        
+        if not nombre or not especie or not id_cliente:
+            return jsonify({'error': 'Nombre, especie y cliente son obligatorios'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el cliente existe
+        cursor.execute("SELECT nombre FROM clientes WHERE id_cliente = %s AND activo = TRUE", (id_cliente,))
+        cliente = cursor.fetchone()
+        if not cliente:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Cliente no encontrado o inactivo'}), 400
+        
+        # Verificar que no existe otra mascota con el mismo nombre para el mismo cliente
+        cursor.execute("""
+            SELECT id FROM mascotas 
+            WHERE nombre = %s AND id_cliente = %s
+        """, (nombre, id_cliente))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': f'El cliente ya tiene una mascota llamada "{nombre}"'}), 400
+        
+        # Insertar la nueva mascota
+        cursor.execute("""
+            INSERT INTO mascotas (nombre, especie, raza, edad, peso, color, 
+                                observaciones, id_cliente, fecha_registro)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        """, (nombre, especie, raza, edad, peso, color, observaciones, id_cliente))
+        
+        conexion.commit()
+        mascota_id = cursor.lastrowid
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Mascota "{nombre}" agregada correctamente para {cliente[0]}',
+            'mascota_id': mascota_id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al agregar mascota: {str(e)}'}), 500
+
+def editar_mascota():
+    """Editar una mascota existente"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin', 'empleado']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        mascota_id = data.get('mascota_id')
+        nombre = data.get('nombre', '').strip()
+        especie = data.get('especie', '').strip().lower()
+        raza = data.get('raza', '').strip()
+        edad = data.get('edad')
+        peso = data.get('peso')
+        color = data.get('color', '').strip()
+        observaciones = data.get('observaciones', '').strip()
+        
+        if not mascota_id or not nombre or not especie:
+            return jsonify({'error': 'ID de mascota, nombre y especie son obligatorios'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que la mascota existe
+        cursor.execute("SELECT id_cliente FROM mascotas WHERE id = %s", (mascota_id,))
+        mascota = cursor.fetchone()
+        if not mascota:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Mascota no encontrada'}), 404
+        
+        id_cliente = mascota[0]
+        
+        # Verificar nombre Ãºnico para el cliente (excluyendo la mascota actual)
+        cursor.execute("""
+            SELECT id FROM mascotas 
+            WHERE nombre = %s AND id_cliente = %s AND id != %s
+        """, (nombre, id_cliente, mascota_id))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': f'El cliente ya tiene otra mascota llamada "{nombre}"'}), 400
+        
+        # Actualizar la mascota
+        cursor.execute("""
+            UPDATE mascotas 
+            SET nombre = %s, especie = %s, raza = %s, edad = %s, peso = %s, 
+                color = %s, observaciones = %s
+            WHERE id = %s
+        """, (nombre, especie, raza, edad, peso, color, observaciones, mascota_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Mascota "{nombre}" actualizada correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar mascota: {str(e)}'}), 500
+
+def eliminar_mascota():
+    """Eliminar una mascota"""
+    if 'usuario_id' not in session or session.get('rol') not in ['admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        mascota_id = data.get('mascota_id')
+        
+        if not mascota_id:
+            return jsonify({'error': 'ID de mascota requerido'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que la mascota existe
+        cursor.execute("SELECT nombre FROM mascotas WHERE id = %s", (mascota_id,))
+        mascota = cursor.fetchone()
+        if not mascota:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Mascota no encontrada'}), 404
+        
+        nombre_mascota = mascota[0]
+        
+        # Verificar si tiene citas pendientes
+        cursor.execute("""
+            SELECT COUNT(*) FROM citas 
+            WHERE id = %s AND estado IN ('pendiente', 'en_proceso')
+        """, (mascota_id,))
+        citas_pendientes = cursor.fetchone()[0]
+        
+        if citas_pendientes > 0:
+            cursor.close()
+            conexion.close()
+            return jsonify({
+                'error': f'No se puede eliminar la mascota. Tiene {citas_pendientes} citas pendientes.'
+            }), 400
+        
+        # Eliminar la mascota
+        cursor.execute("DELETE FROM mascotas WHERE id = %s", (mascota_id,))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Mascota "{nombre_mascota}" eliminada correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al eliminar mascota: {str(e)}'}), 500
+
+def obtener_mascotas_por_cliente():
+    """Obtener mascotas de un cliente especÃ­fico"""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        cliente_id = request.args.get('cliente_id')
+        if not cliente_id:
+            return jsonify({'error': 'ID de cliente requerido'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT id, nombre, especie, raza, edad, peso, color
+            FROM mascotas 
+            WHERE id_cliente = %s
+            ORDER BY nombre
+        """, (cliente_id,))
+        
+        mascotas = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        mascotas_list = []
+        for mascota in mascotas:
+            mascotas_list.append({
+                'id': mascota[0],
+                'nombre': mascota[1],
+                'especie': mascota[2],
+                'raza': mascota[3] or '',
+                'edad': mascota[4],
+                'peso': float(mascota[5]) if mascota[5] else None,
+                'color': mascota[6] or ''
+            })
+        
+        return jsonify({'mascotas': mascotas_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener mascotas: {str(e)}'}), 500
+
+def detalle_mascota():
+    """Mostrar detalles de una mascota especÃ­fica"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin', 'empleado']:
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    mascota_id = request.args.get('id')
+    if not mascota_id:
+        flash('ID de mascota no proporcionado.', 'error')
+        return redirect(url_for('listar_mascotas'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener datos de la mascota y su dueÃ±o
+        cursor.execute("""
+            SELECT m.id, m.nombre, m.especie, m.raza, m.edad, m.peso,
+                   m.color, m.observaciones, m.fecha_registro,
+                   c.nombre as nombre_dueÃ±o, c.telefono, c.email, c.direccion
+            FROM mascotas m
+            JOIN clientes c ON m.id_cliente = c.id_cliente
+            WHERE m.id = %s
+        """, (mascota_id,))
+        mascota = cursor.fetchone()
+        
+        if not mascota:
+            cursor.close()
+            conexion.close()
+            flash('Mascota no encontrada.', 'error')
+            return redirect(url_for('listar_mascotas'))
+        
+        # Obtener historial de citas de la mascota
+        cursor.execute("""
+            SELECT c.id, c.fecha, c.hora, c.estado, c.observaciones,
+                   s.nombre as servicio, u.username as atendido_por
+            FROM citas c
+            LEFT JOIN servicios s ON c.servicio_id = s.id
+            LEFT JOIN usuarios u ON c.id_usuario = u.id_usuario
+            WHERE c.id = %s
+            ORDER BY c.fecha DESC, c.hora DESC
+            LIMIT 20
+        """, (mascota_id,))
+        citas = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('detalle-mascota.html',
+                             mascota=mascota,
+                             citas=citas)
+    
+    except Exception as e:
+        flash(f'Error al cargar detalles de la mascota: {str(e)}', 'error')
+        return redirect(url_for('listar_mascotas'))
+
+def buscar_mascotas():
+    """Buscar mascotas por nombre, especie o dueÃ±o"""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        termino = request.args.get('q', '').strip()
+        if len(termino) < 2:
+            return jsonify({'mascotas': []})
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT m.id, m.nombre, m.especie, m.raza, c.nombre as nombre_dueÃ±o
+            FROM mascotas m
+            JOIN clientes c ON m.id_cliente = c.id_cliente
+            WHERE c.activo = TRUE AND (
+                m.nombre LIKE %s OR 
+                m.especie LIKE %s OR 
+                m.raza LIKE %s OR
+                c.nombre LIKE %s
+            )
+            ORDER BY m.nombre
+            LIMIT 10
+        """, (f'%{termino}%', f'%{termino}%', f'%{termino}%', f'%{termino}%'))
+        
+        mascotas = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        mascotas_list = []
+        for mascota in mascotas:
+            mascotas_list.append({
+                'id': mascota[0],
+                'nombre': mascota[1],
+                'especie': mascota[2],
+                'raza': mascota[3] or '',
+                'nombre_dueÃ±o': mascota[4]
+            })
+        
+        return jsonify({'mascotas': mascotas_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error en la bÃºsqueda: {str(e)}'}), 500
+
+def obtener_estadisticas_mascotas():
+    """Obtener estadÃ­sticas de mascotas"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # EstadÃ­sticas por especie
+        cursor.execute("""
+            SELECT especie, COUNT(*) as cantidad
+            FROM mascotas 
+            GROUP BY especie
+            ORDER BY cantidad DESC
+        """)
+        por_especie = cursor.fetchall()
+        
+        # Mascotas por edad
+        cursor.execute("""
+            SELECT 
+                CASE 
+                    WHEN edad IS NULL THEN 'Sin especificar'
+                    WHEN edad < 1 THEN 'Cachorro (< 1 aÃ±o)'
+                    WHEN edad BETWEEN 1 AND 7 THEN 'Adulto (1-7 aÃ±os)'
+                    ELSE 'Senior (> 7 aÃ±os)'
+                END as rango_edad,
+                COUNT(*) as cantidad
+            FROM mascotas 
+            GROUP BY rango_edad
+            ORDER BY cantidad DESC
+        """)
+        por_edad = cursor.fetchall()
+        
+        # Top razas
+        cursor.execute("""
+            SELECT raza, COUNT(*) as cantidad
+            FROM mascotas 
+            WHERE raza IS NOT NULL AND raza != ''
+            GROUP BY raza
+            ORDER BY cantidad DESC
+            LIMIT 10
+        """)
+        top_razas = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'por_especie': dict(por_especie),
+            'por_edad': dict(por_edad),
+            'top_razas': dict(top_razas)
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener estadÃ­sticas: {str(e)}'}), 500
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime, date, time
+
+def personal():
+    """Mostrar pÃ¡gina de gestiÃ³n de personal"""
+    if 'usuario_id' not in session:
+        flash('Necesitas iniciar sesiÃ³n.', 'error')
+        return redirect(url_for('login'))
+    
+    # admin_maskot tiene permisos completos
+    usuario = session.get('usuario', '')
+    if usuario == 'admin_maskot':
+        session['rol'] = 'dueÃ±o'
+    
+    if session.get('rol') != 'admin':
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener todos los empleados
+        cursor.execute("""
+            SELECT u.id_usuario, u.username, u.email, u.rol, u.activo, u.fecha_creacion,
+                   p.nombre_completo, p.telefono, p.direccion, p.fecha_nacimiento,
+                   p.puesto, p.salario, p.fecha_contratacion
+            FROM usuarios u
+            LEFT JOIN personal p ON u.id_usuario = p.id_usuario
+            WHERE u.rol IN ('admin', 'empleado')
+            ORDER BY u.username
+        """)
+        empleados = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('personal.html', empleados=empleados)
+    except Exception as e:
+        flash(f'Error al cargar personal: {str(e)}', 'error')
+        return render_template('personal.html', empleados=[])
+
+def agregar_empleado():
+    """Agregar un nuevo empleado"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '').strip()
+        rol = data.get('rol', 'empleado')
+        nombre_completo = data.get('nombre_completo', '').strip()
+        telefono = data.get('telefono', '').strip()
+        direccion = data.get('direccion', '').strip()
+        puesto = data.get('puesto', '').strip()
+        salario = data.get('salario')
+        fecha_nacimiento = data.get('fecha_nacimiento')
+        fecha_contratacion = data.get('fecha_contratacion')
+        
+        # Validaciones bÃ¡sicas
+        if not username or not email or not password or not nombre_completo:
+            return jsonify({'error': 'Username, email, contraseÃ±a y nombre completo son obligatorios'}), 400
+        
+        if rol not in ['admin', 'empleado']:
+            return jsonify({'error': 'Rol invÃ¡lido'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar si el usuario ya existe
+        cursor.execute("SELECT id_usuario FROM usuarios WHERE username = %s OR email = %s", (username, email))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe un usuario con ese username o email'}), 400
+        
+        # Insertar usuario
+        cursor.execute("""
+            INSERT INTO usuarios (username, email, password, rol, activo, fecha_creacion)
+            VALUES (%s, %s, %s, %s, TRUE, NOW())
+        """, (username, email, password, rol))
+        
+        usuario_id = cursor.lastrowid
+        
+        # Insertar datos de personal
+        cursor.execute("""
+            INSERT INTO personal (id_usuario, nombre_completo, telefono, direccion, 
+                                fecha_nacimiento, puesto, salario, fecha_contratacion)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (usuario_id, nombre_completo, telefono, direccion, fecha_nacimiento, 
+              puesto, float(salario) if salario else None, fecha_contratacion))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Empleado agregado correctamente',
+            'empleado_id': usuario_id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al agregar empleado: {str(e)}'}), 500
+
+def editar_empleado():
+    """Editar un empleado existente"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        empleado_id = data.get('empleado_id')
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        rol = data.get('rol', 'empleado')
+        nombre_completo = data.get('nombre_completo', '').strip()
+        telefono = data.get('telefono', '').strip()
+        direccion = data.get('direccion', '').strip()
+        puesto = data.get('puesto', '').strip()
+        salario = data.get('salario')
+        fecha_nacimiento = data.get('fecha_nacimiento')
+        fecha_contratacion = data.get('fecha_contratacion')
+        
+        if not empleado_id or not username or not email or not nombre_completo:
+            return jsonify({'error': 'Datos obligatorios faltantes'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el empleado existe
+        cursor.execute("SELECT id_usuario FROM usuarios WHERE id_usuario = %s", (empleado_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Empleado no encontrado'}), 404
+        
+        # Verificar username y email Ãºnicos (excluyendo el empleado actual)
+        cursor.execute("""
+            SELECT id_usuario FROM usuarios 
+            WHERE (username = %s OR email = %s) AND id_usuario != %s
+        """, (username, email, empleado_id))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe otro usuario con ese username o email'}), 400
+        
+        # Actualizar usuario
+        cursor.execute("""
+            UPDATE usuarios 
+            SET username = %s, email = %s, rol = %s
+            WHERE id_usuario = %s
+        """, (username, email, rol, empleado_id))
+        
+        # Verificar si existe registro en personal
+        cursor.execute("SELECT id_usuario FROM personal WHERE id_usuario = %s", (empleado_id,))
+        existe_personal = cursor.fetchone()
+        
+        if existe_personal:
+            # Actualizar personal existente
+            cursor.execute("""
+                UPDATE personal 
+                SET nombre_completo = %s, telefono = %s, direccion = %s, 
+                    fecha_nacimiento = %s, puesto = %s, salario = %s, fecha_contratacion = %s
+                WHERE id_usuario = %s
+            """, (nombre_completo, telefono, direccion, fecha_nacimiento, 
+                  float(salario) if salario else None, fecha_contratacion, empleado_id))
+        else:
+            # Crear nuevo registro de personal
+            cursor.execute("""
+                INSERT INTO personal (id_usuario, nombre_completo, telefono, direccion, 
+                                    fecha_nacimiento, puesto, salario, fecha_contratacion)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (empleado_id, nombre_completo, telefono, direccion, fecha_nacimiento, 
+                  float(salario) if salario else None, fecha_contratacion))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Empleado actualizado correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar empleado: {str(e)}'}), 500
+
+def cambiar_estado_empleado():
+    """Activar o desactivar un empleado"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        empleado_id = data.get('empleado_id')
+        activo = data.get('activo')
+        
+        if empleado_id is None or activo is None:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        # No permitir desactivar al propio dueÃ±o
+        if empleado_id == session.get('usuario_id'):
+            return jsonify({'error': 'No puedes desactivar tu propia cuenta'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el empleado existe
+        cursor.execute("SELECT username FROM usuarios WHERE id_usuario = %s", (empleado_id,))
+        empleado = cursor.fetchone()
+        if not empleado:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Empleado no encontrado'}), 404
+        
+        # Cambiar estado
+        cursor.execute("""
+            UPDATE usuarios 
+            SET activo = %s
+            WHERE id_usuario = %s
+        """, (activo, empleado_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        estado_texto = 'activado' if activo else 'desactivado'
+        return jsonify({
+            'success': True,
+            'message': f'Empleado "{empleado[0]}" {estado_texto} correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar estado del empleado: {str(e)}'}), 500
+
+def cambiar_password_empleado():
+    """Cambiar contraseÃ±a de un empleado"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        empleado_id = data.get('empleado_id')
+        nueva_password = data.get('nueva_password', '').strip()
+        
+        if not empleado_id or not nueva_password:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        if len(nueva_password) < 4:
+            return jsonify({'error': 'La contraseÃ±a debe tener al menos 4 caracteres'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el empleado existe
+        cursor.execute("SELECT username FROM usuarios WHERE id_usuario = %s", (empleado_id,))
+        empleado = cursor.fetchone()
+        if not empleado:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Empleado no encontrado'}), 404
+        
+        # Actualizar contraseÃ±a
+        cursor.execute("""
+            UPDATE usuarios 
+            SET password = %s
+            WHERE id_usuario = %s
+        """, (nueva_password, empleado_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'ContraseÃ±a actualizada para "{empleado[0]}"'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar contraseÃ±a: {str(e)}'}), 500
+
+def obtener_estadisticas_personal():
+    """Obtener estadÃ­sticas del personal"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Total empleados activos
+        cursor.execute("SELECT COUNT(*) FROM usuarios WHERE rol IN ('admin', 'empleado') AND activo = TRUE")
+        total_activos = cursor.fetchone()[0]
+        
+        # Total empleados inactivos
+        cursor.execute("SELECT COUNT(*) FROM usuarios WHERE rol IN ('admin', 'empleado') AND activo = FALSE")
+        total_inactivos = cursor.fetchone()[0]
+        
+        # Empleados por rol
+        cursor.execute("""
+            SELECT rol, COUNT(*) FROM usuarios 
+            WHERE rol IN ('admin', 'empleado') AND activo = TRUE
+            GROUP BY rol
+        """)
+        por_rol = cursor.fetchall()
+        
+        # Salario promedio
+        cursor.execute("SELECT AVG(salario) FROM personal WHERE salario IS NOT NULL")
+        salario_promedio = cursor.fetchone()[0] or 0
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'total_activos': total_activos,
+            'total_inactivos': total_inactivos,
+            'por_rol': dict(por_rol),
+            'salario_promedio': float(salario_promedio)
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener estadÃ­sticas: {str(e)}'}), 500
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime, date
+
+def almacen():
+    """Mostrar pÃ¡gina de gestiÃ³n de almacÃ©n"""
+    if 'usuario_id' not in session:
+        flash('Necesitas iniciar sesiÃ³n.', 'error')
+        return redirect(url_for('login'))
+    
+    # admin_maskot tiene permisos completos
+    usuario = session.get('usuario', '')
+    if usuario == 'admin_maskot':
+        session['rol'] = 'admin'
+    
+    if session.get('rol') not in ['admin']:
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener todos los productos
+        cursor.execute("""
+            SELECT p.id, p.nombre, 'Producto veterinario' as descripcion, 25.00 as precio, p.cantidad, 
+                   p.stock_min, 'General' as proveedor, p.tipo as categoria, p.activo, 
+                   NOW() as fecha_creacion, NOW() as fecha_actualizacion,
+                   CASE 
+                       WHEN p.cantidad <= 0 THEN 'sin_cantidad'
+                       WHEN p.cantidad <= p.stock_min THEN 'cantidad_bajo'
+                       ELSE 'cantidad_normal'
+                   END as estado_cantidad
+            FROM productos p
+            ORDER BY p.nombre
+        """)
+        productos = cursor.fetchall()
+        
+        # EstadÃ­sticas rÃ¡pidas
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_productos,
+                COUNT(CASE WHEN activo = TRUE THEN 1 END) as productos_activos,
+                COUNT(CASE WHEN cantidad <= 0 THEN 1 END) as sin_cantidad,
+                COUNT(CASE WHEN cantidad <= stock_min AND cantidad > 0 THEN 1 END) as cantidad_bajo,
+                SUM(CASE WHEN activo = TRUE THEN cantidad * 25.00 ELSE 0 END) as valor_inventario
+            FROM productos
+        """)
+        estadisticas = cursor.fetchone()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('almacen.html', 
+                             productos=productos,
+                             estadisticas=estadisticas)
+    
+    except Exception as e:
+        flash(f'Error al cargar almacÃ©n: {str(e)}', 'error')
+        return render_template('almacen.html', productos=[], estadisticas=(0, 0, 0, 0, 0))
+
+def agregar_producto():
+    """Agregar un nuevo producto"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre', '').strip()
+        descripcion = data.get('descripcion', '').strip()
+        precio = data.get('precio')
+        cantidad_actual = data.get('cantidad_actual', 0)
+        cantidad_minimo = data.get('cantidad_minimo', 0)
+        proveedor = data.get('proveedor', '').strip()
+        categoria = data.get('categoria', '').strip()
+        
+        if not nombre or not precio:
+            return jsonify({'error': 'Nombre y precio son obligatorios'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar si el producto ya existe
+        cursor.execute("SELECT id FROM productos WHERE nombre = %s", (nombre,))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe un producto con ese nombre'}), 400
+        
+        # Insertar el nuevo producto
+        cursor.execute("""
+            INSERT INTO productos (nombre, descripcion, precio, cantidad_actual, cantidad_minimo, 
+                                 proveedor, categoria, activo, fecha_creacion)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE, NOW())
+        """, (nombre, descripcion, float(precio), int(cantidad_actual), 
+              int(cantidad_minimo), proveedor, categoria))
+        
+        conexion.commit()
+        producto_id = cursor.lastrowid
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Producto agregado correctamente',
+            'producto_id': producto_id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al agregar producto: {str(e)}'}), 500
+
+def editar_producto():
+    """Editar un producto existente"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        producto_id = data.get('producto_id')
+        nombre = data.get('nombre', '').strip()
+        descripcion = data.get('descripcion', '').strip()
+        precio = data.get('precio')
+        cantidad_actual = data.get('cantidad_actual')
+        cantidad_minimo = data.get('cantidad_minimo')
+        proveedor = data.get('proveedor', '').strip()
+        categoria = data.get('categoria', '').strip()
+        
+        if not producto_id or not nombre or not precio:
+            return jsonify({'error': 'Datos obligatorios faltantes'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el producto existe
+        cursor.execute("SELECT id FROM productos WHERE id = %s", (producto_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Producto no encontrado'}), 404
+        
+        # Verificar nombre Ãºnico (excluyendo el producto actual)
+        cursor.execute("SELECT id FROM productos WHERE nombre = %s AND id != %s", (nombre, producto_id))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe otro producto con ese nombre'}), 400
+        
+        # Actualizar el producto
+        cursor.execute("""
+            UPDATE productos 
+            SET nombre = %s, descripcion = %s, precio = %s, cantidad_actual = %s, 
+                cantidad_minimo = %s, proveedor = %s, categoria = %s, fecha_actualizacion = NOW()
+            WHERE id = %s
+        """, (nombre, descripcion, float(precio), int(cantidad_actual), 
+              int(cantidad_minimo), proveedor, categoria, producto_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Producto actualizado correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar producto: {str(e)}'}), 500
+
+def cambiar_estado_producto():
+    """Activar o desactivar un producto"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        producto_id = data.get('producto_id')
+        activo = data.get('activo')
+        
+        if producto_id is None or activo is None:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el producto existe
+        cursor.execute("SELECT nombre FROM productos WHERE id = %s", (producto_id,))
+        producto = cursor.fetchone()
+        if not producto:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Producto no encontrado'}), 404
+        
+        # Cambiar estado
+        cursor.execute("""
+            UPDATE productos 
+            SET activo = %s, fecha_actualizacion = NOW()
+            WHERE id = %s
+        """, (activo, producto_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        estado_texto = 'activado' if activo else 'desactivado'
+        return jsonify({
+            'success': True,
+            'message': f'Producto "{producto[0]}" {estado_texto} correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar estado del producto: {str(e)}'}), 500
+
+def actualizar_cantidad():
+    """Actualizar cantidad de un producto"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        producto_id = data.get('producto_id')
+        tipo_movimiento = data.get('tipo_movimiento')  # 'entrada' o 'salida'
+        cantidad = data.get('cantidad')
+        motivo = data.get('motivo', '').strip()
+        
+        if not producto_id or not tipo_movimiento or not cantidad:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        if cantidad <= 0:
+            return jsonify({'error': 'La cantidad debe ser mayor a 0'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el producto existe y obtener cantidad actual
+        cursor.execute("SELECT nombre, cantidad_actual FROM productos WHERE id = %s", (producto_id,))
+        producto = cursor.fetchone()
+        if not producto:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Producto no encontrado'}), 404
+        
+        nombre_producto, cantidad_actual = producto
+        
+        # Calcular nuevo cantidad
+        if tipo_movimiento == 'entrada':
+            nuevo_cantidad = cantidad_actual + cantidad
+        elif tipo_movimiento == 'salida':
+            if cantidad_actual < cantidad:
+                cursor.close()
+                conexion.close()
+                return jsonify({'error': f'cantidad insuficiente. Disponible: {cantidad_actual}'}), 400
+            nuevo_cantidad = cantidad_actual - cantidad
+        else:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Tipo de movimiento invÃ¡lido'}), 400
+        
+        # Actualizar cantidad
+        cursor.execute("""
+            UPDATE productos 
+            SET cantidad_actual = %s, fecha_actualizacion = NOW()
+            WHERE id = %s
+        """, (nuevo_cantidad, producto_id))
+        
+        # Registrar el movimiento (si existe la tabla movimientos_inventario)
+        try:
+            cursor.execute("""
+                INSERT INTO movimientos_inventario 
+                (id, tipo_movimiento, cantidad, cantidad_anterior, cantidad_nuevo, 
+                 motivo, id_usuario, fecha)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+            """, (producto_id, tipo_movimiento, cantidad, cantidad_actual, 
+                  nuevo_cantidad, motivo, session['usuario_id']))
+        except:
+            pass  # Si no existe la tabla, continuamos sin registrar el movimiento
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'cantidad actualizado: {nombre_producto} - {cantidad_actual} â†’ {nuevo_cantidad}',
+            'cantidad_anterior': cantidad_actual,
+            'cantidad_nuevo': nuevo_cantidad
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar cantidad: {str(e)}'}), 500
+
+def productos_bajo_cantidad():
+    """Obtener productos con cantidad bajo o sin cantidad"""
+    if 'usuario_id' not in session or session.get('rol') not in ['dueÃ±o', 'admin']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT id, nombre, cantidad_actual, cantidad_minimo, categoria, proveedor
+            FROM productos 
+            WHERE activo = TRUE AND cantidad_actual <= cantidad_minimo
+            ORDER BY 
+                CASE 
+                    WHEN cantidad_actual <= 0 THEN 1 
+                    ELSE 2 
+                END,
+                cantidad_actual ASC
+        """)
+        productos_criticos = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        productos_list = []
+        for producto in productos_criticos:
+            productos_list.append({
+                'id': producto[0],
+                'nombre': producto[1],
+                'cantidad_actual': producto[2],
+                'cantidad_minimo': producto[3],
+                'categoria': producto[4],
+                'proveedor': producto[5],
+                'estado': 'sin_cantidad' if producto[2] <= 0 else 'cantidad_bajo'
+            })
+        
+        return jsonify({'productos': productos_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener productos crÃ­ticos: {str(e)}'}), 500
+
+def obtener_categorias():
+    """Obtener lista de categorÃ­as de productos"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT DISTINCT categoria 
+            FROM productos 
+            WHERE categoria IS NOT NULL AND categoria != ''
+            ORDER BY categoria
+        """)
+        categorias = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({'categorias': [cat[0] for cat in categorias]})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener categorÃ­as: {str(e)}'}), 500
+
+def obtener_proveedores():
+    """Obtener lista de proveedores"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT DISTINCT proveedor 
+            FROM productos 
+            WHERE proveedor IS NOT NULL AND proveedor != ''
+            ORDER BY proveedor
+        """)
+        proveedores = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({'proveedores': [prov[0] for prov in proveedores]})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener proveedores: {str(e)}'}), 500
+
+def obtener_productos_mas_vendidos(limite=4):
+    """Obtener productos mÃ¡s vendidos para la pÃ¡gina principal"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener productos mÃ¡s vendidos (simulado con cantidad bajo = mÃ¡s vendido)
+        cursor.execute("""
+            SELECT p.id, p.nombre, 'Producto veterinario' as descripcion, 25.00 as precio, 
+                   p.cantidad, p.tipo as categoria, p.imagen, (100 - p.cantidad) as ventas_simuladas
+            FROM productos p
+            WHERE p.activo = TRUE AND p.cantidad > 0
+            ORDER BY ventas_simuladas DESC, p.nombre
+            LIMIT %s
+        """, (limite,))
+        
+        productos = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        productos_list = []
+        for producto in productos:
+            productos_list.append({
+                'id': producto[0],
+                'nombre': producto[1],
+                'descripcion': producto[2] or 'Producto veterinario de calidad',
+                'precio': float(producto[3]),
+                'cantidad': producto[4],
+                'categoria': producto[5] or 'General',
+                'imagen': producto[6] or '/static/images/producto-default.jpg',
+                'ventas': producto[7]
+            })
+        
+        return productos_list
+    
+    except Exception as e:
+        print(f'Error al obtener productos mÃ¡s vendidos: {str(e)}')
+        return []
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime
+
+def servicios():
+    """Mostrar pÃ¡gina de servicios"""
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    # admin_maskot tiene permisos completos
+    usuario = session.get('usuario', '')
+    if usuario == 'admin_maskot':
+        session['rol'] = 'admin'
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener todos los servicios
+        cursor.execute("""
+            SELECT s.id, s.nombre, 50.00 as precio, 60 as duracion, s.descripcion, 
+                   s.activo, NOW() as fecha_creacion, NOW() as fecha_actualizacion,
+                   COUNT(c.id) as total_citas
+            FROM servicios s
+            LEFT JOIN citas c ON s.id = c.servicio_id
+            GROUP BY s.id
+            ORDER BY s.nombre
+        """)
+        servicios = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('servicios.html', servicios=servicios)
+    except Exception as e:
+        flash(f'Error al cargar servicios: {str(e)}', 'error')
+        return render_template('servicios.html', servicios=[])
+
+def agregar_servicio():
+    """Agregar un nuevo servicio"""
+    if 'usuario_id' not in session or session.get('rol') not in ['admin', 'dueÃ±o']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        nombre = data.get('nombre', '').strip()
+        precio = data.get('precio')
+        duracion = data.get('duracion')
+        descripcion = data.get('descripcion', '').strip()
+        
+        if not nombre or not precio or not duracion:
+            return jsonify({'error': 'Nombre, precio y duraciÃ³n son obligatorios'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar si el servicio ya existe
+        cursor.execute("SELECT id FROM servicios WHERE nombre = %s", (nombre,))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe un servicio con ese nombre'}), 400
+        
+        # Insertar el nuevo servicio
+        cursor.execute("""
+            INSERT INTO servicios (nombre, precio, duracion, descripcion, activo, fecha_creacion)
+            VALUES (%s, %s, %s, %s, TRUE, NOW())
+        """, (nombre, float(precio), int(duracion), descripcion))
+        
+        conexion.commit()
+        servicio_id = cursor.lastrowid
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Servicio agregado correctamente',
+            'servicio_id': servicio_id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al agregar servicio: {str(e)}'}), 500
+
+def editar_servicio():
+    """Editar un servicio existente"""
+    if 'usuario_id' not in session or session.get('rol') not in ['admin', 'dueÃ±o']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        servicio_id = data.get('servicio_id')
+        nombre = data.get('nombre', '').strip()
+        precio = data.get('precio')
+        duracion = data.get('duracion')
+        descripcion = data.get('descripcion', '').strip()
+        
+        if not servicio_id or not nombre or not precio or not duracion:
+            return jsonify({'error': 'Todos los campos son obligatorios'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el servicio existe
+        cursor.execute("SELECT id FROM servicios WHERE id = %s", (servicio_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Servicio no encontrado'}), 404
+        
+        # Verificar nombre Ãºnico (excluyendo el servicio actual)
+        cursor.execute("SELECT id FROM servicios WHERE nombre = %s AND id != %s", (nombre, servicio_id))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe otro servicio con ese nombre'}), 400
+        
+        # Actualizar el servicio
+        cursor.execute("""
+            UPDATE servicios 
+            SET nombre = %s, precio = %s, duracion = %s, descripcion = %s, fecha_actualizacion = NOW()
+            WHERE id = %s
+        """, (nombre, float(precio), int(duracion), descripcion, servicio_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Servicio actualizado correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar servicio: {str(e)}'}), 500
+
+def cambiar_estado_servicio():
+    """Activar o desactivar un servicio"""
+    if 'usuario_id' not in session or session.get('rol') not in ['admin', 'dueÃ±o']:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        servicio_id = data.get('servicio_id')
+        activo = data.get('activo')
+        
+        if servicio_id is None or activo is None:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el servicio existe
+        cursor.execute("SELECT nombre FROM servicios WHERE id = %s", (servicio_id,))
+        servicio = cursor.fetchone()
+        if not servicio:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Servicio no encontrado'}), 404
+        
+        # Verificar si hay citas pendientes antes de desactivar
+        if not activo:
+            cursor.execute("""
+                SELECT COUNT(*) FROM citas 
+                WHERE id = %s AND estado IN ('pendiente', 'en_proceso')
+            """, (servicio_id,))
+            citas_pendientes = cursor.fetchone()[0]
+            
+            if citas_pendientes > 0:
+                cursor.close()
+                conexion.close()
+                return jsonify({
+                    'error': f'No se puede desactivar el servicio. Tiene {citas_pendientes} citas pendientes.'
+                }), 400
+        
+        # Cambiar estado
+        cursor.execute("""
+            UPDATE servicios 
+            SET activo = %s, fecha_actualizacion = NOW()
+            WHERE id = %s
+        """, (activo, servicio_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        estado_texto = 'activado' if activo else 'desactivado'
+        return jsonify({
+            'success': True,
+            'message': f'Servicio "{servicio[0]}" {estado_texto} correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar estado del servicio: {str(e)}'}), 500
+
+def obtener_servicios_api():
+    """API para obtener servicios (para uso en otras pÃ¡ginas)"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Solo servicios activos
+        cursor.execute("""
+            SELECT id, nombre, 50.00 as precio, 60 as duracion, descripcion
+            FROM servicios 
+            WHERE activo = TRUE
+            ORDER BY nombre
+        """)
+        servicios = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        servicios_list = []
+        for servicio in servicios:
+            servicios_list.append({
+                'id': servicio[0],
+                'nombre': servicio[1],
+                'precio': float(servicio[2]),
+                'duracion': servicio[3],
+                'descripcion': servicio[4]
+            })
+        
+        return jsonify({'servicios': servicios_list})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener servicios: {str(e)}'}), 500
+
+def obtener_servicios_destacados(limite=3):
+    """Obtener servicios destacados para la pÃ¡gina principal"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener servicios mÃ¡s solicitados (por nÃºmero de citas)
+        cursor.execute("""
+            SELECT s.id, s.nombre, s.descripcion, 50.00 as precio, 60 as duracion,
+                   COUNT(c.id) as total_citas
+            FROM servicios s
+            LEFT JOIN citas c ON s.id = c.servicio_id
+            WHERE s.activo = TRUE
+            GROUP BY s.id
+            ORDER BY total_citas DESC, s.nombre
+            LIMIT %s
+        """, (limite,))
+        
+        servicios = cursor.fetchall()
+        cursor.close()
+        conexion.close()
+        
+        servicios_list = []
+        for servicio in servicios:
+            servicios_list.append({
+                'id': servicio[0],
+                'nombre': servicio[1],
+                'descripcion': servicio[2] or 'Servicio veterinario profesional',
+                'precio': float(servicio[3]),
+                'duracion': servicio[4] or 60,
+                'total_citas': servicio[5]
+            })
+        
+        return servicios_list
+    
+    except Exception as e:
+        print(f'Error al obtener servicios destacados: {str(e)}')
+        return []
+
+def obtener_servicios_activos():
+    """Obtener todos los servicios activos para pÃ¡ginas pÃºblicas"""
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("""
+            SELECT id, nombre, descripcion, 50.00 as precio, 60 as duracion
+            FROM servicios 
+            WHERE activo = TRUE
+            ORDER BY nombre
+        """)
+        servicios = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        servicios_list = []
+        for servicio in servicios:
+            servicios_list.append({
+                'id': servicio[0],
+                'nombre': servicio[1],
+                'descripcion': servicio[2] or 'Servicio veterinario profesional',
+                'precio': float(servicio[3]),
+                'duracion': servicio[4] or 60
+            })
+        
+        return servicios_list
+    
+    except Exception as e:
+        print(f'Error al obtener servicios activos: {str(e)}')
+        return []
+from flask import render_template, request, redirect, url_for, session, flash, jsonify
+from bd import obtener_conexion
+from datetime import datetime, date
+
+def usuarios():
+    """Mostrar pÃ¡gina de gestiÃ³n de usuarios"""
+    if 'usuario_id' not in session or session.get('rol') != 'admin':
+        flash('No tienes permisos para acceder a esta pÃ¡gina.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Obtener todos los usuarios
+        cursor.execute("""
+            SELECT u.id_usuario, u.username, u.email, u.rol, u.activo, u.fecha_creacion,
+                   p.nombre_completo, p.telefono
+            FROM usuarios u
+            LEFT JOIN personal p ON u.id_usuario = p.id_usuario
+            ORDER BY u.rol, u.username
+        """)
+        usuarios = cursor.fetchall()
+        
+        cursor.close()
+        conexion.close()
+        
+        return render_template('usuarios.html', usuarios=usuarios)
+    except Exception as e:
+        flash(f'Error al cargar usuarios: {str(e)}', 'error')
+        return render_template('usuarios.html', usuarios=[])
+
+def crear_usuario():
+    """Crear un nuevo usuario"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '').strip()
+        rol = data.get('rol', 'empleado')
+        
+        if not username or not email or not password:
+            return jsonify({'error': 'Username, email y contraseÃ±a son obligatorios'}), 400
+        
+        if rol not in ['admin', 'empleado', 'dueÃ±o']:
+            return jsonify({'error': 'Rol invÃ¡lido'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar si el usuario ya existe
+        cursor.execute("SELECT id_usuario FROM usuarios WHERE username = %s OR email = %s", (username, email))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe un usuario con ese username o email'}), 400
+        
+        # Insertar usuario
+        cursor.execute("""
+            INSERT INTO usuarios (username, email, password, rol, activo, fecha_creacion)
+            VALUES (%s, %s, %s, %s, TRUE, NOW())
+        """, (username, email, password, rol))
+        
+        conexion.commit()
+        usuario_id = cursor.lastrowid
+        
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Usuario creado correctamente',
+            'usuario_id': usuario_id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al crear usuario: {str(e)}'}), 500
+
+def editar_usuario():
+    """Editar un usuario existente"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        usuario_id = data.get('usuario_id')
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        rol = data.get('rol', 'empleado')
+        
+        if not usuario_id or not username or not email:
+            return jsonify({'error': 'Datos obligatorios faltantes'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el usuario existe
+        cursor.execute("SELECT id_usuario FROM usuarios WHERE id_usuario = %s", (usuario_id,))
+        if not cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Usuario no encontrado'}), 404
+        
+        # Verificar username y email Ãºnicos (excluyendo el usuario actual)
+        cursor.execute("""
+            SELECT id_usuario FROM usuarios 
+            WHERE (username = %s OR email = %s) AND id_usuario != %s
+        """, (username, email, usuario_id))
+        if cursor.fetchone():
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Ya existe otro usuario con ese username o email'}), 400
+        
+        # Actualizar usuario
+        cursor.execute("""
+            UPDATE usuarios 
+            SET username = %s, email = %s, rol = %s
+            WHERE id_usuario = %s
+        """, (username, email, rol, usuario_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Usuario actualizado correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar usuario: {str(e)}'}), 500
+
+def cambiar_estado_usuario():
+    """Activar o desactivar un usuario"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        usuario_id = data.get('usuario_id')
+        activo = data.get('activo')
+        
+        if usuario_id is None or activo is None:
+            return jsonify({'error': 'Datos incompletos'}), 400
+        
+        # No permitir desactivar al propio dueÃ±o
+        if usuario_id == session.get('usuario_id'):
+            return jsonify({'error': 'No puedes desactivar tu propia cuenta'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el usuario existe
+        cursor.execute("SELECT username FROM usuarios WHERE id_usuario = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Usuario no encontrado'}), 404
+        
+        # Cambiar estado
+        cursor.execute("""
+            UPDATE usuarios 
+            SET activo = %s
+            WHERE id_usuario = %s
+        """, (activo, usuario_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        estado_texto = 'activado' if activo else 'desactivado'
+        return jsonify({
+            'success': True,
+            'message': f'Usuario "{usuario[0]}" {estado_texto} correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar estado del usuario: {str(e)}'}), 500
+
+def cambiar_password():
+    """Cambiar contraseÃ±a de un usuario"""
+    if 'usuario_id' not in session:
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        usuario_id = data.get('usuario_id')
+        password_actual = data.get('password_actual', '').strip()
+        nueva_password = data.get('nueva_password', '').strip()
+        confirmar_password = data.get('confirmar_password', '').strip()
+        
+        # Si es el dueÃ±o cambiando la contraseÃ±a de otro usuario
+        if session.get('rol') == 'dueÃ±o' and usuario_id != session.get('usuario_id'):
+            if not usuario_id or not nueva_password:
+                return jsonify({'error': 'Datos incompletos'}), 400
+        else:
+            # Usuario cambiando su propia contraseÃ±a
+            if not password_actual or not nueva_password or not confirmar_password:
+                return jsonify({'error': 'Todos los campos son obligatorios'}), 400
+            
+            if nueva_password != confirmar_password:
+                return jsonify({'error': 'Las contraseÃ±as no coinciden'}), 400
+            
+            usuario_id = session['usuario_id']
+        
+        if len(nueva_password) < 4:
+            return jsonify({'error': 'La contraseÃ±a debe tener al menos 4 caracteres'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar contraseÃ±a actual si no es dueÃ±o cambiando otra cuenta
+        if session.get('rol') != 'dueÃ±o' or usuario_id == session.get('usuario_id'):
+            cursor.execute("SELECT password FROM usuarios WHERE id_usuario = %s", (usuario_id,))
+            usuario = cursor.fetchone()
+            if not usuario or usuario[0] != password_actual:
+                cursor.close()
+                conexion.close()
+                return jsonify({'error': 'ContraseÃ±a actual incorrecta'}), 400
+        
+        # Actualizar contraseÃ±a
+        cursor.execute("""
+            UPDATE usuarios 
+            SET password = %s
+            WHERE id_usuario = %s
+        """, (nueva_password, usuario_id))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'ContraseÃ±a actualizada correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al cambiar contraseÃ±a: {str(e)}'}), 500
+
+def eliminar_usuario():
+    """Eliminar un usuario (solo dueÃ±o)"""
+    if 'usuario_id' not in session or session.get('rol') != 'dueÃ±o':
+        return jsonify({'error': 'No autorizado'}), 403
+    
+    try:
+        data = request.get_json()
+        usuario_id = data.get('usuario_id')
+        
+        if not usuario_id:
+            return jsonify({'error': 'ID de usuario requerido'}), 400
+        
+        # No permitir eliminar al propio dueÃ±o
+        if usuario_id == session.get('usuario_id'):
+            return jsonify({'error': 'No puedes eliminar tu propia cuenta'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        # Verificar que el usuario existe
+        cursor.execute("SELECT username, rol FROM usuarios WHERE id_usuario = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario:
+            cursor.close()
+            conexion.close()
+            return jsonify({'error': 'Usuario no encontrado'}), 404
+        
+        username, rol = usuario
+        
+        # Verificar si tiene registros relacionados
+        cursor.execute("SELECT COUNT(*) FROM asistencia WHERE id_usuario = %s", (usuario_id,))
+        tiene_asistencias = cursor.fetchone()[0] > 0
+        
+        if tiene_asistencias:
+            cursor.close()
+            conexion.close()
+            return jsonify({
+                'error': 'No se puede eliminar el usuario porque tiene registros de asistencia asociados. Considere desactivarlo en su lugar.'
+            }), 400
+        
+        # Eliminar registros relacionados primero
+        cursor.execute("DELETE FROM personal WHERE id_usuario = %s", (usuario_id,))
+        cursor.execute("DELETE FROM usuarios WHERE id_usuario = %s", (usuario_id,))
+        
+        conexion.commit()
+        cursor.close()
+        conexion.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Usuario "{username}" eliminado correctamente'
+        })
+    
+    except Exception as e:
+        return jsonify({'error': f'Error al eliminar usuario: {str(e)}'}), 500
+
+def mi_perfil():
+    """Mostrar y editar perfil del usuario actual"""
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    if request.method == 'GET':
+        try:
+            conexion = obtener_conexion()
+            cursor = conexion.cursor()
+            
+            # Obtener datos del usuario actual
+            cursor.execute("""
+                SELECT u.username, u.email, u.rol, u.fecha_creacion,
+                       p.nombre_completo, p.telefono, p.direccion, p.fecha_nacimiento
+                FROM usuarios u
+                LEFT JOIN personal p ON u.id_usuario = p.id_usuario
+                WHERE u.id_usuario = %s
+            """, (session['usuario_id'],))
+            
+            usuario = cursor.fetchone()
+            cursor.close()
+            conexion.close()
+            
+            if not usuario:
+                flash('Usuario no encontrado.', 'error')
+                return redirect(url_for('dashboard'))
+            
+            return render_template('mi-perfil.html', usuario=usuario)
+        
+        except Exception as e:
+            flash(f'Error al cargar perfil: {str(e)}', 'error')
+            return redirect(url_for('dashboard'))
+    
+    else:  # POST - actualizar perfil
+        try:
+            email = request.form.get('email', '').strip()
+            nombre_completo = request.form.get('nombre_completo', '').strip()
+            telefono = request.form.get('telefono', '').strip()
+            direccion = request.form.get('direccion', '').strip()
+            fecha_nacimiento = request.form.get('fecha_nacimiento')
+            
+            if not email:
+                flash('El email es obligatorio.', 'error')
+                return redirect(url_for('mi_perfil'))
+            
+            conexion = obtener_conexion()
+            cursor = conexion.cursor()
+            
+            # Verificar email Ãºnico
+            cursor.execute("SELECT id_usuario FROM usuarios WHERE email = %s AND id_usuario != %s", 
+                          (email, session['usuario_id']))
+            if cursor.fetchone():
+                cursor.close()
+                conexion.close()
+                flash('Ya existe otro usuario con ese email.', 'error')
+                return redirect(url_for('mi_perfil'))
+            
+            # Actualizar usuario
+            cursor.execute("""
+                UPDATE usuarios 
+                SET email = %s
+                WHERE id_usuario = %s
+            """, (email, session['usuario_id']))
+            
+            # Actualizar o insertar datos personales
+            cursor.execute("SELECT id_usuario FROM personal WHERE id_usuario = %s", (session['usuario_id'],))
+            
+            if cursor.fetchone():
+                # Actualizar datos existentes
+                cursor.execute("""
+                    UPDATE personal 
+                    SET nombre_completo = %s, telefono = %s, direccion = %s, fecha_nacimiento = %s
+                    WHERE id_usuario = %s
+                """, (nombre_completo, telefono, direccion, fecha_nacimiento, session['usuario_id']))
+            else:
+                # Insertar nuevos datos
+                cursor.execute("""
+                    INSERT INTO personal (id_usuario, nombre_completo, telefono, direccion, fecha_nacimiento)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (session['usuario_id'], nombre_completo, telefono, direccion, fecha_nacimiento))
+            
+            conexion.commit()
+            cursor.close()
+            conexion.close()
+            
+            flash('Perfil actualizado correctamente.', 'success')
+            return redirect(url_for('mi_perfil'))
+        
+        except Exception as e:
+            flash(f'Error al actualizar perfil: {str(e)}', 'error')
+            return redirect(url_for('mi_perfil'))
+# Importar todos los controladores
+from . import usuarios_controlador
+from . import citas_controlador
+from . import servicios_controlador
+from . import personal_controlador
+from . import productos_controlador
+from . import asistencia_controlador
+from . import clientes_controlador
+from . import mascotas_controlador
+

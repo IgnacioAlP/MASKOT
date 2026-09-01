@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<section class="dashboard-section">
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>
+                <i class="fas fa-tachometer-alt"></i> 
+                Dashboard - {{ session.rol|title }}
+            </h1>
+            <p>Bienvenido, {{ session.usuario }}</p>
+        </div>
+        
+        {% if session.rol == 'dueño' %}
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ total_empleados }}</h3>
+                    <p>Empleados Activos</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-concierge-bell"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ servicios_activos }}</h3>
+                    <p>Servicios Disponibles</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <div class="stat-content">
+                    <h3>{{ citas_hoy|length }}</h3>
+                    <p>Citas Hoy</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if citas_hoy %}
+        <div class="section-card">
+            <h2>
+                <i class="fas fa-calendar-day"></i> 
+                Citas de Hoy - {{ format_date(today()) }}
+            </h2>
+            <div class="citas-grid">
+                {% for cita in citas_hoy %}
+                <div class="cita-card">
+                    <div class="cita-time">
+                        <i class="fas fa-clock"></i>
+                        {{ cita[4] }}
+                    </div>
+                    <div class="cita-info">
+                        <h4>{{ cita[1] }}</h4>
+                        <p><i class="fas fa-concierge-bell"></i> {{ cita[7] }}</p>
+                        <p><i class="fas fa-envelope"></i> {{ cita[2] or 'Sin email' }}</p>
+                    </div>
+                    <div class="cita-status">
+                        <span class="status-badge status-{{ cita[5] }}">
+                            {{ cita[5]|title }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-calendar-times"></i>
+            <h3>No hay citas programadas para hoy</h3>
+            <p>Disfruta de un día tranquilo</p>
+        </div>
+        {% endif %}
+        
+        {% if alertas_fidelizacion %}
+        <div class="section-card fidelizacion-alerts">
+            <h2>
+                <i class="fas fa-star text-warning"></i> 
+                Alertas de Fidelización
+            </h2>
+            <div class="alertas-grid">
+                {% for alerta in alertas_fidelizacion %}
+                <div class="alerta-card {% if alerta[2] == 'alerta_10' %}alerta-premium{% else %}alerta-standard{% endif %}">
+                    <div class="alerta-icon">
+                        {% if alerta[2] == 'alerta_10' %}
+                        <i class="fas fa-crown text-warning"></i>
+                        {% else %}
+                        <i class="fas fa-medal text-success"></i>
+                        {% endif %}
+                    </div>
+                    <div class="alerta-content">
+                        <h4>{{ alerta[0] }}</h4>
+                        {% if alerta[1] %}
+                        <p class="mb-1"><i class="fas fa-phone me-2"></i> {{ alerta[1] }}</p>
+                        {% endif %}
+                        <p class="alerta-mensaje">{{ alerta[3] }}</p>
+                        <small class="text-muted">
+                            <i class="fas fa-clock"></i> {{ alerta[4].strftime('%d/%m/%Y %H:%M') }}
+                        </small>
+                    </div>
+                    <div class="alerta-badge">
+                        {% if alerta[2] == 'alerta_10' %}
+                        <span class="badge bg-warning text-dark">20% DESC</span>
+                        {% else %}
+                        <span class="badge bg-success">10% DESC</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="quick-actions">
+            <h2><i class="fas fa-bolt"></i> Acciones Rápidas</h2>
+            <div class="actions-grid">
+                {% if session.rol in ['admin', 'empleado'] %}
+                <a href="{{ url_for('citas') }}" class="action-card">
+                    <i class="fas fa-calendar-check"></i>
+                    <h3>Ver Citas</h3>
+                    <p>Gestionar citas del día</p>
+                </a>
+                <a href="{{ url_for('asistencia') }}" class="action-card">
+                    <i class="fas fa-clock"></i>
+                    <h3>Marcar Asistencia</h3>
+                    <p>Registrar entrada/salida</p>
+                </a>
+                {% endif %}
+                
+                {% if session.rol in ['dueño', 'admin'] %}
+                <a href="{{ url_for('servicios') }}" class="action-card">
+                    <i class="fas fa-concierge-bell"></i>
+                    <h3>Gestionar Servicios</h3>
+                    <p>Agregar o modificar servicios</p>
+                </a>
+                <a href="{{ url_for('almacen') }}" class="action-card">
+                    <i class="fas fa-boxes"></i>
+                    <h3>Control de Almacén</h3>
+                    <p>Gestionar inventario</p>
+                </a>
+                {% endif %}
+                
+                {% if session.rol == 'dueño' %}
+                <a href="{{ url_for('personal') }}" class="action-card">
+                    <i class="fas fa-users"></i>
+                    <h3>Gestión de Personal</h3>
+                    <p>Administrar empleados</p>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.fidelizacion-alerts {
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+    border-left: 5px solid #ffc107;
+}
+
+.alertas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.alerta-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 2px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.alerta-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.alerta-card.alerta-premium {
+    border-color: #ffc107;
+    background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%);
+}
+
+.alerta-card.alerta-premium::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #ffc107, #ffb300);
+}
+
+.alerta-card.alerta-standard {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
+}
+
+.alerta-card.alerta-standard::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #28a745, #20c997);
+}
+
+.alerta-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.alerta-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.alerta-content h4 {
+    margin: 0 0 8px 0;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 1.1rem;
+}
+
+.alerta-mensaje {
+    margin: 0 0 8px 0;
+    color: #495057;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.alerta-badge {
+    flex-shrink: 0;
+}
+
+.alerta-badge .badge {
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+@media (max-width: 768px) {
+    .alertas-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .alerta-card {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Asistencias - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<section class="historial-section">
+    <div class="container">
+        <div class="section-header">
+            <h1>
+                <i class="fas fa-clock"></i> 
+                Historial de Asistencias
+            </h1>
+            <p>Control completo de asistencias del personal</p>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-card">
+            <h3><i class="fas fa-filter"></i> Filtros</h3>
+            <div class="filter-row">
+                <div class="form-group">
+                    <label><i class="fas fa-calendar"></i> Desde:</label>
+                    <input type="date" id="fechaDesde" onchange="filtrarHistorial()">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-calendar-alt"></i> Hasta:</label>
+                    <input type="date" id="fechaHasta" onchange="filtrarHistorial()">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Empleado:</label>
+                    <select id="empleadoFiltro" onchange="filtrarHistorial()">
+                        <option value="">Todos los empleados</option>
+                        {% for registro in historial %}
+                            <option value="{{ registro[4] }}">{{ registro[4] }} - {{ registro[5] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="submit" value="🔄 Limpiar Filtros" onclick="limpiarFiltros()" 
+                           style="background: #6c757d; color: white; border: none; padding: 8px 16px; 
+                                  border-radius: 5px; cursor: pointer; font-size: 14px;"
+                           onmouseover="this.style.background='#5a6268'"
+                           onmouseout="this.style.background='#6c757d'">
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas rápidas -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <i class="fas fa-users"></i>
+                <div class="stat-info">
+                    <h3 id="totalEmpleados">{{ historial|length }}</h3>
+                    <p>Total Registros</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-clock"></i>
+                <div class="stat-info">
+                    <h3 id="registrosHoy">0</h3>
+                    <p>Registros Hoy</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-check-circle"></i>
+                <div class="stat-info">
+                    <h3 id="registrosCompletos">
+                        {{ historial|selectattr('2')|selectattr('3')|list|length }}
+                    </h3>
+                    <p>Jornadas Completas</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div class="stat-info">
+                    <h3 id="registrosPendientes">
+                        {{ historial|selectattr('2')|rejectattr('3')|list|length }}
+                    </h3>
+                    <p>Sin Salida</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de historial -->
+        <div class="table-card">
+            <h3><i class="fas fa-list"></i> Historial Completo de Asistencias</h3>
+            
+            {% if historial %}
+            <div class="table-responsive">
+                <table class="historial-table" id="tablaHistorial">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-calendar"></i> Fecha</th>
+                            <th><i class="fas fa-user"></i> Empleado</th>
+                            <th><i class="fas fa-briefcase"></i> Cargo</th>
+                            <th><i class="fas fa-sign-in-alt"></i> Entrada</th>
+                            <th><i class="fas fa-sign-out-alt"></i> Salida</th>
+                            <th><i class="fas fa-hourglass-half"></i> Horas Trabajadas</th>
+                            <th><i class="fas fa-info-circle"></i> Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for registro in historial %}
+                        <tr class="registro-row" data-empleado="{{ registro[4] }}" data-fecha="{{ registro[1] }}">
+                            <td>
+                                <span class="fecha-badge">{{ registro[1] }}</span>
+                            </td>
+                            <td>
+                                <div class="empleado-info">
+                                    <i class="fas fa-user-circle"></i>
+                                    <strong>{{ registro[4] }}</strong>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="cargo-badge">{{ registro[5] }}</span>
+                            </td>
+                            <td>
+                                {% if registro[2] %}
+                                <span class="hora-entrada">
+                                    <i class="fas fa-clock text-success"></i>
+                                    {{ registro[2] }}
+                                </span>
+                                {% else %}
+                                <span class="sin-registro">
+                                    <i class="fas fa-minus-circle text-muted"></i>
+                                    No registrado
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if registro[3] %}
+                                <span class="hora-salida">
+                                    <i class="fas fa-clock text-danger"></i>
+                                    {{ registro[3] }}
+                                </span>
+                                {% else %}
+                                <span class="sin-registro">
+                                    <i class="fas fa-minus-circle text-muted"></i>
+                                    Pendiente
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if registro[6] %}
+                                <span class="horas-trabajadas">
+                                    <i class="fas fa-hourglass-half text-info"></i>
+                                    {{ registro[6] }}
+                                </span>
+                                {% else %}
+                                <span class="sin-calcular">
+                                    <i class="fas fa-spinner text-warning"></i>
+                                    En curso
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if registro[2] and registro[3] %}
+                                <span class="estado-completo">
+                                    <i class="fas fa-check-circle"></i>
+                                    Completo
+                                </span>
+                                {% elif registro[2] %}
+                                <span class="estado-pendiente">
+                                    <i class="fas fa-clock"></i>
+                                    En curso
+                                </span>
+                                {% else %}
+                                <span class="estado-ausente">
+                                    <i class="fas fa-times-circle"></i>
+                                    Sin entrada
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-calendar-times"></i>
+                <h3>No hay registros de asistencia</h3>
+                <p>Aún no existen registros de asistencia en el sistema.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<style>
+.historial-section {
+    padding: 20px 0;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.section-header h1 {
+    color: #2c3e50;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.filters-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.stat-card i {
+    font-size: 2rem;
+    margin-right: 15px;
+    opacity: 0.8;
+}
+
+.stat-info h3 {
+    font-size: 1.8rem;
+    margin: 0;
+    font-weight: bold;
+}
+
+.stat-info p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.table-card {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.historial-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.historial-table th,
+.historial-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.historial-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.historial-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.fecha-badge {
+    background: #e9ecef;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.empleado-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cargo-badge {
+    background: #17a2b8;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.hora-entrada, .hora-salida {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.horas-trabajadas {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 600;
+}
+
+.estado-completo {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.estado-pendiente {
+    color: #ffc107;
+    font-weight: 600;
+}
+
+.estado-ausente {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.sin-registro {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.text-success { color: #28a745 !important; }
+.text-danger { color: #dc3545 !important; }
+.text-info { color: #17a2b8 !important; }
+.text-warning { color: #ffc107 !important; }
+.text-muted { color: #6c757d !important; }
+
+@media (max-width: 768px) {
+    .filter-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .historial-table {
+        font-size: 0.85rem;
+    }
+}
+</style>
+
+<script>
+function filtrarHistorial() {
+    const fechaDesde = document.getElementById('fechaDesde').value;
+    const fechaHasta = document.getElementById('fechaHasta').value;
+    const empleadoFiltro = document.getElementById('empleadoFiltro').value;
+    const filas = document.querySelectorAll('.registro-row');
+    
+    let registrosVisibles = 0;
+    
+    filas.forEach(fila => {
+        const fechaRegistro = fila.dataset.fecha;
+        const empleadoRegistro = fila.dataset.empleado;
+        let mostrar = true;
+        
+        // Filtro por fecha desde
+        if (fechaDesde && fechaRegistro < fechaDesde) {
+            mostrar = false;
+        }
+        
+        // Filtro por fecha hasta
+        if (fechaHasta && fechaRegistro > fechaHasta) {
+            mostrar = false;
+        }
+        
+        // Filtro por empleado
+        if (empleadoFiltro && empleadoRegistro !== empleadoFiltro) {
+            mostrar = false;
+        }
+        
+        if (mostrar) {
+            fila.style.display = '';
+            registrosVisibles++;
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+    
+    // Actualizar contador
+    document.getElementById('totalEmpleados').textContent = registrosVisibles;
+}
+
+function limpiarFiltros() {
+    document.getElementById('fechaDesde').value = '';
+    document.getElementById('fechaHasta').value = '';
+    document.getElementById('empleadoFiltro').value = '';
+    
+    // Mostrar todas las filas
+    const filas = document.querySelectorAll('.registro-row');
+    filas.forEach(fila => {
+        fila.style.display = '';
+    });
+    
+    // Restaurar contador original
+    document.getElementById('totalEmpleados').textContent = filas.length;
+}
+
+// Configurar fecha actual por defecto
+document.addEventListener('DOMContentLoaded', function() {
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fechaHasta').value = hoy;
+    
+    // Calcular registros de hoy
+    const filas = document.querySelectorAll('.registro-row');
+    let registrosHoy = 0;
+    
+    filas.forEach(fila => {
+        const fechaRegistro = fila.dataset.fecha;
+        if (fechaRegistro === hoy) {
+            registrosHoy++;
+        }
+    });
+    
+    document.getElementById('registrosHoy').textContent = registrosHoy;
+    
+    // Remover duplicados del select de empleados
+    const selectEmpleado = document.getElementById('empleadoFiltro');
+    const empleadosUnicos = new Set();
+    const opciones = Array.from(selectEmpleado.children);
+    
+    // Mantener primera opción "Todos"
+    for (let i = opciones.length - 1; i > 0; i--) {
+        const valor = opciones[i].value;
+        if (empleadosUnicos.has(valor)) {
+            opciones[i].remove();
+        } else {
+            empleadosUnicos.add(valor);
+        }
+    }
+});
+</script>
+{% endblock %}

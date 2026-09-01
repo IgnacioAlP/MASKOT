@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Debug Session - MASKOT{% endblock %}
+
+{% block content %}
+<section class="debug-section py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-bug me-2"></i>Debug: Estado de Sesión
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <!-- Estado de Autenticación -->
+                        <div class="mb-4">
+                            <h5 class="text-primary">
+                                <i class="fas fa-user-shield me-2"></i>Estado de Autenticación
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td><strong>Sesión Activa:</strong></td>
+                                        <td>
+                                            {% if session.usuario %}
+                                                <span class="badge bg-success">✅ Sí</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">❌ No</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Usuario:</strong></td>
+                                        <td>{{ session.usuario or 'No autenticado' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Rol:</strong></td>
+                                        <td>{{ session.rol or 'Sin rol' }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Permisos -->
+                        <div class="mb-4">
+                            <h5 class="text-primary">
+                                <i class="fas fa-key me-2"></i>Permisos Calculados
+                            </h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td><strong>Acceder a Citas:</strong></td>
+                                        <td>
+                                            {% if session.rol in ['admin', 'empleado', 'dueño'] %}
+                                                <span class="badge bg-success">✅ Permitido</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">❌ Denegado</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Modificar Citas:</strong></td>
+                                        <td>
+                                            {% if session.rol in ['admin', 'dueño'] %}
+                                                <span class="badge bg-success">✅ Permitido</span>
+                                            {% elif session.rol == 'empleado' %}
+                                                <span class="badge bg-warning">⚠️ Limitado</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">❌ Denegado</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Eliminar Citas:</strong></td>
+                                        <td>
+                                            {% if session.rol in ['admin', 'dueño'] %}
+                                                <span class="badge bg-success">✅ Permitido</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">❌ Denegado</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Datos de Sesión Completos -->
+                        <div class="mb-4">
+                            <h5 class="text-primary">
+                                <i class="fas fa-database me-2"></i>Datos de Sesión Completos
+                            </h5>
+                            <div class="bg-light p-3 rounded">
+                                <pre class="mb-0"><code>{{ session_data | safe }}</code></pre>
+                            </div>
+                        </div>
+                        
+                        <!-- Test de Enlaces -->
+                        <div class="mb-4">
+                            <h5 class="text-primary">
+                                <i class="fas fa-link me-2"></i>Test de Enlaces de Citas
+                            </h5>
+                            <div class="d-grid gap-2">
+                                <a href="{{ url_for('citas') }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-calendar me-2"></i>Ir a Citas
+                                </a>
+                                <a href="/debug/session" class="btn btn-outline-info">
+                                    <i class="fas fa-code me-2"></i>API Debug Session
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Información del Sistema -->
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">
+                                <i class="fas fa-info-circle me-2"></i>Información del Sistema
+                            </h6>
+                            <ul class="mb-0">
+                                <li><strong>Timestamp:</strong> {{ current_time }}</li>
+                                <li><strong>URL Actual:</strong> {{ request.url }}</li>
+                                <li><strong>Método:</strong> {{ request.method }}</li>
+                                <li><strong>User Agent:</strong> {{ request.headers.get('User-Agent', 'No disponible') }}</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Acciones -->
+                        <div class="text-center">
+                            <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">
+                                <i class="fas fa-home me-2"></i>Ir al Inicio
+                            </a>
+                            {% if session.usuario %}
+                            <a href="{{ url_for('logout') }}" class="btn btn-warning">
+                                <i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión
+                            </a>
+                            {% else %}
+                            <a href="{{ url_for('login') }}" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>Iniciar Sesión
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.debug-section {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+.table td {
+    border: none;
+    padding: 0.5rem;
+}
+
+.table tr:nth-child(even) {
+    background-color: rgba(0,0,0,0.02);
+}
+
+pre {
+    font-size: 0.9rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.badge {
+    font-size: 0.8rem;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de Clientes - MASKOT{% endblock %}
+
+{% block content %}
+<section class="clients-section py-5">
+    <div class="container">
+        <div class="section-header mb-5">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold mb-3">
+                        <i class="fas fa-users me-3 text-primary"></i>
+                        Lista de <span class="text-gradient">Clientes</span>
+                    </h1>
+                    <p class="lead text-muted">
+                        Gestiona la información de todos tus clientes registrados
+                    </p>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="section-stats me-4">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ clientes|length }}</div>
+                            <div class="stat-label">Total Clientes</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg" id="openCrearClienteBtn">
+                        <i class="fas fa-user-plus me-2"></i>Agregar Cliente
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% if clientes %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-address-book me-2"></i>
+                    Clientes Registrados
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">
+                                    <i class="fas fa-user me-2"></i>Nombre
+                                </th>
+                                <th scope="col">
+                                    <i class="fas fa-envelope me-2"></i>Email
+                                </th>
+                                <th scope="col">
+                                    <i class="fas fa-phone me-2"></i>Teléfono
+                                </th>
+                                <th scope="col">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Dirección
+                                </th>
+                                <th scope="col">
+                                    <i class="fas fa-calendar me-2"></i>Registro
+                                </th>
+                                <th scope="col">
+                                    <i class="fas fa-calendar-check me-2"></i>Citas
+                                </th>
+                                <th scope="col" class="text-center">
+                                    <i class="fas fa-cogs me-2"></i>Acciones
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cliente in clientes %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-circle me-3">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <strong>{{ cliente[0] }}</strong>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="text-primary">{{ cliente[1] }}</span>
+                                </td>
+                                <td>
+                                    {% if cliente[2] %}
+                                        <i class="fas fa-phone text-success me-1"></i>
+                                        {{ cliente[2] }}
+                                    {% else %}
+                                        <span class="text-muted">No registrado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cliente[3] %}
+                                        <i class="fas fa-home text-info me-1"></i>
+                                        {{ cliente[3] }}
+                                    {% else %}
+                                        <span class="text-muted">No registrada</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cliente[4] %}
+                                        <span class="badge bg-info">{% if cliente[4].__class__.__name__ in ['date', 'datetime'] %}{{ cliente[4].strftime('%d/%m/%Y') }}{% else %}{{ cliente[4] }}{% endif %}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Desde citas</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ cliente[5] or 0 }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('editar_cliente', cliente_email=cliente[1]) }}" 
+                                           class="btn btn-outline-primary btn-sm" 
+                                           title="Editar cliente">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="{{ url_for('detalle_cliente') }}?email={{ cliente[1] }}" 
+                                           class="btn btn-outline-info btn-sm" 
+                                           title="Ver detalles">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state text-center py-5">
+            <div class="empty-icon mb-4">
+                <i class="fas fa-users fa-5x text-muted"></i>
+            </div>
+            <h3 class="text-muted mb-3">No hay clientes registrados</h3>
+            <p class="text-muted mb-4">
+                Los clientes aparecerán aquí cuando realicen citas o se registren en el sistema.
+            </p>
+            <a href="{{ url_for('citas') }}" class="btn btn-primary">
+                <i class="fas fa-calendar-plus me-2"></i>
+                Ver Citas
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<style>
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: var(--gray-dark);
+    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.text-gradient {
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.table thead th {
+    border-bottom: 2px solid var(--primary-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(255, 163, 1, 0.05);
+}
+
+.btn-group .btn {
+    margin: 0 2px;
+}
+
+@media (max-width: 768px) {
+    .section-header .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .section-stats {
+        margin-top: 1rem;
+        align-self: center;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .btn-group .btn {
+        margin: 1px 0;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<!-- Modal para crear cliente -->
+<div class="modal fade" id="crearClienteModal" tabindex="-1" aria-labelledby="crearClienteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="crearClienteModalLabel">
+                    <i class="fas fa-user-plus me-2"></i>Agregar Cliente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formCrearClienteModal" method="POST" action="{{ url_for('crear_cliente') }}" class="needs-validation no-animation" novalidate>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_nombre" class="form-label">Nombre Completo *</label>
+                            <input type="text" id="modal_nombre" name="nombre" class="form-control" required>
+                            <div class="invalid-feedback">Por favor ingrese el nombre completo.</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_email" class="form-label">Correo Electrónico *</label>
+                            <input type="email" id="modal_email" name="email" class="form-control" required>
+                            <div class="invalid-feedback">Por favor ingrese un email válido.</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_telefono" class="form-label">Teléfono</label>
+                            <input type="tel" id="modal_telefono" name="telefono" class="form-control" placeholder="Ej: +51 999 999 999">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_documento" class="form-label">Documento</label>
+                            <input type="text" id="modal_documento" name="documento" class="form-control" placeholder="DNI, CE, etc.">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="modal_direccion" class="form-label">Dirección</label>
+                        <textarea id="modal_direccion" name="direccion" class="form-control" rows="2" placeholder="Dirección completa"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="submitCrearCliente">
+                            <i class="fas fa-save me-2"></i>Crear Cliente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Código ultra-simplificado para crear cliente
+document.addEventListener('DOMContentLoaded', function() {
+    const openBtn = document.getElementById('openCrearClienteBtn');
+    const modalEl = document.getElementById('crearClienteModal');
+    
+    // Abrir modal
+    if (openBtn && modalEl) {
+        openBtn.addEventListener('click', function() {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+            // Limpiar formulario
+            const form = document.getElementById('formCrearClienteModal');
+            if (form) {
+                form.reset();
+                form.classList.remove('was-validated');
+            }
+        });
+    }
+    
+    // Validación mínima - el resto lo maneja el servidor
+    const form = document.getElementById('formCrearClienteModal');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const nombre = form.querySelector('#modal_nombre').value.trim();
+            const email = form.querySelector('#modal_email').value.trim();
+            
+            if (!nombre || !email) {
+                e.preventDefault();
+                alert('Por favor completa el nombre y email');
+                return false;
+            }
+            
+            // Cambiar texto del botón para indicar envío
+            const submitBtn = document.getElementById('submitCrearCliente');
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+                submitBtn.disabled = true;
+            }
+            
+            // El formulario se envía normalmente al servidor
+        });
+    }
+});
+</script>
+{% endblock %}

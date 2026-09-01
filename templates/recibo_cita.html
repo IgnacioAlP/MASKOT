@@ -1,0 +1,565 @@
+{% extends "base.html" %}
+
+{% block title %}Recibo Cita #{{ cita[0] }} - MASKOT Veterinaria{% endblock %}
+
+{% block content %}
+<section class="recibo-section py-4">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Botones de Acción Superior -->
+                <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+                    <a href="{{ url_for('citas') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Volver a Citas
+                    </a>
+                    <div class="action-buttons">
+                        <button onclick="window.print()" class="btn btn-primary">
+                            <i class="fas fa-print me-2"></i>Imprimir
+                        </button>
+                        <a href="{{ url_for('ver_detalles_cita', cita_id=cita[0]) }}" class="btn btn-outline-info">
+                            <i class="fas fa-eye me-2"></i>Ver Detalles
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Recibo Principal -->
+                <div class="recibo-container">
+                    <div class="card border-0 shadow-sm">
+                        <!-- Encabezado del Recibo -->
+                        <div class="card-header bg-primary text-white">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h3 class="mb-0">
+                                        <i class="fas fa-receipt me-2"></i>
+                                        RECIBO DE CITA VETERINARIA
+                                    </h3>
+                                    <small class="opacity-75">MASKOT - Centro Veterinario</small>
+                                </div>
+                                <div class="col-md-4 text-md-end">
+                                    <div class="recibo-number">
+                                        <strong>Recibo #{{ cita[0] }}</strong>
+                                    </div>
+                                    <small class="opacity-75">
+                                        Fecha: {{ momento_actual.strftime('%d/%m/%Y') }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card-body">
+                            <!-- Información de la Empresa -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="empresa-info">
+                                        <h5 class="text-primary mb-2">
+                                            <img src="{{ url_for('static', filename='img/maskot-favicon.ico') }}" 
+                                                 alt="MASKOT" style="height: 24px;" class="me-2">
+                                            MASKOT Veterinaria
+                                        </h5>
+                                        <p class="mb-1 text-muted">
+                                            <i class="fas fa-map-marker-alt me-2"></i>
+                                            Centro Veterinario Especializado
+                                        </p>
+                                        <p class="mb-1 text-muted">
+                                            <i class="fas fa-phone me-2"></i>
+                                            Teléfono: (555) 123-4567
+                                        </p>
+                                        <p class="mb-0 text-muted">
+                                            <i class="fas fa-envelope me-2"></i>
+                                            contacto@maskotveterinaria.com
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="estado-cita text-md-end">
+                                        <div class="status-badge status-{{ cita[7] }} fs-6 px-3 py-2">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            Estado: {{ cita[7]|title }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Información del Cliente -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h6 class="border-bottom pb-2 mb-3 text-primary">
+                                        <i class="fas fa-user me-2"></i>Información del Cliente
+                                    </h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <p class="mb-2">
+                                                <strong>Nombre:</strong> {{ cita[1] }}
+                                            </p>
+                                            <p class="mb-2">
+                                                <strong>Email:</strong> {{ cita[2] }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Detalles de la Cita -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h6 class="border-bottom pb-2 mb-3 text-primary">
+                                        <i class="fas fa-calendar-check me-2"></i>Detalles de la Cita
+                                    </h6>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="info-item">
+                                                <label class="text-muted small">Fecha</label>
+                                                <p class="mb-2 fw-bold">
+                                                    <i class="fas fa-calendar-day me-2"></i>
+                                                    {{ cita[4] }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="info-item">
+                                                <label class="text-muted small">Hora</label>
+                                                <p class="mb-2 fw-bold">
+                                                    <i class="fas fa-clock me-2"></i>
+                                                    {{ cita[5] }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="info-item">
+                                                <label class="text-muted small">Servicio</label>
+                                                <p class="mb-2 fw-bold">
+                                                    <i class="fas fa-concierge-bell me-2"></i>
+                                                    {{ servicio_nombre }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {% if cita[6] %}
+                                    <div class="mt-3">
+                                        <label class="text-muted small">Observaciones</label>
+                                        <div class="alert alert-light border mb-0">
+                                            <i class="fas fa-notes-medical me-2"></i>
+                                            {{ cita[6] }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <!-- Información de Mascotas (si existe) -->
+                            {% if mascotas %}
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h6 class="border-bottom pb-2 mb-3 text-primary">
+                                        <i class="fas fa-paw me-2"></i>Mascotas Atendidas
+                                    </h6>
+                                    <div class="row">
+                                        {% for mascota in mascotas %}
+                                        <div class="col-md-6 mb-3">
+                                            <div class="mascota-card p-3 border rounded">
+                                                <h6 class="mb-2 text-primary">
+                                                    <i class="fas fa-dog me-2"></i>{{ mascota.nombre }}
+                                                </h6>
+                                                <p class="mb-1"><strong>Especie:</strong> {{ mascota.especie }}</p>
+                                                <p class="mb-1"><strong>Raza:</strong> {{ mascota.raza }}</p>
+                                                <p class="mb-0"><strong>Edad:</strong> {{ mascota.edad }}</p>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Servicios Adicionales (si existen) -->
+                            {% if servicios_adicionales %}
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h6 class="border-bottom pb-2 mb-3 text-primary">
+                                        <i class="fas fa-list-check me-2"></i>Servicios Incluidos
+                                    </h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Servicio</th>
+                                                    <th class="text-end">Precio</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% set total = 0 %}
+                                                {% for servicio in servicios_adicionales %}
+                                                <tr>
+                                                    <td>{{ servicio.nombre }}</td>
+                                                    <td class="text-end">${{ servicio.precio }}</td>
+                                                    {% set total = total + servicio.precio %}
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                            <tfoot class="table-primary">
+                                                <tr>
+                                                    <th>Total</th>
+                                                    <th class="text-end">${{ total }}</th>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Términos y Condiciones -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="terminos bg-light p-3 rounded">
+                                        <h6 class="text-primary mb-2">
+                                            <i class="fas fa-info-circle me-2"></i>Términos y Condiciones
+                                        </h6>
+                                        <ul class="small text-muted mb-0">
+                                            <li>Este recibo confirma la programación de su cita veterinaria.</li>
+                                            <li>Por favor llegue 10 minutos antes de su cita.</li>
+                                            <li>Traiga el carnet de vacunación de su mascota.</li>
+                                            <li>Las cancelaciones deben hacerse con 24 horas de anticipación.</li>
+                                            <li>En caso de emergencia, contacte nuestra línea de urgencias.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Pie del Recibo -->
+                        <div class="card-footer bg-light text-center">
+                            <p class="mb-2 text-primary fw-bold">
+                                ¡Gracias por confiar en MASKOT Veterinaria!
+                            </p>
+                            <small class="text-muted">
+                                Recibo generado el {{ momento_actual.strftime('%d/%m/%Y a las %H:%M') }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Información Adicional (No se imprime) -->
+                <div class="no-print mt-4">
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-lightbulb me-2"></i>Información Importante
+                        </h6>
+                        <ul class="mb-0">
+                            <li>Este recibo puede ser impreso para sus registros.</li>
+                            <li>Puede acceder a este recibo en cualquier momento desde el sistema.</li>
+                            <li>Para modificar la cita, use la opción "Editar" en la vista de detalles.</li>
+                            <li>Si necesita ayuda, contacte a nuestro equipo de atención al cliente.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+/* Estilos generales del recibo */
+.recibo-section {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+.recibo-container .card {
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.status-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.status-pendiente {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.status-confirmada {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-en_progreso {
+    background-color: #cce5ff;
+    color: #004085;
+    border: 1px solid #b3d7ff;
+}
+
+.status-completada {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.status-cancelada {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.empresa-info p {
+    font-size: 0.9rem;
+}
+
+.info-item label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.mascota-card {
+    background-color: #f8f9fa;
+    transition: transform 0.2s ease;
+}
+
+.mascota-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.terminos {
+    border-left: 4px solid #0d6efd;
+}
+
+/* Estilos para impresión */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .recibo-section {
+        background-color: white !important;
+        padding: 0 !important;
+    }
+    
+    .container {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    .card-header {
+        background-color: #0d6efd !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .status-badge {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .bg-light {
+        background-color: #f8f9fa !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .text-primary {
+        color: #0d6efd !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .table-primary th {
+        background-color: #cfe2ff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .alert-light {
+        background-color: #fefefe !important;
+        border-color: #e9ecef !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .terminos {
+        border-left-color: #0d6efd !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Ajustes de página */
+    @page {
+        margin: 1cm;
+        size: A4;
+    }
+    
+    body {
+        font-size: 12pt;
+        line-height: 1.4;
+    }
+    
+    h3 { font-size: 18pt; }
+    h5 { font-size: 14pt; }
+    h6 { font-size: 12pt; }
+    
+    .table {
+        font-size: 11pt;
+    }
+    
+    .small {
+        font-size: 10pt;
+    }
+}
+
+/* Mejoras visuales */
+.btn {
+    border-radius: 0.5rem;
+    font-weight: 500;
+}
+
+.alert {
+    border-radius: 0.75rem;
+}
+
+.border-bottom {
+    border-bottom: 2px solid #e9ecef !important;
+}
+
+/* Animaciones suaves */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .recibo-number {
+        margin-top: 1rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .action-buttons .btn {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mejorar la experiencia de impresión
+    window.addEventListener('beforeprint', function() {
+        // Ocultar elementos innecesarios antes de imprimir
+        document.body.classList.add('printing');
+    });
+    
+    window.addEventListener('afterprint', function() {
+        // Restaurar elementos después de imprimir
+        document.body.classList.remove('printing');
+    });
+    
+    // Función para imprimir con configuración personalizada
+    function imprimirRecibo() {
+        const originalTitle = document.title;
+        document.title = 'Recibo_Cita_{{ cita[0] }}_MASKOT';
+        
+        // Configurar estilos específicos para impresión
+        const printStyles = document.createElement('style');
+        printStyles.innerHTML = `
+            @media print {
+                body.printing .no-print { display: none !important; }
+                body.printing { margin: 0; padding: 0; }
+                body.printing .container { max-width: 100%; margin: 0; padding: 0; }
+            }
+        `;
+        
+        document.head.appendChild(printStyles);
+        
+        // Imprimir
+        window.print();
+        
+        // Limpiar después de la impresión
+        setTimeout(() => {
+            document.title = originalTitle;
+            document.head.removeChild(printStyles);
+        }, 100);
+    }
+    
+    // Agregar event listener al botón de imprimir
+    const printButton = document.querySelector('button[onclick="window.print()"]');
+    if (printButton) {
+        printButton.onclick = function() {
+            imprimirRecibo();
+            return false;
+        };
+    }
+    
+    // Validar que todos los datos estén presentes
+    const requiredElements = [
+        '{{ cita[0] }}',
+        '{{ cita[1] }}',
+        '{{ cita[4] }}',
+        '{{ cita[5] }}'
+    ];
+    
+    let missingData = false;
+    requiredElements.forEach(element => {
+        if (!element || element.trim() === '') {
+            missingData = true;
+        }
+    });
+    
+    if (missingData) {
+        console.warn('Algunos datos del recibo podrían estar incompletos');
+    }
+});
+
+// Función para enviar recibo por email (funcionalidad futura)
+function enviarReciboEmail() {
+    const email = '{{ cita[2] }}';
+    const subject = encodeURIComponent('Recibo de Cita - MASKOT Veterinaria #{{ cita[0] }}');
+    const body = encodeURIComponent(`
+Estimado/a {{ cita[1] }},
+
+Adjunto encontrará el recibo de su cita programada para el {{ cita[4] }} a las {{ cita[5] }}.
+
+Detalles de la cita:
+- Fecha: {{ cita[4] }}
+- Hora: {{ cita[5] }}
+- Servicio: {{ servicio_nombre }}
+- Estado: {{ cita[7]|title }}
+
+Gracias por confiar en MASKOT Veterinaria.
+
+Atentamente,
+Equipo MASKOT
+    `);
+    
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+}
+</script>
+{% endblock %}

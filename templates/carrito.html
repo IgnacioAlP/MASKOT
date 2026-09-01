@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Tu carrito{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row">
+    <div class="col-12">
+      <h2 class="mb-4">
+        <i class="fas fa-shopping-cart me-2 text-primary"></i>
+        Tu carrito de compras
+      </h2>
+      
+      {% if items and items|length > 0 %}
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="border-0">Producto</th>
+                  <th class="border-0">Precio</th>
+                  <th class="border-0 text-center">Cantidad</th>
+                  <th class="border-0 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in items %}
+                <tr>
+                  <td class="align-middle">
+                    <div class="d-flex align-items-center gap-3">
+                      {% if it.imagen %}
+                      <img src="{{ url_for('static', filename='images/' ~ it.imagen) }}" alt="{{ it.nombre }}" width="60" height="60" class="rounded object-fit-cover">
+                      {% else %}
+                      <div class="bg-light rounded d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                        <i class="fas fa-box text-muted"></i>
+                      </div>
+                      {% endif %}
+                      <div>
+                        <h6 class="mb-0">{{ it.nombre }}</h6>
+                        <small class="text-muted">Stock disponible: {{ it.stock }}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="align-middle">
+                    <span class="fw-bold">S/ 10,000</span>
+                  </td>
+                  <td class="align-middle text-center" style="width: 180px;">
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                      <input type="number" 
+                             id="qty-{{ it.id }}" 
+                             value="{{ it.qty }}" 
+                             min="1" 
+                             max="{{ it.stock }}" 
+                             class="form-control form-control-sm text-center" 
+                             style="width: 80px;">
+                      <button type="button" 
+                              class="btn btn-primary btn-sm" 
+                              title="Actualizar cantidad"
+                              onclick="actualizarCantidad({{ it.id }})">
+                        <i class="fas fa-check"></i>
+                      </button>
+                    </div>
+                  </td>
+                  <td class="align-middle text-center" style="width: 120px;">
+                    <button type="button" 
+                            class="btn btn-outline-danger btn-sm" 
+                            title="Eliminar del carrito" 
+                            onclick="eliminarProducto({{ it.id }})">
+                      <i class="fas fa-trash-alt me-1"></i>
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <div class="row mt-4">
+        <div class="col-md-6">
+          <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>
+            Seguir comprando
+          </a>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <a href="{{ url_for('checkout') }}" class="btn btn-success btn-lg">
+            <i class="fas fa-credit-card me-2"></i>
+            Proceder al pago
+          </a>
+        </div>
+      </div>
+      
+      {% else %}
+      <div class="text-center py-5">
+        <div class="empty-state">
+          <i class="fas fa-shopping-cart text-muted" style="font-size: 4rem;"></i>
+          <h3 class="mt-3 text-muted">Tu carrito está vacío</h3>
+          <p class="text-muted">Explora nuestros productos y añade los que te gusten.</p>
+          <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg mt-3">
+            <i class="fas fa-shopping-bag me-2"></i>
+            Ver productos
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.table td {
+    vertical-align: middle;
+    border-bottom: 1px solid #eee;
+}
+
+.empty-state {
+    padding: 3rem 0;
+}
+
+.object-fit-cover {
+    object-fit: cover;
+}
+
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+}
+
+.form-control-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+</style>
+
+<script>
+function actualizarCantidad(productoId) {
+    const cantidadInput = document.getElementById('qty-' + productoId);
+    const cantidad = parseInt(cantidadInput.value);
+    
+  if (!cantidad || cantidad <= 0) {
+    if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('La cantidad debe ser mayor a 0', 'warning'); else showMaskotNotification('La cantidad debe ser mayor a 0', 'warning');
+    return;
+  }
+    
+    // Hacer petición AJAX
+    fetch('/carrito/actualizar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'producto_id=' + productoId + '&cantidad=' + cantidad
+    })
+    .then(response => {
+        if (response.ok) {
+            // Recargar la página para mostrar los cambios
+            location.reload();
+    } else {
+      if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error al actualizar el carrito', 'error'); else showMaskotNotification('Error al actualizar el carrito', 'error');
+    }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error de conexión', 'error'); else showMaskotNotification('Error de conexión', 'error');
+    });
+}
+
+function eliminarProducto(productoId) {
+  showConfirmModal('¿Estás seguro de que quieres eliminar este producto?').then(confirmed => {
+    if (!confirmed) return;
+    // Hacer petición AJAX
+    fetch('/carrito/eliminar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'producto_id=' + productoId
+        })
+        .then(response => {
+            if (response.ok) {
+                // Recargar la página para mostrar los cambios
+                location.reload();
+            } else {
+        if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error al eliminar el producto', 'error'); else showMaskotNotification('Error al eliminar el producto', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+      if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Error de conexión', 'error'); else showMaskotNotification('Error de conexión', 'error');
+        });
+  });
+}
+</script>
+{% endblock %}

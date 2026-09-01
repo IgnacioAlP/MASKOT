@@ -1,0 +1,1467 @@
+{% extends "base.html" %}
+
+{% block title %}Punto de Venta - POS{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pos_modern.css') }}">
+{% endblock %}
+    }
+    
+    .section-header {
+        display: flex !important;
+        align-items: center !important;
+        margin-bottom: 25px !important;
+        padding-bottom: 15px !important;
+        border-bottom: 3px solid #6c5ce7 !important;
+    }
+    
+    .section-header i {
+        font-size: 1.8em !important;
+        margin-right: 15px !important;
+        color: #6c5ce7 !important;
+    }
+    
+    .section-header h4 {
+        margin: 0 !important;
+        color: #2d3436 !important;
+        font-weight: 700 !important;
+        font-size: 1.3em !important;
+    }
+    
+    .buscar-productos {
+        margin-bottom: 25px !important;
+        position: relative !important;
+    }
+    
+    .search-input {
+        width: 100% !important;
+        padding: 15px 20px 15px 50px !important;
+        border: 2px solid #ddd !important;
+        border-radius: 25px !important;
+        font-size: 16px !important;
+        transition: all 0.3s ease !important;
+        background: #f8f9fa !important;
+    }
+    
+    .search-input:focus {
+        outline: none !important;
+        border-color: #6c5ce7 !important;
+        background: white !important;
+        box-shadow: 0 5px 15px rgba(108, 92, 231, 0.2) !important;
+    }
+    
+    .search-icon {
+        position: absolute !important;
+        left: 18px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        color: #6c757d !important;
+        font-size: 1.2em !important;
+    }
+    
+    .productos-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        background: white !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+    }
+    
+    .productos-table thead {
+        background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%) !important;
+        color: white !important;
+    }
+    
+    .productos-table th {
+        padding: 18px 20px !important;
+        text-align: left !important;
+        font-weight: 600 !important;
+        font-size: 1em !important;
+        border: none !important;
+        color: white !important;
+    }
+    
+    .productos-table tbody tr {
+        border-bottom: 1px solid #f1f3f4 !important;
+        transition: all 0.2s ease !important;
+        cursor: pointer !important;
+    }
+    
+    .productos-table tbody tr:hover {
+        background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        transform: scale(1.01) !important;
+    }
+    
+    .productos-table td {
+        padding: 15px 20px !important;
+        vertical-align: middle !important;
+        border: none !important;
+    }
+    
+    .producto-nombre-container {
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    .producto-icono {
+        width: 45px !important;
+        height: 45px !important;
+        background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: white !important;
+        font-size: 1.3em !important;
+        margin-right: 15px !important;
+    }
+    
+    .producto-nombre {
+        font-weight: 600 !important;
+        color: #2c3e50 !important;
+        font-size: 1.05em !important;
+    }
+    
+    .producto-precio-cell {
+        font-size: 1.4em !important;
+        font-weight: bold !important;
+        color: #00b894 !important;
+    }
+    
+    .stock-badge {
+        background: #e9ecef !important;
+        color: #6c757d !important;
+        padding: 8px 15px !important;
+        border-radius: 20px !important;
+        font-size: 0.9em !important;
+        font-weight: 500 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+    }
+    
+    .stock-badge.stock-bajo {
+        background: #fed7aa !important;
+        color: #ea580c !important;
+    }
+    
+    .stock-badge.stock-critico {
+        background: #fecaca !important;
+        color: #dc2626 !important;
+    }
+    
+    .btn-agregar {
+        background: linear-gradient(135deg, #00b894 0%, #00cec9 100%) !important;
+        color: white !important;
+        border: none !important;
+        padding: 10px 20px !important;
+        border-radius: 25px !important;
+        font-size: 0.9em !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        cursor: pointer !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+    }
+    
+    .btn-agregar:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(0, 184, 148, 0.3) !important;
+        background: linear-gradient(135deg, #6c5ce7, #a29bfe) !important;
+    }
+    
+    .carrito-items {
+        flex: 1 !important;
+        overflow-y: auto !important;
+        margin-bottom: 20px !important;
+        min-height: 200px !important;
+    }
+    
+    .carrito-vacio {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: 200px !important;
+        color: #6c757d !important;
+        text-align: center !important;
+        background: #f8f9fa !important;
+        border-radius: 15px !important;
+        border: 2px dashed #dee2e6 !important;
+    }
+    
+    .carrito-vacio i {
+        font-size: 3.5em !important;
+        margin-bottom: 15px !important;
+        color: #dee2e6 !important;
+    }
+    
+    .carrito-item {
+        background: #f8f9fa !important;
+        border-radius: 12px !important;
+        padding: 15px !important;
+        margin-bottom: 12px !important;
+        border-left: 4px solid #6c5ce7 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .carrito-item:hover {
+        transform: translateX(5px) !important;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
+    }
+    
+    .item-nombre {
+        font-weight: 600 !important;
+        color: #2c3e50 !important;
+        margin-bottom: 8px !important;
+        font-size: 0.95em !important;
+    }
+    
+    .item-controls {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+    }
+    
+    .item-cantidad {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        background: white !important;
+        border-radius: 20px !important;
+        padding: 5px !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .btn-cantidad {
+        width: 35px !important;
+        height: 35px !important;
+        border-radius: 50% !important;
+        border: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: bold !important;
+        font-size: 1.1em !important;
+        transition: all 0.2s ease !important;
+        cursor: pointer !important;
+    }
+    
+    .btn-outline-danger {
+        background: white !important;
+        color: #dc3545 !important;
+        border: 2px solid #dc3545 !important;
+    }
+    
+    .btn-outline-danger:hover {
+        background: #dc3545 !important;
+        color: white !important;
+    }
+    
+    .btn-outline-success {
+        background: white !important;
+        color: #28a745 !important;
+        border: 2px solid #28a745 !important;
+    }
+    
+    .btn-outline-success:hover {
+        background: #28a745 !important;
+        color: white !important;
+    }
+    
+    .item-subtotal {
+        font-weight: bold !important;
+        color: #6c5ce7 !important;
+        font-size: 1.1em !important;
+    }
+    
+    .btn-eliminar {
+        background: #dc3545 !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 6px 10px !important;
+        transition: all 0.2s ease !important;
+        cursor: pointer !important;
+    }
+    
+    .btn-eliminar:hover {
+        background: #c82333 !important;
+        transform: scale(1.05) !important;
+    }
+    
+    .carrito-totales {
+        background: #f8f9fa !important;
+        border-radius: 15px !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        border: 2px solid #e9ecef !important;
+        border-left: 4px solid #6c5ce7 !important;
+    }
+    
+    .total-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 10px !important;
+        font-size: 1.05em !important;
+        font-weight: 500 !important;
+    }
+    
+    .total-final {
+        font-size: 1.5em !important;
+        font-weight: bold !important;
+        color: #6c5ce7 !important;
+        border-top: 2px solid #dee2e6 !important;
+        padding-top: 15px !important;
+        margin-top: 10px !important;
+    }
+    
+    .metodos-pago {
+        margin-bottom: 20px !important;
+    }
+    
+    .metodos-pago h6 {
+        color: #2c3e50 !important;
+        margin-bottom: 15px !important;
+        font-weight: 600 !important;
+        font-size: 1.1em !important;
+    }
+    
+    .pago-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr !important;
+        gap: 12px !important;
+    }
+    
+    .metodo-pago {
+        padding: 15px 10px !important;
+        border: 2px solid #e9ecef !important;
+        border-radius: 12px !important;
+        text-align: center !important;
+        cursor: pointer !important;
+        transition: all 0.3s ease !important;
+        background: white !important;
+    }
+    
+    .metodo-pago:hover {
+        border-color: #6c5ce7 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 20px rgba(108, 92, 231, 0.2) !important;
+    }
+    
+    .metodo-pago.active {
+        border-color: #6c5ce7 !important;
+        background: linear-gradient(145deg, #6c5ce7 0%, #a29bfe 100%) !important;
+        color: white !important;
+    }
+    
+    .metodo-pago i {
+        font-size: 2em !important;
+        margin-bottom: 8px !important;
+        display: block !important;
+    }
+    
+    .metodo-pago .metodo-nombre {
+        font-size: 0.9em !important;
+        font-weight: 600 !important;
+    }
+    
+    .efectivo-section {
+        background: #fff3cd !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        border: 2px solid #ffeaa7 !important;
+        display: none !important;
+    }
+    
+    .efectivo-section.show {
+        display: block !important;
+    }
+    
+    .efectivo-section label {
+        font-weight: 600 !important;
+        color: #856404 !important;
+        margin-bottom: 10px !important;
+        display: block !important;
+        font-size: 1.1em !important;
+    }
+    
+    .efectivo-section input {
+        width: 100% !important;
+        padding: 12px !important;
+        border: 2px solid #ffeaa7 !important;
+        border-radius: 8px !important;
+        font-size: 1.1em !important;
+        margin-bottom: 15px !important;
+        background: white !important;
+        text-align: center !important;
+        font-weight: 600 !important;
+    }
+    
+    .efectivo-section input:focus {
+        outline: none !important;
+        border-color: #f39c12 !important;
+    }
+    
+    .cambio-display {
+        background: white !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        border: 2px solid #28a745 !important;
+        text-align: center !important;
+        font-weight: bold !important;
+        font-size: 1.3em !important;
+        color: #28a745 !important;
+    }
+    
+    .btn-procesar {
+        width: 100% !important;
+        padding: 18px !important;
+        font-size: 1.3em !important;
+        font-weight: bold !important;
+        border: none !important;
+        border-radius: 12px !important;
+        background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%) !important;
+        color: white !important;
+        cursor: pointer !important;
+        transition: all 0.3s ease !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+    }
+    
+    .btn-procesar:hover:not(:disabled) {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 10px 25px rgba(108, 92, 231, 0.4) !important;
+    }
+    
+    .btn-procesar:disabled {
+        background: #6c757d !important;
+        cursor: not-allowed !important;
+        opacity: 0.6 !important;
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .pos-container {
+            flex-direction: column !important;
+        }
+        
+        .carrito-section {
+            order: 1 !important;
+            max-height: 400px !important;
+        }
+        
+        .productos-section {
+            order: 2 !important;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .pos-container {
+            padding: 10px !important;
+            gap: 15px !important;
+        }
+        
+        .pago-grid {
+            grid-template-columns: 1fr !important;
+        }
+        
+        .productos-table th:nth-child(2),
+        .productos-table td:nth-child(2) {
+            display: none !important;
+        }
+    }
+</style>
+    
+    .productos-table thead {
+        background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+        color: white;
+    }
+    
+    .productos-table th {
+        padding: 18px 20px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 1em;
+        border: none;
+    }
+    
+    .productos-table tbody tr {
+        border-bottom: 1px solid #f1f3f4;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .productos-table tbody tr:hover {
+        background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+        transform: scale(1.01);
+    }
+    
+    .productos-table td {
+        padding: 15px 20px;
+        vertical-align: middle;
+        border: none;
+    }
+    
+    .producto-nombre-container {
+        display: flex;
+        align-items: center;
+    }
+    
+    .producto-icono {
+        width: 45px;
+        height: 45px;
+        background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.3em;
+        margin-right: 15px;
+    }
+    
+    .producto-nombre {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 1.05em;
+    }
+    
+    .producto-precio-cell {
+        font-size: 1.4em;
+        font-weight: bold;
+        color: #00b894;
+    }
+    
+    .stock-badge {
+        background: #e9ecef;
+        color: #6c757d;
+        padding: 8px 15px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    
+    .stock-badge.stock-bajo {
+        background: #fed7aa;
+        color: #ea580c;
+    }
+    
+    .stock-badge.stock-critico {
+        background: #fecaca;
+        color: #dc2626;
+    }
+    
+    .btn-agregar {
+        background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-size: 0.9em;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .btn-agregar:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 184, 148, 0.3);
+        background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    }
+    
+    .carrito-items {
+        flex: 1;
+        overflow-y: auto;
+        margin-bottom: 20px;
+        min-height: 200px;
+    }
+    
+    .carrito-vacio {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 200px;
+        color: #6c757d;
+        text-align: center;
+        background: #f8f9fa;
+        border-radius: 15px;
+        border: 2px dashed #dee2e6;
+    }
+    
+    .carrito-vacio i {
+        font-size: 3.5em;
+        margin-bottom: 15px;
+        color: #dee2e6;
+    }
+    
+    .carrito-item {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 12px;
+        border-left: 4px solid #6c5ce7;
+        transition: all 0.3s ease;
+    }
+    
+    .carrito-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .item-nombre {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 8px;
+        font-size: 0.95em;
+    }
+    
+    .item-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .item-cantidad {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: white;
+        border-radius: 20px;
+        padding: 5px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .btn-cantidad {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1em;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .btn-outline-danger {
+        background: white;
+        color: #dc3545;
+        border: 2px solid #dc3545;
+    }
+    
+    .btn-outline-danger:hover {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-outline-success {
+        background: white;
+        color: #28a745;
+        border: 2px solid #28a745;
+    }
+    
+    .btn-outline-success:hover {
+        background: #28a745;
+        color: white;
+    }
+    
+    .item-subtotal {
+        font-weight: bold;
+        color: #6c5ce7;
+        font-size: 1.1em;
+    }
+    
+    .btn-eliminar {
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 6px 10px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .btn-eliminar:hover {
+        background: #c82333;
+        transform: scale(1.05);
+    }
+    
+    .carrito-totales {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 2px solid #e9ecef;
+        border-left: 4px solid #6c5ce7;
+    }
+    
+    .total-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        font-size: 1.05em;
+        font-weight: 500;
+    }
+    
+    .total-final {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #6c5ce7;
+        border-top: 2px solid #dee2e6;
+        padding-top: 15px;
+        margin-top: 10px;
+    }
+    
+    .metodos-pago {
+        margin-bottom: 20px;
+    }
+    
+    .metodos-pago h6 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-weight: 600;
+        font-size: 1.1em;
+    }
+    
+    .pago-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+    }
+    
+    .metodo-pago {
+        padding: 15px 10px;
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+    }
+    
+    .metodo-pago:hover {
+        border-color: #6c5ce7;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(108, 92, 231, 0.2);
+    }
+    
+    .metodo-pago.active {
+        border-color: #6c5ce7;
+        background: linear-gradient(145deg, #6c5ce7 0%, #a29bfe 100%);
+        color: white;
+    }
+    
+    .metodo-pago i {
+        font-size: 2em;
+        margin-bottom: 8px;
+        display: block;
+    }
+    
+    .metodo-pago .metodo-nombre {
+        font-size: 0.9em;
+        font-weight: 600;
+    }
+    
+    .efectivo-section {
+        background: #fff3cd;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 2px solid #ffeaa7;
+        display: none;
+    }
+    
+    .efectivo-section.show {
+        display: block;
+    }
+    
+    .efectivo-section label {
+        font-weight: 600;
+        color: #856404;
+        margin-bottom: 10px;
+        display: block;
+        font-size: 1.1em;
+    }
+    
+    .efectivo-section input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #ffeaa7;
+        border-radius: 8px;
+        font-size: 1.1em;
+        margin-bottom: 15px;
+        background: white;
+        text-align: center;
+        font-weight: 600;
+    }
+    
+    .efectivo-section input:focus {
+        outline: none;
+        border-color: #f39c12;
+    }
+    
+    .cambio-display {
+        background: white;
+        padding: 12px;
+        border-radius: 8px;
+        border: 2px solid #28a745;
+        text-align: center;
+        font-weight: bold;
+        font-size: 1.3em;
+        color: #28a745;
+    }
+    
+    .btn-procesar {
+        width: 100%;
+        padding: 18px;
+        font-size: 1.3em;
+        font-weight: bold;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);
+        color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .btn-procesar:hover:not(:disabled) {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(108, 92, 231, 0.4);
+    }
+    
+    .btn-procesar:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .pos-container {
+            flex-direction: column;
+        }
+        
+        .carrito-section {
+            order: 1;
+            max-height: 400px;
+        }
+        
+        .productos-section {
+            order: 2;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .pos-container {
+            padding: 10px;
+            gap: 15px;
+        }
+        
+        .pago-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .productos-table th:nth-child(2),
+        .productos-table td:nth-child(2) {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pos-container">
+    <!-- Sección de Productos -->
+    <div class="productos-section">
+        <div class="section-header">
+            <i class="fas fa-box-open"></i>
+            <h4>Productos Disponibles</h4>
+        </div>
+        
+        <div class="buscar-productos">
+            <div style="position: relative;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" 
+                       class="search-input" 
+                       id="buscarProducto" 
+                       placeholder="🔍 Buscar productos por nombre...">
+            </div>
+        </div>
+        
+        <table class="productos-table">
+            <thead>
+                <tr>
+                    <th><i class="fas fa-tag"></i> Producto</th>
+                    <th><i class="fas fa-dollar-sign"></i> Precio</th>
+                    <th><i class="fas fa-boxes"></i> Stock</th>
+                    <th><i class="fas fa-cart-plus"></i> Acción</th>
+                </tr>
+            </thead>
+            <tbody id="productosTabla">
+                {% for producto in productos %}
+                <tr class="producto-row" 
+                    data-id="{{ producto[0] }}" 
+                    data-nombre="{{ producto[1] }}" 
+                    data-precio="{{ producto[2] }}"
+                    data-stock="{{ producto[3] }}">
+                    <td>
+                        <div class="producto-nombre-container">
+                            <div class="producto-icono">
+                                <i class="fas fa-paw"></i>
+                            </div>
+                            <div class="producto-nombre">{{ producto[1] }}</div>
+                        </div>
+                    </td>
+                    <td class="producto-precio-cell">S/ {{ "%.2f"|format(producto[2]) }}</td>
+                    <td style="text-align: center;">
+                        {% if producto[3] <= 5 %}
+                            <span class="stock-badge stock-critico">
+                                <i class="fas fa-exclamation-triangle"></i>{{ producto[3] }}
+                            </span>
+                        {% elif producto[3] <= 10 %}
+                            <span class="stock-badge stock-bajo">
+                                <i class="fas fa-exclamation-circle"></i>{{ producto[3] }}
+                            </span>
+                        {% else %}
+                            <span class="stock-badge">
+                                <i class="fas fa-check-circle"></i>{{ producto[3] }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        <button class="btn-agregar" onclick="agregarProductoDirecto(this)">
+                            <i class="fas fa-plus"></i>Agregar
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Sección del Carrito -->
+    <div class="carrito-section">
+        <div class="section-header">
+            <i class="fas fa-shopping-cart"></i>
+            <h4>Carrito de Compras</h4>
+        </div>
+        
+        <div class="carrito-items" id="carritoItems">
+            <div class="carrito-vacio" id="carritoVacio">
+                <i class="fas fa-shopping-cart"></i>
+                <p><strong>Tu carrito está vacío</strong></p>
+                <small>Agrega productos haciendo clic en el botón "Agregar"</small>
+            </div>
+        </div>
+        
+        <div class="carrito-totales" id="carritoTotales" style="display: none;">
+            <div class="total-row">
+                <span><i class="fas fa-calculator"></i> Subtotal:</span>
+                <span id="subtotal">S/ 0.00</span>
+            </div>
+            <div class="total-row">
+                <span><i class="fas fa-percentage"></i> IGV (18%):</span>
+                <span id="igv">S/ 0.00</span>
+            </div>
+            <div class="total-row total-final">
+                <span><i class="fas fa-money-check-alt"></i> TOTAL:</span>
+                <span id="total">S/ 0.00</span>
+            </div>
+        </div>
+        
+        <div class="metodos-pago">
+            <h6><i class="fas fa-credit-card"></i> Método de Pago</h6>
+            <div class="pago-grid">
+                <div class="metodo-pago active" data-metodo="efectivo">
+                    <i class="fas fa-money-bill-wave"></i>
+                    <div class="metodo-nombre">Efectivo</div>
+                </div>
+                <div class="metodo-pago" data-metodo="tarjeta">
+                    <i class="fas fa-credit-card"></i>
+                    <div class="metodo-nombre">Tarjeta</div>
+                </div>
+                <div class="metodo-pago" data-metodo="yape">
+                    <i class="fas fa-mobile-alt"></i>
+                    <div class="metodo-nombre">Yape</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="efectivo-section show" id="efectivoSection">
+            <label for="montoRecibido">
+                <i class="fas fa-hand-holding-usd"></i> Monto Recibido:
+            </label>
+            <input type="number" 
+                   id="montoRecibido" 
+                   placeholder="0.00" 
+                   step="0.01"
+                   min="0">
+            <div class="cambio-display">
+                <i class="fas fa-exchange-alt"></i> Cambio: S/ <span id="cambio">0.00</span>
+            </div>
+        </div>
+        
+        <button class="btn-procesar" id="procesarVenta" disabled>
+            <i class="fas fa-cash-register"></i>
+            Procesar Venta
+        </button>
+    </div>
+</div>
+
+<!-- Modal de Confirmación -->
+<div class="modal fade" id="modalConfirmacion" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle"></i> ¡Venta Procesada!
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="alert alert-success">
+                    <h4><i class="fas fa-receipt"></i> Venta Exitosa</h4>
+                    <p class="mb-0">Número de venta: <strong id="numeroVenta"></strong></p>
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-primary btn-lg" id="imprimirTicket">
+                        <i class="fas fa-print"></i> Imprimir Ticket
+                    </button>
+                    <button class="btn btn-secondary" id="nuevaVenta">
+                        <i class="fas fa-shopping-cart"></i> Nueva Venta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let carrito = [];
+let metodoPago = 'efectivo';
+let totalVenta = 0;
+
+// Inicializar la aplicación
+document.addEventListener('DOMContentLoaded', function() {
+    inicializarEventos();
+    mostrarNotificacion('¡Sistema POS listo! 🚀', 'success');
+});
+
+function inicializarEventos() {
+    // Eventos para productos en tabla
+    document.querySelectorAll('.producto-row').forEach(row => {
+        row.addEventListener('click', function(e) {
+            if (!e.target.closest('.btn-agregar')) {
+                agregarProducto(this);
+            }
+        });
+    });
+
+    // Eventos para métodos de pago
+    document.querySelectorAll('.metodo-pago').forEach(metodo => {
+        metodo.addEventListener('click', function() {
+            seleccionarMetodoPago(this);
+        });
+    });
+
+    // Evento para monto recibido
+    document.getElementById('montoRecibido').addEventListener('input', calcularCambio);
+    
+    // Evento para procesar venta
+    document.getElementById('procesarVenta').addEventListener('click', procesarVenta);
+    
+    // Evento para nueva venta
+    document.getElementById('nuevaVenta').addEventListener('click', nuevaVenta);
+    
+    // Evento para búsqueda
+    document.getElementById('buscarProducto').addEventListener('input', buscarProductos);
+}
+
+// Función para agregar producto directamente desde el botón
+function agregarProductoDirecto(boton) {
+    const row = boton.closest('.producto-row');
+    agregarProducto(row);
+    
+    // Efecto visual en el botón
+    const originalText = boton.innerHTML;
+    boton.innerHTML = '<i class="fas fa-check"></i>¡Agregado!';
+    boton.style.background = '#28a745';
+    
+    setTimeout(() => {
+        boton.innerHTML = originalText;
+        boton.style.background = '';
+    }, 1000);
+}
+
+// Agregar producto al carrito
+function agregarProducto(row) {
+    const id = row.dataset.id;
+    const nombre = row.dataset.nombre;
+    const precio = parseFloat(row.dataset.precio);
+    const stock = parseInt(row.dataset.stock);
+    
+    // Verificar stock
+    const cantidadEnCarrito = carrito.find(item => item.id === id)?.cantidad || 0;
+    if (cantidadEnCarrito >= stock) {
+        mostrarNotificacion('⚠️ Stock insuficiente', 'warning');
+        return;
+    }
+    
+    // Verificar si ya existe en el carrito
+    const existente = carrito.find(item => item.id === id);
+    
+    if (existente) {
+        existente.cantidad++;
+        existente.subtotal = existente.cantidad * existente.precio;
+        mostrarNotificacion(`➕ ${nombre} (${existente.cantidad})`, 'info');
+    } else {
+        carrito.push({
+            id: id,
+            nombre: nombre,
+            precio: precio,
+            cantidad: 1,
+            subtotal: precio,
+            stock: stock
+        });
+        mostrarNotificacion(`✅ ${nombre} agregado`, 'success');
+    }
+    
+    actualizarCarrito();
+}
+
+// Actualizar visualización del carrito
+function actualizarCarrito() {
+    const carritoItems = document.getElementById('carritoItems');
+    const carritoTotales = document.getElementById('carritoTotales');
+    
+    if (carrito.length === 0) {
+        carritoItems.innerHTML = `
+            <div class="carrito-vacio">
+                <i class="fas fa-shopping-cart"></i>
+                <p><strong>Tu carrito está vacío</strong></p>
+                <small>Agrega productos haciendo clic en el botón "Agregar"</small>
+            </div>
+        `;
+        carritoTotales.style.display = 'none';
+        document.getElementById('procesarVenta').disabled = true;
+        return;
+    }
+    
+    carritoTotales.style.display = 'block';
+    
+    let html = '';
+    let subtotal = 0;
+    
+    carrito.forEach((item, index) => {
+        subtotal += item.subtotal;
+        html += `
+            <div class="carrito-item">
+                <div class="item-nombre">${item.nombre}</div>
+                <div class="item-controls">
+                    <div class="item-cantidad">
+                        <button class="btn-cantidad btn-outline-danger" 
+                                onclick="cambiarCantidad(${index}, -1)">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <span class="mx-2"><strong>${item.cantidad}</strong></span>
+                        <button class="btn-cantidad btn-outline-success" 
+                                onclick="cambiarCantidad(${index}, 1)"
+                                ${item.cantidad >= item.stock ? 'disabled' : ''}>
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                    <div class="item-subtotal">S/ ${item.subtotal.toFixed(2)}</div>
+                    <button class="btn-eliminar" 
+                            onclick="eliminarItem(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    carritoItems.innerHTML = html;
+    
+    const igv = subtotal * 0.18;
+    totalVenta = subtotal + igv;
+    
+    document.getElementById('subtotal').textContent = `S/ ${subtotal.toFixed(2)}`;
+    document.getElementById('igv').textContent = `S/ ${igv.toFixed(2)}`;
+    document.getElementById('total').textContent = `S/ ${totalVenta.toFixed(2)}`;
+    
+    verificarProcesarVenta();
+}
+
+function cambiarCantidad(index, cambio) {
+    const item = carrito[index];
+    const nuevaCantidad = item.cantidad + cambio;
+    
+    if (nuevaCantidad <= 0) {
+        eliminarItem(index);
+        return;
+    }
+    
+    if (nuevaCantidad > item.stock) {
+        mostrarNotificacion('⚠️ Stock insuficiente', 'warning');
+        return;
+    }
+    
+    item.cantidad = nuevaCantidad;
+    item.subtotal = item.cantidad * item.precio;
+    
+    actualizarCarrito();
+}
+
+function eliminarItem(index) {
+    const item = carrito[index];
+    carrito.splice(index, 1);
+    mostrarNotificacion(`🗑️ ${item.nombre} eliminado`, 'info');
+    actualizarCarrito();
+}
+
+// Seleccionar método de pago
+function seleccionarMetodoPago(elemento) {
+    document.querySelectorAll('.metodo-pago').forEach(m => m.classList.remove('active'));
+    elemento.classList.add('active');
+    metodoPago = elemento.dataset.metodo;
+    
+    const efectivoSection = document.getElementById('efectivoSection');
+    
+    if (metodoPago === 'efectivo') {
+        efectivoSection.classList.add('show');
+        mostrarNotificacion('💵 Pago en efectivo', 'info');
+    } else {
+        efectivoSection.classList.remove('show');
+        document.getElementById('montoRecibido').value = '';
+        document.getElementById('cambio').textContent = '0.00';
+        mostrarNotificacion(`💳 ${metodoPago.charAt(0).toUpperCase() + metodoPago.slice(1)}`, 'info');
+    }
+    
+    verificarProcesarVenta();
+}
+
+// Calcular cambio para efectivo
+function calcularCambio() {
+    const montoRecibido = parseFloat(document.getElementById('montoRecibido').value) || 0;
+    const cambio = montoRecibido - totalVenta;
+    
+    document.getElementById('cambio').textContent = cambio.toFixed(2);
+    
+    verificarProcesarVenta();
+}
+
+function verificarProcesarVenta() {
+    const btn = document.getElementById('procesarVenta');
+    let habilitado = carrito.length > 0 && metodoPago;
+    
+    if (metodoPago === 'efectivo') {
+        const montoRecibido = parseFloat(document.getElementById('montoRecibido').value) || 0;
+        habilitado = habilitado && montoRecibido >= totalVenta;
+    }
+    
+    btn.disabled = !habilitado;
+}
+
+// Procesar venta
+function procesarVenta() {
+    const btn = document.getElementById('procesarVenta');
+    const textOriginal = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+    btn.disabled = true;
+    
+    const subtotal = carrito.reduce((sum, item) => sum + item.subtotal, 0);
+    const igv = subtotal * 0.18;
+    const total = subtotal + igv;
+    
+    const datosVenta = {
+        productos: carrito,
+        subtotal: subtotal,
+        igv: igv,
+        total: total,
+        metodo_pago: metodoPago
+    };
+    
+    if (metodoPago === 'efectivo') {
+        const montoRecibido = parseFloat(document.getElementById('montoRecibido').value);
+        datosVenta.monto_recibido = montoRecibido;
+        datosVenta.cambio = montoRecibido - total;
+    }
+    
+    // Enviar al servidor
+    fetch('/procesar-venta', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(datosVenta)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('numeroVenta').textContent = data.numero_venta;
+            
+            // Configurar botón de ticket
+            document.getElementById('imprimirTicket').onclick = function() {
+                window.open(`/venta/${data.venta_id}/ticket`, '_blank');
+            };
+            
+            const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+            modal.show();
+            
+            mostrarNotificacion('🎉 ¡Venta procesada!', 'success');
+            
+        } else {
+            mostrarNotificacion('❌ Error: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarNotificacion('❌ Error al procesar', 'error');
+    })
+    .finally(() => {
+        btn.innerHTML = textOriginal;
+        verificarProcesarVenta();
+    });
+}
+
+// Nueva venta
+function nuevaVenta() {
+    carrito = [];
+    metodoPago = 'efectivo';
+    
+    // Reset UI
+    document.querySelectorAll('.metodo-pago').forEach(m => m.classList.remove('active'));
+    document.querySelector('[data-metodo="efectivo"]').classList.add('active');
+    document.getElementById('efectivoSection').classList.add('show');
+    document.getElementById('montoRecibido').value = '';
+    document.getElementById('buscarProducto').value = '';
+    
+    actualizarCarrito();
+    mostrarNotificacion('🛒 Nueva venta iniciada', 'success');
+    
+    // Cerrar modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacion'));
+    if (modal) modal.hide();
+}
+
+// Búsqueda de productos
+function buscarProductos() {
+    const termino = this.value.toLowerCase().trim();
+    const filas = document.querySelectorAll('.producto-row');
+    
+    filas.forEach(fila => {
+        const nombre = fila.dataset.nombre.toLowerCase();
+        
+        if (termino === '' || nombre.includes(termino)) {
+            fila.style.display = 'table-row';
+            
+            // Highlighting del texto
+            const nombreElement = fila.querySelector('.producto-nombre');
+            if (termino !== '') {
+                const nombreOriginal = fila.dataset.nombre;
+                const nombreHighlight = nombreOriginal.replace(
+                    new RegExp(termino, 'gi'), 
+                    `<mark style="background: #ffeb3b; padding: 2px 4px; border-radius: 3px;">\$&</mark>`
+                );
+                nombreElement.innerHTML = nombreHighlight;
+            } else {
+                nombreElement.textContent = fila.dataset.nombre;
+            }
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+}
+
+// Sistema de notificaciones
+function mostrarNotificacion(mensaje, tipo = 'info') {
+    // Crear o reutilizar contenedor de notificaciones
+    let contenedor = document.getElementById('notificaciones');
+    if (!contenedor) {
+        contenedor = document.createElement('div');
+        contenedor.id = 'notificaciones';
+        contenedor.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 350px;
+        `;
+        document.body.appendChild(contenedor);
+    }
+    
+    // Crear notificación
+    const notificacion = document.createElement('div');
+    notificacion.style.cssText = `
+        padding: 12px 16px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    
+    // Colores según tipo
+    const colores = {
+        success: '#28a745',
+        error: '#dc3545', 
+        warning: '#ffc107',
+        info: '#6c5ce7'
+    };
+    
+    notificacion.style.background = colores[tipo] || colores.info;
+    notificacion.textContent = mensaje;
+    
+    contenedor.appendChild(notificacion);
+    
+    // Animación de entrada
+    setTimeout(() => {
+        notificacion.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Auto-ocultar después de 3 segundos
+    setTimeout(() => {
+        notificacion.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notificacion.parentNode) {
+                notificacion.parentNode.removeChild(notificacion);
+            }
+        }, 300);
+    }, 3000);
+    
+    // Click para cerrar
+    notificacion.addEventListener('click', () => {
+        notificacion.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (notificacion.parentNode) {
+                notificacion.parentNode.removeChild(notificacion);
+            }
+        }, 300);
+    });
+}
+</script>
+{% endblock %}

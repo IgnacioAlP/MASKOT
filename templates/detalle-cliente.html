@@ -1,0 +1,818 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle Cliente - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<section class="detalle-cliente-section">
+    <div class="container">
+        <!-- Header con información básica -->
+        <div class="cliente-header">
+            <div class="cliente-info-principal">
+                <div class="avatar-cliente">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="info-basica">
+                    {% if detalles.cliente %}
+                    <h1>{{ detalles.cliente[1] }}</h1>
+                    <div class="contacto-info">
+                        <span class="email">
+                            <i class="fas fa-envelope"></i>
+                            {{ detalles.cliente[2] }}
+                        </span>
+                        {% if detalles.cliente[3] %}
+                        <span class="telefono">
+                            <i class="fas fa-phone"></i>
+                            {{ detalles.cliente[3] }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if detalles.cliente[4] %}
+                    <div class="direccion">
+                        <i class="fas fa-map-marker-alt"></i>
+                        {{ detalles.cliente[4] }}
+                    </div>
+                    {% endif %}
+                    {% if detalles.cliente[5] %}
+                    <div class="fecha-registro">
+                        <i class="fas fa-calendar-plus"></i>
+                        Cliente desde: {% if detalles.cliente[5].__class__.__name__ in ['date', 'datetime'] %}{{ detalles.cliente[5].strftime('%d/%m/%Y') }}{% else %}{{ detalles.cliente[5] }}{% endif %}
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <h1>{{ detalles.citas[0][1] if detalles.citas else 'Cliente' }}</h1>
+                    <div class="contacto-info">
+                        <span class="email">
+                            <i class="fas fa-envelope"></i>
+                            {{ detalles.citas[0][2] if detalles.citas else 'N/A' }}
+                        </span>
+                    </div>
+                    <div class="cliente-solo-citas">
+                        <i class="fas fa-info-circle"></i>
+                        Cliente solo registrado en citas
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="acciones-cliente">
+                <a href="{{ url_for('historial_clientes') }}" class="btn-volver">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver al Historial
+                </a>
+            </div>
+        </div>
+
+        <!-- Estadísticas del cliente -->
+        <div class="stats-cliente">
+            <div class="stat-item">
+                <div class="stat-icon citas-icon">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <div class="stat-data">
+                    <h3>{{ detalles.citas|length if detalles.citas else 0 }}</h3>
+                    <p>Total Citas</p>
+                </div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-icon pedidos-icon">
+                    <i class="fas fa-shopping-bag"></i>
+                </div>
+                <div class="stat-data">
+                    <h3>{{ detalles.pedidos|length if detalles.pedidos else 0 }}</h3>
+                    <p>Total Pedidos</p>
+                </div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-icon dinero-icon">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="stat-data">
+                    <h3>S/. {{ "%.2f"|format(detalles.pedidos|sum(attribute='3')|float if detalles.pedidos else 0) }}</h3>
+                    <p>Total Gastado</p>
+                </div>
+            </div>
+            
+            <div class="stat-item">
+                <div class="stat-icon productos-icon">
+                    <i class="fas fa-box"></i>
+                </div>
+                <div class="stat-data">
+                    <h3>{{ detalles.productos_recientes|length if detalles.productos_recientes else 0 }}</h3>
+                    <p>Productos Comprados</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="contenido-tabs">
+            <!-- Pestañas de navegación -->
+            <div class="tabs-nav">
+                <button class="tab-button active" onclick="mostrarTab('citas')">
+                    <i class="fas fa-calendar-check"></i>
+                    Historial de Citas
+                </button>
+                <button class="tab-button" onclick="mostrarTab('pedidos')">
+                    <i class="fas fa-shopping-bag"></i>
+                    Historial de Pedidos
+                </button>
+                <button class="tab-button" onclick="mostrarTab('productos')">
+                    <i class="fas fa-box"></i>
+                    Productos Comprados
+                </button>
+            </div>
+
+            <!-- Tab de Citas -->
+            <div id="tab-citas" class="tab-content active">
+                <div class="card-content">
+                    <h3>
+                        <i class="fas fa-calendar-check"></i>
+                        Historial de Citas
+                    </h3>
+                    
+                    {% if detalles.citas %}
+                    <div class="table-responsive">
+                        <table class="citas-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Hora</th>
+                                    <th>Mascota</th>
+                                    <th>Servicio</th>
+                                    <th>Estado</th>
+                                    <th>Registrada</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cita in detalles.citas %}
+                                <tr>
+                                    <td>
+                                        <span class="fecha-badge">
+                                            <i class="fas fa-calendar"></i>
+                                            {% if cita[4].__class__.__name__ in ['date', 'datetime'] %}{{ cita[4].strftime('%d/%m/%Y') }}{% else %}{{ cita[4] }}{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="hora-badge">
+                                            <i class="fas fa-clock"></i>
+                                            {{ cita[5] }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="mascota-info">
+                                            {% if cita[8] %}
+                                            <div class="mascota-nombre">
+                                                <strong>{{ cita[8] }}</strong>
+                                                {% if cita[9] %}
+                                                <span class="especie-badge {{ cita[9] }}">
+                                                    {% if cita[9] == 'perro' %}🐕{% elif cita[9] == 'gato' %}🐱{% elif cita[9] == 'conejo' %}🐰{% elif cita[9] == 'ave' %}🐦{% elif cita[9] == 'reptil' %}🦎{% else %}🐾{% endif %}
+                                                    {{ cita[9].title() }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                            {% if cita[10] %}
+                                            <small class="text-muted">{{ cita[10] }}</small>
+                                            {% endif %}
+                                            {% if cita[11] or cita[12] %}
+                                            <small class="mascota-detalles">
+                                                {% if cita[11] %}{{ cita[11] }} años{% endif %}
+                                                {% if cita[11] and cita[12] %} • {% endif %}
+                                                {% if cita[12] %}{{ cita[12] }} kg{% endif %}
+                                            </small>
+                                            {% endif %}
+                                            {% else %}
+                                            <span class="sin-mascota">
+                                                <i class="fas fa-question-circle"></i>
+                                                Sin información
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="servicio-badge">
+                                            <i class="fas fa-concierge-bell"></i>
+                                            {{ cita[3] or 'Servicio no especificado' }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="estado-badge {{ cita[6] }}">
+                                            {% if cita[6] == 'completada' %}
+                                            <i class="fas fa-check-circle"></i>
+                                            Completada
+                                            {% elif cita[6] == 'cancelada' %}
+                                            <i class="fas fa-times-circle"></i>
+                                            Cancelada
+                                            {% else %}
+                                            <i class="fas fa-clock"></i>
+                                            Pendiente
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {% if cita[7].__class__.__name__ in ['datetime'] %}{{ cita[7].strftime('%d/%m/%Y %H:%M') }}{% else %}{{ cita[7] }}{% endif %}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-content">
+                        <i class="fas fa-calendar-times"></i>
+                        <h4>Sin citas registradas</h4>
+                        <p>Este cliente aún no tiene citas en el sistema.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Tab de Pedidos -->
+            <div id="tab-pedidos" class="tab-content">
+                <div class="card-content">
+                    <h3>
+                        <i class="fas fa-shopping-bag"></i>
+                        Historial de Pedidos
+                    </h3>
+                    
+                    {% if detalles.pedidos %}
+                    <div class="table-responsive">
+                        <table class="pedidos-table">
+                            <thead>
+                                <tr>
+                                    <th>Pedido #</th>
+                                    <th>Fecha</th>
+                                    <th>Productos</th>
+                                    <th>Subtotal</th>
+                                    <th>IGV</th>
+                                    <th>Total</th>
+                                    <th>Pago</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pedido in detalles.pedidos %}
+                                <tr>
+                                    <td>
+                                        <strong>#{{ pedido[0] }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="fecha-badge">
+                                            {% if pedido[6].__class__.__name__ in ['date', 'datetime'] %}{{ pedido[6].strftime('%d/%m/%Y') }}{% else %}{{ pedido[6] }}{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="productos-count">
+                                            <i class="fas fa-box"></i>
+                                            {{ pedido[9] }} producto{{ 's' if pedido[9] != 1 else '' }}
+                                        </span>
+                                    </td>
+                                    <td>S/. {{ "%.2f"|format(pedido[1]) }}</td>
+                                    <td>S/. {{ "%.2f"|format(pedido[2]) }}</td>
+                                    <td>
+                                        <strong class="total-pedido">
+                                            S/. {{ "%.2f"|format(pedido[3]) }}
+                                        </strong>
+                                    </td>
+                                    <td>
+                                        <span class="metodo-pago {{ pedido[4] }}">
+                                            {% if pedido[4] == 'credito' %}
+                                            <i class="fas fa-credit-card"></i>
+                                            Crédito
+                                            {% elif pedido[4] == 'debito' %}
+                                            <i class="fas fa-credit-card"></i>
+                                            Débito
+                                            {% else %}
+                                            <i class="fas fa-university"></i>
+                                            Transferencia
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="estado-pedido {{ pedido[5] }}">
+                                            {% if pedido[5] == 'entregado' %}
+                                            <i class="fas fa-check-double"></i>
+                                            Entregado
+                                            {% elif pedido[5] == 'enviado' %}
+                                            <i class="fas fa-shipping-fast"></i>
+                                            Enviado
+                                            {% elif pedido[5] == 'pagado' %}
+                                            <i class="fas fa-check-circle"></i>
+                                            Pagado
+                                            {% elif pedido[5] == 'cancelado' %}
+                                            <i class="fas fa-times-circle"></i>
+                                            Cancelado
+                                            {% else %}
+                                            <i class="fas fa-clock"></i>
+                                            Pendiente
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-content">
+                        <i class="fas fa-shopping-bag"></i>
+                        <h4>Sin pedidos registrados</h4>
+                        <p>Este cliente aún no ha realizado pedidos en la tienda.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Tab de Productos -->
+            <div id="tab-productos" class="tab-content">
+                <div class="card-content">
+                    <h3>
+                        <i class="fas fa-box"></i>
+                        Productos Comprados Recientemente
+                    </h3>
+                    
+                    {% if detalles.productos_recientes %}
+                    <div class="productos-grid">
+                        {% for producto in detalles.productos_recientes %}
+                        <div class="producto-card">
+                            <div class="producto-info">
+                                <h4>{{ producto[1] }}</h4>
+                                <div class="producto-detalles">
+                                    <span class="cantidad">
+                                        <i class="fas fa-times"></i>
+                                        {{ producto[2] }}
+                                    </span>
+                                    <span class="precio-unitario">
+                                        S/. {{ "%.2f"|format(producto[3]) }} c/u
+                                    </span>
+                                </div>
+                                <div class="subtotal-producto">
+                                    <strong>S/. {{ "%.2f"|format(producto[4]) }}</strong>
+                                </div>
+                            </div>
+                            <div class="pedido-referencia">
+                                <small>Pedido #{{ producto[0] }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-content">
+                        <i class="fas fa-box-open"></i>
+                        <h4>Sin productos comprados</h4>
+                        <p>Este cliente aún no ha comprado productos.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.detalle-cliente-section {
+    padding: 20px 0;
+}
+
+.cliente-header {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.cliente-info-principal {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.avatar-cliente i {
+    font-size: 4rem;
+    color: #007bff;
+}
+
+.info-basica h1 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 2rem;
+}
+
+.contacto-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 10px;
+}
+
+.contacto-info span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6c757d;
+}
+
+.direccion, .fecha-registro {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.cliente-solo-citas {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #ffc107;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+.btn-volver {
+    background: #6c757d;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.btn-volver:hover {
+    background: #5a6268;
+    color: white;
+    text-decoration: none;
+}
+
+.stats-cliente {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-item {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+}
+
+.citas-icon { background: #007bff; }
+.pedidos-icon { background: #28a745; }
+.dinero-icon { background: #ffc107; }
+.productos-icon { background: #17a2b8; }
+
+.stat-data h3 {
+    font-size: 1.8rem;
+    margin: 0;
+    color: #2c3e50;
+}
+
+.stat-data p {
+    margin: 0;
+    color: #6c757d;
+}
+
+.contenido-tabs {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.tabs-nav {
+    display: flex;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 15px 20px;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.tab-button:hover,
+.tab-button.active {
+    background: white;
+    color: #007bff;
+    border-bottom: 3px solid #007bff;
+}
+
+.tab-content {
+    display: none;
+    padding: 30px;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.card-content h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+.citas-table, .pedidos-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.citas-table th, .citas-table td,
+.pedidos-table th, .pedidos-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.citas-table th, .pedidos-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.fecha-badge, .hora-badge, .servicio-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.fecha-badge {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.hora-badge {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.servicio-badge {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.mascota-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mascota-nombre {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.especie-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.especie-badge.perro {
+    background: #fff8e1;
+    color: #f57f17;
+}
+
+.especie-badge.gato {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.especie-badge.conejo {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.especie-badge.ave {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.especie-badge.reptil {
+    background: #f1f8e9;
+    color: #558b2f;
+}
+
+.especie-badge.otro {
+    background: #fafafa;
+    color: #616161;
+}
+
+.mascota-detalles {
+    color: #6c757d !important;
+    font-size: 0.8rem;
+}
+
+.sin-mascota {
+    color: #6c757d;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.estado-badge {
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.estado-badge.completada {
+    background: #d4edda;
+    color: #155724;
+}
+
+.estado-badge.pendiente {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.estado-badge.cancelada {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.productos-count {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.total-pedido {
+    color: #28a745;
+    font-size: 1.1rem;
+}
+
+.metodo-pago {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.metodo-pago.credito { background: #e3f2fd; color: #1976d2; }
+.metodo-pago.debito { background: #f3e5f5; color: #7b1fa2; }
+.metodo-pago.transferencia { background: #e8f5e8; color: #2e7d32; }
+
+.estado-pedido {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.estado-pedido.entregado { background: #d4edda; color: #155724; }
+.estado-pedido.enviado { background: #cce7ff; color: #004085; }
+.estado-pedido.pagado { background: #d1ecf1; color: #0c5460; }
+.estado-pedido.pendiente { background: #fff3cd; color: #856404; }
+.estado-pedido.cancelado { background: #f8d7da; color: #721c24; }
+
+.productos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.producto-card {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 4px solid #007bff;
+}
+
+.producto-info h4 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+}
+
+.producto-detalles {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    color: #6c757d;
+}
+
+.subtotal-producto {
+    color: #28a745;
+    font-size: 1.1rem;
+}
+
+.pedido-referencia {
+    margin-top: 10px;
+    text-align: right;
+    color: #6c757d;
+}
+
+.empty-content {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.empty-content i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.text-muted { color: #6c757d !important; }
+
+@media (max-width: 768px) {
+    .cliente-header {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .tabs-nav {
+        flex-direction: column;
+    }
+    
+    .contacto-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .stats-cliente {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .productos-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+function mostrarTab(tabName) {
+    // Ocultar todos los tabs
+    const tabs = document.querySelectorAll('.tab-content');
+    tabs.forEach(tab => tab.classList.remove('active'));
+    
+    // Desactivar todos los botones
+    const buttons = document.querySelectorAll('.tab-button');
+    buttons.forEach(button => button.classList.remove('active'));
+    
+    // Mostrar el tab seleccionado
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    
+    // Activar el botón correspondiente
+    event.target.classList.add('active');
+}
+</script>
+{% endblock %}

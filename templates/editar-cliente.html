@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Cliente - MASKOT{% endblock %}
+
+{% block content %}
+<section class="edit-client-section py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <!-- Header -->
+                <div class="text-center mb-5">
+                    <h1 class="display-5 fw-bold mb-3">
+                        <i class="fas fa-user-edit me-3 text-primary"></i>
+                        Editar <span class="text-gradient">Cliente</span>
+                    </h1>
+                    <p class="lead text-muted">
+                        Actualiza la información de contacto del cliente
+                    </p>
+                </div>
+
+                <!-- Formulario de edición -->
+                <div class="card shadow-lg border-0">
+                    <div class="card-header bg-gradient text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Información del Cliente
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form method="POST" class="needs-validation" novalidate>
+                            <!-- Nombre (solo lectura) -->
+                            <div class="mb-4">
+                                <label for="nombre" class="form-label fw-bold">
+                                    <i class="fas fa-user me-2 text-primary"></i>
+                                    Nombre Completo
+                                </label>
+                                <input type="text" 
+                                       class="form-control form-control-lg bg-light" 
+                                       id="nombre" 
+                                       name="nombre" 
+                                       value="{{ cliente[1] if cliente else '' }}" 
+                                       readonly>
+                                <div class="form-text">
+                                    <i class="fas fa-lock me-1"></i>
+                                    El nombre no puede modificarse por seguridad
+                                </div>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="mb-4">
+                                <label for="email" class="form-label fw-bold">
+                                    <i class="fas fa-envelope me-2 text-primary"></i>
+                                    Correo Electrónico
+                                </label>
+                                <input type="email" 
+                                       class="form-control form-control-lg" 
+                                       id="email" 
+                                       name="email" 
+                                       value="{{ cliente[2] if cliente else '' }}" 
+                                       required>
+                                <div class="valid-feedback">
+                                    ¡Perfecto!
+                                </div>
+                                <div class="invalid-feedback">
+                                    Por favor ingrese un email válido.
+                                </div>
+                            </div>
+
+                            <!-- Teléfono -->
+                            <div class="mb-4">
+                                <label for="telefono" class="form-label fw-bold">
+                                    <i class="fas fa-phone me-2 text-primary"></i>
+                                    Teléfono
+                                </label>
+                                <input type="tel" 
+                                       class="form-control form-control-lg" 
+                                       id="telefono" 
+                                       name="telefono" 
+                                       value="{{ cliente[3] if cliente else '' }}" 
+                                       placeholder="Ej: +51 999 999 999">
+                                <div class="form-text">
+                                    Incluye código de país si es necesario
+                                </div>
+                            </div>
+
+                            <!-- Dirección -->
+                            <div class="mb-4">
+                                <label for="direccion" class="form-label fw-bold">
+                                    <i class="fas fa-map-marker-alt me-2 text-primary"></i>
+                                    Dirección
+                                </label>
+                                <textarea class="form-control form-control-lg" 
+                                          id="direccion" 
+                                          name="direccion" 
+                                          rows="3" 
+                                          placeholder="Dirección completa del cliente">{{ cliente[4] if cliente else '' }}</textarea>
+                            </div>
+
+                            <!-- Información adicional -->
+                            {% if cliente and cliente[5] %}
+                            <div class="mb-4">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-calendar me-2"></i>
+                                    <strong>Fecha de registro:</strong> {% if cliente[5].__class__.__name__ in ['date', 'datetime'] %}{{ cliente[5].strftime('%d de %B de %Y') }}{% else %}{{ cliente[5] }}{% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Botones de acción -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <a href="{{ url_for('listar_clientes') }}" 
+                                   class="btn btn-outline-secondary btn-lg me-md-2">
+                                    <i class="fas fa-times me-2"></i>
+                                    Cancelar
+                                </a>
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-save me-2"></i>
+                                    Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Información de citas del cliente -->
+                {% if cliente %}
+                <div class="card mt-4 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-calendar-check me-2"></i>
+                            Resumen de Actividad
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <div class="stat-item">
+                                    <div class="stat-number text-primary">
+                                        <i class="fas fa-calendar-plus"></i>
+                                    </div>
+                                    <div class="stat-label">Cliente desde</div>
+                                    <div class="stat-value">
+                                        {% if cliente[5].__class__.__name__ in ['date', 'datetime'] %}{{ cliente[5].strftime('%Y') }}{% else %}Este año{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-item">
+                                    <div class="stat-number text-success">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <div class="stat-label">Estado</div>
+                                    <div class="stat-value">
+                                        <span class="badge bg-success">Activo</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-item">
+                                    <div class="stat-number text-info">
+                                        <i class="fas fa-envelope"></i>
+                                    </div>
+                                    <div class="stat-label">Contacto</div>
+                                    <div class="stat-value">
+                                        <span class="badge bg-info">Verificado</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.text-gradient {
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.bg-gradient {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(255, 163, 1, 0.25);
+}
+
+.stat-item {
+    padding: 1rem;
+}
+
+.stat-number {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--gray-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.card {
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.btn-lg {
+    padding: 0.75rem 2rem;
+    border-radius: 25px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    border: none;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 163, 1, 0.3);
+}
+
+.btn-outline-secondary:hover {
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .d-md-flex {
+        flex-direction: column !important;
+    }
+    
+    .btn-lg {
+        margin-bottom: 0.5rem;
+    }
+    
+    .stat-item {
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<script>
+// Validación del formulario
+(function() {
+    'use strict';
+    window.addEventListener('load', function() {
+        var forms = document.getElementsByClassName('needs-validation');
+        var validation = Array.prototype.filter.call(forms, function(form) {
+            form.addEventListener('submit', function(event) {
+                if (form.checkValidity() === false) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    }, false);
+})();
+
+// Formateo automático de teléfono
+document.getElementById('telefono').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 0) {
+        if (value.length <= 3) {
+            value = value;
+        } else if (value.length <= 6) {
+            value = value.slice(0, 3) + ' ' + value.slice(3);
+        } else {
+            value = value.slice(0, 3) + ' ' + value.slice(3, 6) + ' ' + value.slice(6, 9);
+        }
+    }
+    e.target.value = value;
+});
+</script>
+{% endblock %}

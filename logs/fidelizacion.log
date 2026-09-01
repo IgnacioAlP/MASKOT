@@ -1,0 +1,29 @@
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=1 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=2 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=3 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=4 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=5 | mensaje_needed=yes
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=6 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=7 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=8 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=9 | mensaje_needed=no
+2025-10-01 23:06:18 | testcliente@example.com | Cliente Test | total_citas=10 | mensaje_needed=yes
+2025-10-04 01:05:44 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=1 | mensaje_needed=no
+2025-10-04 01:05:44 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=1 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=1 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=2 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=3 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=4 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=5 | mensaje_needed=yes
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=1 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=2 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=3 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=4 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=5 | mensaje_needed=yes
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=6 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=7 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=8 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=9 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=10 | mensaje_needed=yes
+2025-10-04 01:06:08 | cliente1@prueba.com | Cliente Prueba Fidelidad 1 | total_citas=6 | mensaje_needed=no
+2025-10-04 01:06:08 | cliente2@prueba.com | Cliente Prueba Fidelidad 2 | total_citas=1 | mensaje_needed=no

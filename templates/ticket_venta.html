@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket de Venta - {{ venta.numero_venta }}</title>
+    <style>
+        /* Estilos optimizados para impresoras térmicas de 80mm */
+        @media print {
+            @page {
+                size: 80mm auto;
+                margin: 0;
+                padding: 0;
+            }
+            
+            body {
+                width: 80mm;
+                margin: 0;
+                padding: 0;
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.2;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+        }
+        
+        body {
+            width: 80mm;
+            margin: 0 auto;
+            padding: 5mm;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.2;
+            background: white;
+        }
+        
+        .ticket-container {
+            width: 100%;
+            max-width: 70mm;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 10px;
+        }
+        
+        .negocio-info {
+            font-size: 10px;
+            margin-bottom: 5px;
+        }
+        
+        .venta-info {
+            margin: 10px 0;
+            font-size: 11px;
+        }
+        
+        .producto-linea {
+            border-bottom: 1px dotted #ccc;
+            padding: 3px 0;
+        }
+        
+        .producto-nombre {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        
+        .producto-detalle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 9px;
+        }
+        
+        .totales {
+            margin-top: 10px;
+            border-top: 1px dashed #000;
+            padding-top: 5px;
+        }
+        
+        .total-linea {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+        
+        .total-final {
+            font-weight: bold;
+            font-size: 13px;
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 3px 0;
+            margin-top: 5px;
+        }
+        
+        .pago-info {
+            margin: 10px 0;
+            padding: 5px 0;
+            border-top: 1px dashed #000;
+            font-size: 11px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #000;
+            font-size: 9px;
+        }
+        
+        .negrita {
+            font-weight: bold;
+        }
+        
+        .separador {
+            text-align: center;
+            margin: 5px 0;
+            font-size: 10px;
+        }
+        
+        /* Botones para vista previa */
+        .no-print {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Botones de acción (no se imprimen) -->
+    <div class="no-print">
+        <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
+        <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+    </div>
+    <script>
+        // Auto-imprimir cuando se carga la página (opcional)
+        window.addEventListener('load', function() {
+            // setTimeout(() => window.print(), 1000);
+        });
+    </script>
+</body>
+</html>
+    <style>
+        /* Estilos para impresión térmica 80mm */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            line-height: 1.3;
+            color: #000;
+            background: white;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .ticket {
+            width: 80mm;
+            max-width: 300px;
+            margin: 0 auto;
+            padding: 5mm;
+            background: white;
+        }
+        
+        .header {
+            text-align: center;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 5mm;
+            margin-bottom: 5mm;
+        }
+        
+        .logo {
+            max-width: 60mm;
+            height: auto;
+            margin-bottom: 3mm;
+        }
+        
+        .business-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 2mm;
+            text-transform: uppercase;
+        }
+        
+        .business-info {
+            font-size: 10px;
+            line-height: 1.2;
+        }
+        
+        .ticket-info {
+            margin-bottom: 5mm;
+            font-size: 11px;
+        }
+        
+        .ticket-number {
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 3mm;
+        }
+        
+        .customer-info {
+            margin-bottom: 5mm;
+            padding: 2mm 0;
+            border-top: 1px dashed #000;
+            border-bottom: 1px dashed #000;
+        }
+        
+        .items-header {
+            font-weight: bold;
+            border-bottom: 1px solid #000;
+            padding-bottom: 1mm;
+            margin-bottom: 2mm;
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr 1fr;
+            gap: 2mm;
+            font-size: 10px;
+        }
+        
+        .item {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr 1fr;
+            gap: 2mm;
+            padding: 1mm 0;
+            font-size: 10px;
+            border-bottom: 1px dotted #ccc;
+        }
+        
+        .item:last-child {
+            border-bottom: none;
+        }
+        
+        .item-name {
+            font-weight: bold;
+        }
+        
+        .totals {
+            margin-top: 5mm;
+            border-top: 1px solid #000;
+            padding-top: 3mm;
+        }
+        
+        .total-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1mm;
+            font-size: 11px;
+        }
+        
+        .total-final {
+            font-size: 14px;
+            font-weight: bold;
+            border-top: 1px solid #000;
+            padding-top: 2mm;
+            margin-top: 2mm;
+        }
+        
+        .payment-info {
+            margin-top: 5mm;
+            padding-top: 3mm;
+            border-top: 1px dashed #000;
+            font-size: 11px;
+        }
+        
+        .payment-method {
+            font-weight: bold;
+            margin-bottom: 2mm;
+            text-transform: uppercase;
+        }
+        
+        .change-info {
+            background: #f0f0f0;
+            padding: 2mm;
+            margin: 2mm 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 8mm;
+            font-size: 10px;
+            border-top: 1px dashed #000;
+            padding-top: 3mm;
+        }
+        
+        .thank-you {
+            font-weight: bold;
+            margin-bottom: 2mm;
+        }
+        
+        .return-policy {
+            font-size: 9px;
+            line-height: 1.2;
+            margin-top: 3mm;
+        }
+        
+        .qr-code {
+            margin: 3mm 0;
+        }
+        
+        /* Estilos específicos para impresión */
+        @media print {
+            body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            .ticket {
+                width: 80mm !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 2mm !important;
+                box-shadow: none !important;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            @page {
+                size: 80mm auto;
+                margin: 0mm;
+            }
+        }
+        
+        /* Botones de acción (no se imprimen) */
+        .actions {
+            text-align: center;
+            margin: 10mm 0;
+            padding: 5mm;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 0 5px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn-success {
+            background: #28a745;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="ticket">
+        <!-- Encabezado -->
+        <div class="header">
+            <div class="business-name">VETERINARIA MASKOT</div>
+            <div class="business-info">
+                Cuidado integral para tus mascotas<br>
+                RUC: 20123456789<br>
+                Av. Los Veterinarios 123, Lima<br>
+                Tel: (01) 234-5678<br>
+                Email: info@veterinariamaskot.com
+            </div>
+        </div>
+        
+        <!-- Información del ticket -->
+        <div class="ticket-info">
+            <div class="ticket-number">TICKET DE VENTA</div>
+            <div class="ticket-number">#{{ venta.numero_venta }}</div>
+            
+            <div style="display: flex; justify-content: space-between; margin-top: 3mm;">
+                <div>Fecha: {{ venta.fecha_venta.strftime('%d/%m/%Y') }}</div>
+                <div>Hora: {{ venta.fecha_venta.strftime('%H:%M') }}</div>
+            </div>
+            
+            <div style="margin-top: 1mm;">
+                <strong>Vendedor:</strong> {{ venta.vendedor_nombre }}
+            </div>
+        </div>
+        
+        <!-- Información del cliente -->
+        <div class="customer-info">
+            <div><strong>Cliente:</strong> {{ venta.cliente_nombre }}</div>
+            {% if venta.cliente_documento %}
+            <div><strong>Documento:</strong> {{ venta.cliente_documento }}</div>
+            {% endif %}
+        </div>
+        
+        <!-- Productos -->
+        <div class="items-header">
+            <div>PRODUCTO</div>
+            <div style="text-align: center;">CANT</div>
+            <div style="text-align: right;">P.UNIT</div>
+            <div style="text-align: right;">TOTAL</div>
+        </div>
+        
+        {% for producto in venta.productos %}
+        <div class="item">
+            <div class="item-name">{{ producto.nombre }}</div>
+            <div style="text-align: center;">{{ producto.cantidad }}</div>
+            <div style="text-align: right;">{{ "%.2f"|format(producto.precio) }}</div>
+            <div style="text-align: right;">{{ "%.2f"|format(producto.total|default(producto.precio * producto.cantidad)) }}</div>
+        </div>
+        {% endfor %}
+        
+        <!-- Totales -->
+        <div class="totals">
+            <div class="total-line">
+                <span>Subtotal:</span>
+                <span>S/ {{ "%.2f"|format(venta.subtotal|default(0)) }}</span>
+            </div>
+            <div class="total-line">
+                <span>IGV (18%):</span>
+                <span>S/ {{ "%.2f"|format(venta.igv|default(0)) }}</span>
+            </div>
+            <div class="total-line total-final">
+                <span>TOTAL:</span>
+                <span>S/ {{ "%.2f"|format(venta.total|default(0)) }}</span>
+            </div>
+        </div>
+        
+        <!-- Información de pago -->
+        <div class="payment-info">
+            <div class="payment-method">
+                {% if venta.metodo_pago == 'efectivo' %}
+                    💵 PAGO EN EFECTIVO
+                {% elif venta.metodo_pago == 'tarjeta' %}
+                    💳 PAGO CON TARJETA
+                {% elif venta.metodo_pago == 'yape' %}
+                    📱 PAGO CON YAPE
+                {% endif %}
+            </div>
+            
+            {% if venta.metodo_pago == 'efectivo' %}
+                {% if venta.monto_recibido %}
+                <div>Monto recibido: S/ {{ "%.2f"|format(venta.monto_recibido) }}</div>
+                {% if venta.cambio_entregado > 0 %}
+                <div class="change-info">
+                    CAMBIO: S/ {{ "%.2f"|format(venta.cambio_entregado) }}
+                </div>
+                {% endif %}
+                {% endif %}
+            {% elif venta.detalle_multipago %}
+                <div><strong>Detalle multipago:</strong></div>
+                    {% for mp in venta.detalle_multipago %}
+                        {% set metodo = mp.metodo if mp.metodo else mp['metodo'] %}
+                        {% set monto = mp.monto if mp.monto is not none else mp['monto'] %}
+                        <div style="display:flex; justify-content:space-between;"><div>{{ metodo }}</div><div>S/ {{ "%.2f"|format(monto|float) }}</div></div>
+                    {% endfor %}
+            {% elif venta.referencia_pago %}
+                <div>Referencia: {{ venta.referencia_pago }}</div>
+            {% endif %}
+            
+            <div style="margin-top: 2mm;">
+                <strong>Estado:</strong> 
+                {% if venta.estado == 'completada' %}
+                    ✅ COMPLETADA
+                {% elif venta.estado == 'pendiente' %}
+                    ⏳ PENDIENTE
+                {% elif venta.estado == 'cancelada' %}
+                    ❌ CANCELADA
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if venta.notas %}
+        <div style="margin-top: 5mm; padding-top: 3mm; border-top: 1px dashed #000;">
+            <strong>Notas:</strong><br>
+            {{ venta.notas }}
+        </div>
+        {% endif %}
+        
+        <!-- Pie de página -->
+        <div class="footer">
+            <div class="thank-you">¡GRACIAS POR SU COMPRA!</div>
+            <div>Visite nuestro sitio web:</div>
+            <div>www.veterinariamaskot.com</div>
+            
+            <div class="return-policy">
+                Cambios y devoluciones hasta 7 días<br>
+                con ticket de compra y producto en<br>
+                perfecto estado. No incluye medicamentos.
+            </div>
+            
+            <div style="margin-top: 5mm; font-size: 9px;">
+                {{ venta.fecha_venta.strftime('%d/%m/%Y %H:%M:%S') }} - Sistema POS v1.0
+            </div>
+        </div>
+    </div>
+    
+    <!-- Botones de acción (no se imprimen) -->
+    <div class="actions no-print">
+        <button class="btn btn-success" onclick="imprimirTicket()">
+            🖨️ Imprimir Ticket
+        </button>
+        <button class="btn btn-secondary" onclick="window.close()">
+            ❌ Cerrar
+        </button>
+        <a href="{{ url_for('punto_de_venta') }}" class="btn">
+            🏪 Nueva Venta
+        </a>
+        <a href="{{ url_for('historial_ventas') }}" class="btn">
+            📋 Historial
+        </a>
+    </div>
+    
+    <script>
+        function imprimirTicket() {
+            // Configurar impresión para papel térmico
+            const style = document.createElement('style');
+            style.textContent = `
+                @media print {
+                    @page {
+                        size: 80mm auto;
+                        margin: 0mm 2mm;
+                    }
+                    body {
+                        font-size: 11px !important;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Imprimir
+            window.print();
+            
+            // Remover el estilo temporal
+            setTimeout(() => {
+                document.head.removeChild(style);
+            }, 1000);
+        }
+        
+        // Auto-imprimir si viene de una nueva venta
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('autoprint') === 'true') {
+                setTimeout(imprimirTicket, 500);
+            }
+        });
+        
+        // Atajos de teclado
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                imprimirTicket();
+            } else if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>

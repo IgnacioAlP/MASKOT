@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Servicios - MASKOT Veterinaria{% endblock %}
+
+{% block content %}
+<section class="servicios-section py-4">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h1>
+                        <i class="fas fa-concierge-bell text-primary me-2"></i>
+                        Gestión de Servicios
+                    </h1>
+                    {% if session.rol in ['dueño', 'admin'] %}
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAgregarServicio">
+                        <i class="fas fa-plus me-2"></i>Nuevo Servicio
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body">
+                        {% if servicios %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Servicio</th>
+                                        <th>Precio</th>
+                                        <th>Duración (min)</th>
+                                        <th>Total Citas</th>
+                                        <th>Estado</th>
+                                        <th>Fecha Creación</th>
+                                        {% if session.rol in ['dueño', 'admin'] %}
+                                        <th width="120">Acciones</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for servicio in servicios %}
+                                    <tr>
+                                        <td>
+                                            <div>
+                                                <strong>{{ servicio[1] }}</strong>
+                                                {% if servicio[4] %}
+                                                <p class="text-muted mb-0 small">{{ servicio[4] }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="fw-bold text-success">S/. {{ "%.2f"|format(servicio[2]) }}</span>
+                                        </td>
+                                        <td>{{ servicio[3] }} min</td>
+                                        <td>
+                                            <span class="badge bg-info">{{ servicio[8] }} citas</span>
+                                        </td>
+                                        <td>
+                                            {% if servicio[5] %}
+                                            <span class="badge bg-success">Activo</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Inactivo</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-muted small">{{ servicio[6].strftime('%d/%m/%Y') if servicio[6] else '-' }}</td>
+                                        {% if session.rol in ['dueño', 'admin'] %}
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary" onclick="editarServicio({{ servicio[0] }}, '{{ servicio[1] }}', {{ servicio[2] }}, {{ servicio[3] }}, '{{ servicio[4] or '' }}')" title="Editar">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                {% if servicio[5] %}
+                                                <button class="btn btn-outline-warning" onclick="cambiarEstadoServicio({{ servicio[0] }}, false)" title="Desactivar">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                                {% else %}
+                                                <button class="btn btn-outline-success" onclick="cambiarEstadoServicio({{ servicio[0] }}, true)" title="Activar">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-concierge-bell text-muted" style="font-size: 4rem; opacity: 0.3;"></i>
+                            <h4 class="mt-3 mb-2">No hay servicios registrados</h4>
+                            <p class="text-muted">Agrega tu primer servicio para comenzar</p>
+                            {% if session.rol in ['dueño', 'admin'] %}
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAgregarServicio">
+                                <i class="fas fa-plus me-2"></i>Agregar Servicio
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Modal Agregar Servicio -->
+<div class="modal fade" id="modalAgregarServicio" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle text-primary me-2"></i>
+                    Nuevo Servicio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAgregarServicio" method="POST" action="/servicios/agregar" class="no-animation">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre del Servicio *</label>
+                        <input type="text" class="form-control" id="nombre" name="nombre" required maxlength="100">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="precio" class="form-label">Precio (S/.) *</label>
+                                <input type="number" class="form-control" id="precio" name="precio" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="duracion" class="form-label">Duración (min) *</label>
+                                <input type="number" class="form-control" id="duracion" name="duracion" min="5" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="descripcion" class="form-label">Descripción</label>
+                        <textarea class="form-control" id="descripcion" name="descripcion" rows="3" maxlength="255"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Guardar Servicio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Servicio -->
+<div class="modal fade" id="modalEditarServicio" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit text-warning me-2"></i>
+                    Editar Servicio
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditarServicio" method="POST" action="/servicios/editar" class="no-animation">
+                <div class="modal-body">
+                    <input type="hidden" id="edit-servicio-id" name="servicio_id">
+                    <div class="mb-3">
+                        <label for="edit-nombre" class="form-label">Nombre del Servicio *</label>
+                        <input type="text" class="form-control" id="edit-nombre" name="nombre" required maxlength="100">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit-precio" class="form-label">Precio (S/.) *</label>
+                                <input type="number" class="form-control" id="edit-precio" name="precio" step="0.01" min="0" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="edit-duracion" class="form-label">Duración (min) *</label>
+                                <input type="number" class="form-control" id="edit-duracion" name="duracion" min="5" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit-descripcion" class="form-label">Descripción</label>
+                        <textarea class="form-control" id="edit-descripcion" name="descripcion" rows="3" maxlength="255"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save me-2"></i>Actualizar Servicio
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Agregar servicio - eliminado JavaScript personalizado, usar envío normal de formulario
+
+// Editar servicio - eliminado JavaScript personalizado, usar envío normal de formulario
+
+function editarServicio(id, nombre, precio, duracion, descripcion) {
+    document.getElementById('edit-servicio-id').value = id;
+    document.getElementById('edit-nombre').value = nombre;
+    document.getElementById('edit-precio').value = precio;
+    document.getElementById('edit-duracion').value = duracion;
+    document.getElementById('edit-descripcion').value = descripcion;
+    
+    new bootstrap.Modal(document.getElementById('modalEditarServicio')).show();
+}
+
+async function cambiarEstadoServicio(servicioId, activo) {
+    const accion = activo ? 'activar' : 'desactivar';
+    
+    if (!confirm(`¿Estás seguro de ${accion} este servicio?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/servicios/cambiar-estado', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                servicio_id: servicioId,
+                activo: activo
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(result.message, 'success');
+            location.reload();
+        } else {
+            showNotification(result.error, 'error');
+        }
+    } catch (error) {
+        showNotification(`Error al ${accion} servicio`, 'error');
+    }
+}
+
+function showNotification(message, type) {
+    // Simple notification system
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    const container = document.querySelector('.servicios-section .container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

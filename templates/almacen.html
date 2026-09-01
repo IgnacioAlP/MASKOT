@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+
+{% block title %}Control de Almacén - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<style>
+.quick-discount-buttons {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.quick-discount-buttons .btn {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    min-width: auto;
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+}
+
+.form-control-readonly {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 8px 12px;
+    border-radius: 4px;
+    color: #495057;
+}
+
+#discountModal .modal-content {
+    max-width: 500px;
+    margin: 50px auto;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #495057;
+}
+
+.close {
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close:hover {
+    color: #000;
+}
+</style>
+<section class="almacen-section">
+    <div class="container">
+        <div class="section-header">
+            <h1>
+                <i class="fas fa-boxes"></i> 
+                Control de Almacén
+            </h1>
+            {% if session.rol in ['dueño', 'admin', 'empleado'] %}
+            <button onclick="toggleFormulario()" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Agregar Producto
+            </button>
+            {% endif %}
+        </div>
+        
+        <!-- Formulario para agregar producto -->
+        <div id="formularioProducto" class="form-card" style="display: none;">
+            <h2><i class="fas fa-plus-circle"></i> Nuevo Producto</h2>
+            <form method="POST" class="product-form no-animation" enctype="multipart/form-data">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nombre">
+                            <i class="fas fa-tag"></i> Nombre del Producto
+                        </label>
+                        <input type="text" id="nombre" name="nombre" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tipo">
+                            <i class="fas fa-cogs"></i> Tipo de Producto
+                        </label>
+                        <select id="tipo" name="tipo" required onchange="toggleImageField()">
+                            <option value="stock">Stock (Inventario Interno)</option>
+                            <option value="venta">Venta (Mostrar en Principal)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cantidad">
+                            <i class="fas fa-sort-numeric-up"></i> Cantidad
+                        </label>
+                        <input type="number" id="cantidad" name="cantidad" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="stock_min">
+                            <i class="fas fa-exclamation-triangle"></i> Stock Mínimo
+                        </label>
+                        <input type="number" id="stock_min" name="stock_min" min="0" value="5">
+                    </div>
+                </div>
+                
+                <!-- Campo para imagen, condicional -->
+                <div id="imagenContainer" class="form-group" style="display: none;">
+                    <label for="imagen">
+                        <i class="fas fa-image"></i> Imagen del Producto (Solo para Venta, máx 2MB)
+                    </label>
+                    <input type="file" id="imagen" name="imagen" accept="image/*" onchange="validateImageSize(this)">
+                    <small>Formatos: PNG, JPG. Se mostrará en la página principal.</small>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fecha_vencimiento">
+                            <i class="fas fa-calendar-times"></i> Fecha de Vencimiento (Opcional)
+                        </label>
+                        <input type="date" id="fecha_vencimiento" name="fecha_vencimiento">
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" name="agregar" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Guardar Producto
+                    </button>
+                    <button type="button" onclick="toggleFormulario()" class="btn btn-outline">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Lista de productos -->
+        <div class="productos-table-container">
+            <table class="productos-table">
+                <thead>
+                    <tr>
+                        <th><i class="fas fa-tag"></i> Producto</th>
+                        <th><i class="fas fa-cogs"></i> Tipo</th>
+                        <th><i class="fas fa-image"></i> Imagen</th>
+                        <th><i class="fas fa-sort-numeric-up"></i> Cantidad</th>
+                        <th><i class="fas fa-exclamation-triangle"></i> Stock Mín</th>
+                        <th><i class="fas fa-calendar-times"></i> Vencimiento</th>
+                        <th><i class="fas fa-info-circle"></i> Estado</th>
+                        <th><i class="fas fa-cogs"></i> Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in productos %}
+                    <tr class="producto-row">
+                        <td>
+                            <div class="producto-info">
+                                <i class="fas fa-box"></i>
+                                <strong>{{ producto[1] }}</strong>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="tipo-badge {{ producto[2] }}">
+                                {{ 'Venta' if producto[2] == 'venta' else 'Stock' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if producto[7] %}
+                                <img src="{{ url_for('static', filename='images/' ~ producto[7]) }}" 
+                                     alt="{{ producto[1] }}" class="product-preview" 
+                                     onerror="this.style.display='none'">
+                            {% else %}
+                                <span class="no-image">Sin imagen</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="cantidad-badge {{ 'low-stock' if producto[3] <= producto[5] }}">
+                                {{ producto[3] }}
+                            </span>
+                        </td>
+                        <td>{{ producto[5] }}</td>
+                        <td>
+                            {% if producto[6] %}
+                                {% set dias_restantes = days_difference(producto[6]) %}
+                                <span class="fecha-venc {{ 'expired' if dias_restantes < 0 else 'expiring-soon' if dias_restantes <= 30 }}">
+                                    {{ format_date(producto[6]) }}
+                                    {% if dias_restantes < 0 %}
+                                        <small>(Vencido)</small>
+                                    {% elif dias_restantes <= 30 %}
+                                        <small>({{ dias_restantes }} días)</small>
+                                    {% endif %}
+                                </span>
+                            {% else %}
+                                <span class="no-expiry">Sin vencimiento</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set dias_restantes = days_difference(producto[6]) if producto[6] else 999 %}
+                            
+                            {% if dias_restantes < 0 %}
+                                <span class="status-badge status-expired">
+                                    <i class="fas fa-times-circle"></i> Vencido
+                                </span>
+                            {% elif dias_restantes <= 30 %}
+                                <span class="status-badge status-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> Por Vencer
+                                </span>
+                            {% elif producto[3] <= producto[5] %}
+                                <span class="status-badge status-low-stock">
+                                    <i class="fas fa-arrow-down"></i> Stock Bajo
+                                </span>
+                            {% else %}
+                                <span class="status-badge status-ok">
+                                    <i class="fas fa-check-circle"></i> OK
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if session.rol in ['dueño', 'admin', 'empleado'] %}
+                            <div class="action-buttons">
+                                <button onclick="editarProducto({{ producto[0] }}, '{{ producto[1] }}', {{ producto[3] }}, {{ producto[5] }}, '{{ producto[6] or '' }}')" 
+                                        class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                                
+                                {% if producto[2] == 'stock' and producto[3] > 0 %}
+                                <!-- Botones de descuento rápido solo para productos de stock -->
+                                <div class="quick-discount-buttons">
+                                    <button onclick="usarProducto({{ producto[0] }}, 1)" 
+                                            class="btn btn-sm btn-success" title="Usar 1 unidad">
+                                        <i class="fas fa-minus"></i> -1
+                                    </button>
+                                    {% if producto[3] >= 5 %}
+                                    <button onclick="usarProducto({{ producto[0] }}, 5)" 
+                                            class="btn btn-sm btn-warning" title="Usar 5 unidades">
+                                        <i class="fas fa-minus-circle"></i> -5
+                                    </button>
+                                    {% endif %}
+                                    <button onclick="mostrarDescuentoCustom({{ producto[0] }}, '{{ producto[1] }}', {{ producto[3] }})" 
+                                            class="btn btn-sm btn-info" title="Cantidad personalizada">
+                                        <i class="fas fa-keyboard"></i> Custom
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">Solo lectura</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if not productos %}
+        <div class="empty-state">
+            <i class="fas fa-boxes"></i>
+            <h3>No hay productos en el almacén</h3>
+            <p>Agrega productos para comenzar a gestionar el inventario</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Modal para editar producto -->
+<div id="editModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-edit"></i> Editar Producto</h2>
+            <span class="close" onclick="cerrarModal()">&times;</span>
+        </div>
+        <form method="POST" id="editForm" class="no-animation">
+            <input type="hidden" id="edit_id" name="id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_nombre">
+                        <i class="fas fa-tag"></i> Nombre del Producto
+                    </label>
+                    <input type="text" id="edit_nombre" name="nombre" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_cantidad">
+                        <i class="fas fa-sort-numeric-up"></i> Cantidad
+                    </label>
+                    <input type="number" id="edit_cantidad" name="cantidad" min="0" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_stock_min">
+                        <i class="fas fa-exclamation-triangle"></i> Stock Mínimo
+                    </label>
+                    <input type="number" id="edit_stock_min" name="stock_min" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_fecha_vencimiento">
+                        <i class="fas fa-calendar-times"></i> Fecha de Vencimiento
+                    </label>
+                    <input type="date" id="edit_fecha_vencimiento" name="fecha_vencimiento">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" name="modificar" class="btn btn-primary" id="btnGuardarEdicion">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+                <button type="button" onclick="cerrarModal()" class="btn btn-outline">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal para descuento personalizado -->
+<div id="discountModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2><i class="fas fa-minus-circle"></i> Usar Producto</h2>
+            <span class="close" onclick="cerrarDiscountModal()">&times;</span>
+        </div>
+        <form method="POST" action="/almacen/usar_producto" class="no-animation">
+            <input type="hidden" id="discount_producto_id" name="producto_id">
+            <div class="form-group">
+                <label for="discount_nombre">
+                    <i class="fas fa-box"></i> Producto
+                </label>
+                <input type="text" id="discount_nombre" name="nombre" readonly class="form-control-readonly">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="discount_stock_actual">
+                        <i class="fas fa-boxes"></i> Stock Actual
+                    </label>
+                    <input type="number" id="discount_stock_actual" readonly class="form-control-readonly">
+                </div>
+                <div class="form-group">
+                    <label for="discount_cantidad">
+                        <i class="fas fa-minus"></i> Cantidad a Usar
+                    </label>
+                    <input type="number" id="discount_cantidad" name="cantidad" min="1" required class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="discount_motivo">
+                    <i class="fas fa-comment"></i> Motivo de Uso (Opcional)
+                </label>
+                <textarea id="discount_motivo" name="motivo" placeholder="Ej: Usado en consulta, tratamiento, etc." rows="2" class="form-control"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-minus-circle"></i> Usar Producto
+                </button>
+                <button type="button" onclick="cerrarDiscountModal()" class="btn btn-outline">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleFormulario() {
+        const formulario = document.getElementById('formularioProducto');
+        if (formulario.style.display === 'none') {
+            formulario.style.display = 'block';
+            formulario.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            formulario.style.display = 'none';
+        }
+    }
+    
+    function toggleImageField() {
+        const tipoSelect = document.getElementById('tipo');
+        const imagenContainer = document.getElementById('imagenContainer');
+        
+        if (tipoSelect.value === 'venta') {
+            imagenContainer.style.display = 'block';
+        } else {
+            imagenContainer.style.display = 'none';
+            // Limpiar el input de imagen cuando se cambia a stock
+            document.getElementById('imagen').value = '';
+        }
+    }
+    
+    function validateImageSize(input) {
+        const file = input.files[0];
+        const maxSize = 2 * 1024 * 1024; // 2MB en bytes
+        
+        if (file && file.size > maxSize) {
+            if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('El archivo es demasiado grande. El tamaño máximo permitido es 2MB.', 'warning');
+            else showMaskotNotification('El archivo es demasiado grande. El tamaño máximo permitido es 2MB.', 'warning');
+            input.value = ''; // Limpiar el input
+            return false;
+        }
+        
+        return true;
+    }
+    
+    function editarProducto(id, nombre, cantidad, stockMin, fechaVenc) {
+        document.getElementById('edit_id').value = id;
+        document.getElementById('edit_nombre').value = nombre;
+        document.getElementById('edit_cantidad').value = cantidad;
+        document.getElementById('edit_stock_min').value = stockMin;
+        document.getElementById('edit_fecha_vencimiento').value = fechaVenc || '';
+        document.getElementById('editModal').style.display = 'block';
+    }
+    
+    function cerrarModal() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+    
+    // Cerrar modal al hacer click fuera de él
+    window.onclick = function(event) {
+        const modal = document.getElementById('editModal');
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    // Validar fecha de vencimiento
+    if (document.getElementById('fecha_vencimiento')) {
+        document.getElementById('fecha_vencimiento').min = new Date().toISOString().split('T')[0];
+    }
+    if (document.getElementById('edit_fecha_vencimiento')) {
+        document.getElementById('edit_fecha_vencimiento').min = new Date().toISOString().split('T')[0];
+    }
+    
+    // Funciones para descuento rápido
+    function usarProducto(productoId, cantidad) {
+        showConfirmModal(`¿Usar ${cantidad} unidad(es) de este producto?`).then(confirmed => {
+            if (!confirmed) return;
+            // Crear formulario dinámico para envío directo
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/almacen/usar_producto';
+            form.className = 'no-animation';
+            
+            const inputId = document.createElement('input');
+            inputId.type = 'hidden';
+            inputId.name = 'producto_id';
+            inputId.value = productoId;
+            form.appendChild(inputId);
+            
+            const inputCantidad = document.createElement('input');
+            inputCantidad.type = 'hidden';
+            inputCantidad.name = 'cantidad';
+            inputCantidad.value = cantidad;
+            form.appendChild(inputCantidad);
+            
+            const inputMotivo = document.createElement('input');
+            inputMotivo.type = 'hidden';
+            inputMotivo.name = 'motivo';
+            inputMotivo.value = `Uso rápido de ${cantidad} unidad(es)`;
+            form.appendChild(inputMotivo);
+            
+            document.body.appendChild(form);
+            form.submit();
+        });
+    }
+    
+    function mostrarDescuentoCustom(productoId, nombre, stockActual) {
+        document.getElementById('discount_producto_id').value = productoId;
+        document.getElementById('discount_nombre').value = nombre;
+        document.getElementById('discount_stock_actual').value = stockActual;
+        document.getElementById('discount_cantidad').value = '';
+        document.getElementById('discount_cantidad').max = stockActual;
+        document.getElementById('discount_motivo').value = '';
+        document.getElementById('discountModal').style.display = 'block';
+    }
+    
+    function cerrarDiscountModal() {
+        document.getElementById('discountModal').style.display = 'none';
+    }
+    
+    // Cerrar modal de descuento al hacer click fuera
+    window.addEventListener('click', function(event) {
+        const discountModal = document.getElementById('discountModal');
+        if (event.target === discountModal) {
+            discountModal.style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+
+{% block title %}Ticket Cita #{{ cita[0] }} - MASKOT Veterinaria{% endblock %}
+
+{% block content %}
+<section class="ticket-section py-4">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                <!-- Botones de Acción (No se imprimen) -->
+                <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+                    <a href="{{ url_for('citas') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Volver a Citas
+                    </a>
+                    <div class="action-buttons">
+                        <button onclick="imprimirTicket()" class="btn btn-primary">
+                            <i class="fas fa-print me-2"></i>Imprimir Ticket
+                        </button>
+                        <a href="{{ url_for('ver_detalles_cita', cita_id=cita[0]) }}" class="btn btn-outline-info">
+                            <i class="fas fa-eye me-2"></i>Ver Detalles
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Ticket Principal -->
+                <div class="ticket-container">
+                    <div class="ticket">
+                        <!-- Encabezado -->
+                        <div class="ticket-header">
+                            <div class="logo-section">
+                                <img src="{{ url_for('static', filename='img/maskot-favicon.ico') }}" 
+                                     alt="MASKOT" class="ticket-logo">
+                                <h2 class="business-name">MASKOT</h2>
+                                <p class="business-subtitle">Veterinaria & Grooming</p>
+                            </div>
+                            
+                            <div class="business-info">
+                                <p>Centro Veterinario Especializado</p>
+                                <p>Tel: (555) 123-4567</p>
+                                <p>contacto@maskotveterinaria.com</p>
+                            </div>
+                            
+                            <div class="separator">========================================</div>
+                        </div>
+                        
+                        <!-- Información del Ticket -->
+                        <div class="ticket-info">
+                            <h3>COMPROBANTE DE CITA</h3>
+                            <p><strong>Ticket #:</strong> {{ cita[0] }}</p>
+                            <p><strong>Fecha:</strong> {{ momento_actual.strftime('%d/%m/%Y %H:%M') }}</p>
+                            <div class="separator">----------------------------------------</div>
+                        </div>
+                        
+                        <!-- Información del Cliente -->
+                        <div class="client-section">
+                            <h4>DATOS DEL CLIENTE</h4>
+                            <p><strong>Nombre:</strong> {{ cita[1] }}</p>
+                            <p><strong>Email:</strong> {{ cita[2] }}</p>
+                            <div class="separator">----------------------------------------</div>
+                        </div>
+                        
+                        <!-- Información de la Cita -->
+                        <div class="appointment-section">
+                            <h4>DETALLES DE LA CITA</h4>
+                            <p><strong>Fecha cita:</strong> {{ cita[4] }}</p>
+                            <p><strong>Hora:</strong> {{ cita[5] }}</p>
+                            <p><strong>Estado:</strong> {{ cita[7]|title }}</p>
+                            <p><strong>Servicio:</strong> {{ servicio_nombre }}</p>
+                            
+                            {% if cita[6] %}
+                            <p><strong>Observaciones:</strong></p>
+                            <p class="observations">{{ cita[6] }}</p>
+                            {% endif %}
+                            <div class="separator">----------------------------------------</div>
+                        </div>
+                        
+                        <!-- Mascotas -->
+                        {% if mascotas %}
+                        <div class="pets-section">
+                            <h4>MASCOTAS ATENDIDAS</h4>
+                            {% for mascota in mascotas %}
+                            <div class="pet-item">
+                                <p><strong>{{ loop.index }}. {{ mascota[0] }}</strong></p>
+                                <p>  Especie: {{ mascota[1]|title }}</p>
+                                {% if mascota[2] %}<p>  Raza: {{ mascota[2] }}</p>{% endif %}
+                                {% if mascota[3] %}<p>  Edad: {{ mascota[3] }} años</p>{% endif %}
+                            </div>
+                            {% endfor %}
+                            <div class="separator">----------------------------------------</div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Servicios y Precios -->
+                        {% if servicios_adicionales %}
+                        <div class="services-section">
+                            <h4>SERVICIOS</h4>
+                            {% set total = 0 %}
+                            {% for servicio in servicios_adicionales %}
+                            <div class="service-line">
+                                <p>{{ servicio[0] }}</p>
+                                <p class="price">${{ "%.2f"|format(servicio[1]) }}</p>
+                            </div>
+                            {% set total = total + servicio[1] %}
+                            {% endfor %}
+                            
+                            <div class="separator">----------------------------------------</div>
+                            <div class="total-line">
+                                <p><strong>TOTAL: ${{ "%.2f"|format(total) }}</strong></p>
+                            </div>
+                            <div class="separator">========================================</div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Información Importante -->
+                        <div class="important-info">
+                            <h4>INFORMACIÓN IMPORTANTE</h4>
+                            <p>* Llegue 10 min antes de su cita</p>
+                            <p>* Traiga carnet de vacunación</p>
+                            <p>* Cancelaciones con 24h de anticipación</p>
+                            <p>* Línea de urgencias: (555) 911-PETS</p>
+                            <div class="separator">----------------------------------------</div>
+                        </div>
+                        
+                        <!-- Pie del Ticket -->
+                        <div class="ticket-footer">
+                            <p class="thank-you">¡Gracias por confiar en MASKOT!</p>
+                            <p class="footer-text">Su mascota es nuestra prioridad</p>
+                            <div class="separator">========================================</div>
+                            <p class="print-time">{{ momento_actual.strftime('%d/%m/%Y - %H:%M:%S') }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Información de Vista Previa (No se imprime) -->
+                <div class="no-print mt-4">
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-printer me-2"></i>Configuración de Impresión
+                        </h6>
+                        <ul class="mb-0">
+                            <li><strong>Formato:</strong> Optimizado para ticketera 80mm</li>
+                            <li><strong>Orientación:</strong> Vertical (Portrait)</li>
+                            <li><strong>Márgenes:</strong> Mínimos (2-3mm)</li>
+                            <li><strong>Papel:</strong> Térmico 80mm x continuo</li>
+                            <li><strong>Tamaño fuente:</strong> Optimizado para lectura</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+/* Estilos para vista en pantalla */
+.ticket-section {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+}
+
+.ticket-container {
+    display: flex;
+    justify-content: center;
+}
+
+.ticket {
+    width: 80mm;
+    max-width: 302px; /* 80mm = ~302px */
+    background: white;
+    padding: 8px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.2;
+    color: #000;
+    border: 1px solid #ddd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.ticket-header {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.ticket-logo {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 4px;
+}
+
+.business-name {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 2px 0;
+    letter-spacing: 2px;
+}
+
+.business-subtitle {
+    font-size: 11px;
+    margin: 2px 0;
+    font-style: italic;
+}
+
+.business-info {
+    font-size: 10px;
+    margin: 8px 0;
+}
+
+.business-info p {
+    margin: 1px 0;
+}
+
+.separator {
+    font-size: 10px;
+    text-align: center;
+    margin: 4px 0;
+    overflow: hidden;
+}
+
+.ticket-info {
+    text-align: center;
+    margin: 8px 0;
+}
+
+.ticket-info h3 {
+    font-size: 14px;
+    font-weight: bold;
+    margin: 4px 0;
+}
+
+.client-section,
+.appointment-section,
+.pets-section,
+.services-section,
+.important-info {
+    margin: 8px 0;
+}
+
+.client-section h4,
+.appointment-section h4,
+.pets-section h4,
+.services-section h4,
+.important-info h4 {
+    font-size: 12px;
+    font-weight: bold;
+    margin: 4px 0 6px 0;
+    text-decoration: underline;
+}
+
+.client-section p,
+.appointment-section p,
+.pets-section p,
+.important-info p {
+    margin: 2px 0;
+    font-size: 11px;
+}
+
+.pet-item {
+    margin: 4px 0;
+}
+
+.pet-item p {
+    margin: 1px 0;
+}
+
+.service-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 2px 0;
+}
+
+.service-line p {
+    margin: 0;
+    font-size: 11px;
+}
+
+.price {
+    font-weight: bold;
+}
+
+.total-line {
+    text-align: center;
+    font-size: 13px;
+    margin: 4px 0;
+}
+
+.total-line p {
+    font-size: 13px;
+    letter-spacing: 1px;
+}
+
+.observations {
+    font-size: 10px;
+    font-style: italic;
+    word-wrap: break-word;
+}
+
+.ticket-footer {
+    text-align: center;
+    margin-top: 8px;
+}
+
+.thank-you {
+    font-size: 12px;
+    font-weight: bold;
+    margin: 4px 0;
+}
+
+.footer-text {
+    font-size: 10px;
+    font-style: italic;
+    margin: 2px 0;
+}
+
+.print-time {
+    font-size: 9px;
+    margin: 4px 0 0 0;
+}
+
+/* Estilos para impresión */
+@media print {
+    /* Ocultar elementos no imprimibles */
+    .no-print {
+        display: none !important;
+    }
+    
+    /* Configuración de página para ticketera */
+    @page {
+        size: 80mm auto; /* Ancho fijo, altura automática */
+        margin: 2mm; /* Márgenes mínimos */
+    }
+    
+    body {
+        margin: 0;
+        padding: 0;
+        background: white;
+    }
+    
+    .ticket-section {
+        background: white;
+        padding: 0;
+        margin: 0;
+        min-height: auto;
+    }
+    
+    .container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .ticket-container {
+        justify-content: flex-start;
+    }
+    
+    .ticket {
+        width: 100%;
+        max-width: 100%;
+        border: none;
+        box-shadow: none;
+        padding: 2mm;
+        font-size: 11px;
+    }
+    
+    /* Ajustar tamaños para impresión */
+    .business-name {
+        font-size: 16px;
+    }
+    
+    .ticket-info h3 {
+        font-size: 13px;
+    }
+    
+    .separator {
+        font-size: 9px;
+    }
+    
+    /* Forzar saltos de página si es necesario */
+    .services-section {
+        page-break-inside: avoid;
+    }
+    
+    .important-info {
+        page-break-inside: avoid;
+    }
+    
+    /* Asegurar que el texto negro se imprima */
+    * {
+        color: black !important;
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* Responsive para pantalla */
+@media (max-width: 576px) {
+    .ticket {
+        width: 90%;
+        max-width: 90%;
+    }
+    
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .action-buttons .btn {
+        font-size: 0.875rem;
+    }
+}
+
+/* Botones de acción */
+.btn {
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.alert {
+    border-radius: 0.75rem;
+}
+</style>
+
+<script>
+function imprimirTicket() {
+    // Configurar para impresión de ticket
+    const originalTitle = document.title;
+    document.title = 'Ticket_Cita_{{ cita[0] }}_MASKOT';
+    
+    // Configuración específica para ticketeras
+    const printStyles = document.createElement('style');
+    printStyles.innerHTML = `
+        @media print {
+            @page {
+                size: 80mm auto;
+                margin: 1mm 2mm;
+            }
+            
+            body {
+                font-family: 'Courier New', monospace !important;
+                font-size: 10px !important;
+                line-height: 1.1 !important;
+            }
+            
+            .ticket {
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 1mm !important;
+            }
+        }
+    `;
+    
+    document.head.appendChild(printStyles);
+    
+    // Mostrar diálogo de configuración antes de imprimir
+    const configurar = confirm(
+        '¿Configurar impresora para ticket de 80mm?\n\n' +
+        '• Papel: 80mm térmico\n' +
+        '• Orientación: Vertical\n' +
+        '• Márgenes: Mínimos\n' +
+        '• Calidad: Borrador (para velocidad)'
+    );
+    
+    if (configurar) {
+        // Imprimir
+        window.print();
+        
+        // Limpiar después de la impresión
+        setTimeout(() => {
+            document.title = originalTitle;
+            if (printStyles.parentNode) {
+                document.head.removeChild(printStyles);
+            }
+        }, 100);
+    }
+}
+
+// Configurar impresión automática al presionar Ctrl+P
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        imprimirTicket();
+    }
+});
+
+// Función para verificar soporte de impresión
+document.addEventListener('DOMContentLoaded', function() {
+    // Verificar si el navegador soporta impresión
+    if (!window.print) {
+        const printButton = document.querySelector('button[onclick="imprimirTicket()"]');
+        if (printButton) {
+            printButton.disabled = true;
+            printButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Impresión no soportada';
+        }
+    }
+    
+    // Mostrar información sobre la configuración de la impresora
+    console.log('Configuración recomendada para ticketera:');
+    console.log('- Papel: 80mm térmico');
+    console.log('- Orientación: Vertical (Portrait)');
+    console.log('- Márgenes: 1-2mm');
+    console.log('- Calidad: Borrador o Normal');
+    console.log('- Tamaño de fuente: Automático');
+});
+
+// Función para previsualizar antes de imprimir
+function previsualizarTicket() {
+    const ticket = document.querySelector('.ticket').cloneNode(true);
+    const newWindow = window.open('', '_blank', 'width=400,height=600');
+    
+    const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Vista Previa Ticket</title>
+            <style>
+                body { 
+                    font-family: 'Courier New', monospace; 
+                    padding: 10px; 
+                    background: #f0f0f0;
+                }
+                .ticket { 
+                    background: white; 
+                    padding: 8px; 
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    width: 80mm;
+                    margin: 0 auto;
+                }
+            </style>
+        </head>
+        <body>
+            <h3 style="text-align: center;">Vista Previa - Ticket 80mm</h3>
+            ${ticket.outerHTML}
+        </body>
+        </html>
+    `;
+    
+    newWindow.document.write(htmlContent);
+    newWindow.document.close();
+}
+</script>
+</script>
+{% endblock %}

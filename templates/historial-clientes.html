@@ -1,0 +1,590 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Clientes - Veterinaria PetCare{% endblock %}
+
+{% block content %}
+<section class="clientes-section">
+    <div class="container">
+        <div class="section-header">
+            <h1>
+                <i class="fas fa-users"></i> 
+                Historial de Clientes
+            </h1>
+            <p>Gestión completa de clientes y su historial de servicios</p>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-card">
+            <h3><i class="fas fa-filter"></i> Filtros y Búsqueda</h3>
+            <div class="filter-row">
+                <div class="form-group">
+                    <label><i class="fas fa-search"></i> Buscar Cliente:</label>
+                    <input type="text" id="buscarCliente" placeholder="Nombre o email..." onkeyup="filtrarClientes()">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-calendar"></i> Desde:</label>
+                    <input type="date" id="fechaDesde" onchange="filtrarClientes()">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-calendar-alt"></i> Hasta:</label>
+                    <input type="date" id="fechaHasta" onchange="filtrarClientes()">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-sort"></i> Ordenar por:</label>
+                    <select id="ordenarPor" onchange="ordenarClientes()">
+                        <option value="ultima_actividad">Última Actividad</option>
+                        <option value="nombre">Nombre A-Z</option>
+                        <option value="total_gastado">Mayor Gasto</option>
+                        <option value="total_citas">Más Citas</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="submit" value="🔄 Limpiar" onclick="limpiarFiltros()" 
+                           style="background: #6c757d; color: white; border: none; padding: 8px 16px; 
+                                  border-radius: 5px; cursor: pointer; font-size: 14px;"
+                           onmouseover="this.style.background='#5a6268'"
+                           onmouseout="this.style.background='#6c757d'">
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas rápidas -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <i class="fas fa-users"></i>
+                <div class="stat-info">
+                    <h3 id="totalClientes">{{ historial|length }}</h3>
+                    <p>Total Clientes</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-calendar-check"></i>
+                <div class="stat-info">
+                    <h3 id="totalCitas">
+                        {{ historial|sum(attribute='6') or 0 }}
+                    </h3>
+                    <p>Total Citas</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-shopping-cart"></i>
+                <div class="stat-info">
+                    <h3 id="totalPedidos">
+                        {{ historial|sum(attribute='7') or 0 }}
+                    </h3>
+                    <p>Total Pedidos</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-dollar-sign"></i>
+                <div class="stat-info">
+                    <h3 id="ingresosTotales">
+                        S/. {{ "%.2f"|format(historial|sum(attribute='8') or 0) }}
+                    </h3>
+                    <p>Ingresos Totales</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de clientes -->
+        <div class="table-card">
+            <h3><i class="fas fa-list"></i> Lista Completa de Clientes</h3>
+            
+            {% if historial %}
+            <div class="table-responsive">
+                <table class="clientes-table" id="tablaClientes">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-user"></i> Cliente</th>
+                            <th><i class="fas fa-envelope"></i> Email</th>
+                            <th><i class="fas fa-phone"></i> Teléfono</th>
+                            <th><i class="fas fa-calendar-check"></i> Citas</th>
+                            <th><i class="fas fa-shopping-bag"></i> Pedidos</th>
+                            <th><i class="fas fa-money-bill-wave"></i> Total Gastado</th>
+                            <th><i class="fas fa-clock"></i> Última Actividad</th>
+                            <th><i class="fas fa-cogs"></i> Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cliente in historial %}
+                        <tr class="cliente-row" 
+                            data-nombre="{{ cliente[1]|lower }}" 
+                            data-email="{{ cliente[2]|lower }}" 
+                            data-total="{{ cliente[8] or 0 }}"
+                            data-citas="{{ cliente[6] or 0 }}"
+                            data-ultima="{{ cliente[9] or cliente[10] or '' }}">
+                            <td>
+                                <div class="cliente-info">
+                                    <i class="fas fa-user-circle"></i>
+                                    <div>
+                                        <strong>{{ cliente[1] }}</strong>
+                                        {% if cliente[5] %}
+                                        <small class="text-muted">Cliente desde: {% if cliente[5].__class__.__name__ in ['date', 'datetime'] %}{{ cliente[5].strftime('%d/%m/%Y') }}{% else %}{{ cliente[5] }}{% endif %}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="email-badge">
+                                    <i class="fas fa-envelope"></i>
+                                    {{ cliente[2] }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if cliente[3] %}
+                                <span class="telefono-badge">
+                                    <i class="fas fa-phone"></i>
+                                    {{ cliente[3] }}
+                                </span>
+                                {% else %}
+                                <span class="sin-info">
+                                    <i class="fas fa-minus-circle text-muted"></i>
+                                    No registrado
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="stat-badge citas-badge">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <strong>{{ cliente[6] or 0 }}</strong>
+                                    <small>cita{{ 's' if (cliente[6] or 0) != 1 else '' }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="stat-badge pedidos-badge">
+                                    <i class="fas fa-shopping-bag"></i>
+                                    <strong>{{ cliente[7] or 0 }}</strong>
+                                    <small>pedido{{ 's' if (cliente[7] or 0) != 1 else '' }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="money-badge">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    <strong>S/. {{ "%.2f"|format(cliente[8] or 0) }}</strong>
+                                </div>
+                            </td>
+                            <td>
+                                {% set ultima_cita = cliente[9] %}
+                                {% set ultimo_pedido = cliente[10] %}
+                                {% if ultima_cita or ultimo_pedido %}
+                                    {% if ultima_cita and ultimo_pedido %}
+                                        {% if ultima_cita >= ultimo_pedido %}
+                                        <span class="fecha-badge cita-badge">
+                                            <i class="fas fa-calendar"></i>
+                                            {% if ultima_cita %}
+                                                {{ ultima_cita.strftime('%d/%m/%Y') if ultima_cita.__class__.__name__ in ['date', 'datetime'] else ultima_cita }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                            <small>Cita</small>
+                                        </span>
+                                        {% else %}
+                                        <span class="fecha-badge pedido-badge">
+                                            <i class="fas fa-shopping-cart"></i>
+                                            {% if ultimo_pedido %}
+                                                {{ ultimo_pedido.strftime('%d/%m/%Y') if ultimo_pedido.__class__.__name__ in ['date', 'datetime'] else ultimo_pedido }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                            <small>Pedido</small>
+                                        </span>
+                                        {% endif %}
+                                    {% elif ultima_cita %}
+                                    <span class="fecha-badge cita-badge">
+                                        <i class="fas fa-calendar"></i>
+                                        {% if ultima_cita %}
+                                            {{ ultima_cita.strftime('%d/%m/%Y') if ultima_cita.__class__.__name__ in ['date', 'datetime'] else ultima_cita }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                        <small>Cita</small>
+                                    </span>
+                                    {% else %}
+                                    <span class="fecha-badge pedido-badge">
+                                        <i class="fas fa-shopping-cart"></i>
+                                        {% if ultimo_pedido %}
+                                            {{ ultimo_pedido.strftime('%d/%m/%Y') if ultimo_pedido.__class__.__name__ in ['date', 'datetime'] else ultimo_pedido }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                        <small>Pedido</small>
+                                    </span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="sin-actividad">
+                                    <i class="fas fa-clock text-muted"></i>
+                                    Sin actividad
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="acciones-buttons">
+                                    {% if cliente[0] > 0 %}
+                                    <a href="{{ url_for('detalle_cliente', id=cliente[0]) }}" 
+                                       class="btn-accion ver" title="Ver detalles completos">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% else %}
+                                    <a href="{{ url_for('detalle_cliente', email=cliente[2]) }}" 
+                                       class="btn-accion ver" title="Ver detalles completos">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-users"></i>
+                <h3>No hay clientes registrados</h3>
+                <p>Aún no existen clientes en el sistema.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<style>
+.clientes-section {
+    padding: 20px 0;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.section-header h1 {
+    color: #2c3e50;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.filters-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    align-items: end;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.stat-card i {
+    font-size: 2rem;
+    margin-right: 15px;
+    opacity: 0.8;
+}
+
+.stat-info h3 {
+    font-size: 1.8rem;
+    margin: 0;
+    font-weight: bold;
+}
+
+.stat-info p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.9rem;
+}
+
+.table-card {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.clientes-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.clientes-table th,
+.clientes-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+.clientes-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.clientes-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.cliente-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cliente-info i {
+    font-size: 1.5rem;
+    color: #007bff;
+}
+
+.email-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.telefono-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #28a745;
+}
+
+.stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+}
+
+.citas-badge {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.pedidos-badge {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.money-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #28a745;
+    font-weight: 600;
+}
+
+.fecha-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.cita-badge {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.pedido-badge {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.acciones-buttons {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-accion {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+.btn-accion.ver {
+    background: #17a2b8;
+}
+
+.btn-accion.ver:hover {
+    background: #138496;
+    transform: scale(1.1);
+}
+
+.sin-info, .sin-actividad {
+    color: #6c757d;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.text-muted { color: #6c757d !important; }
+
+@media (max-width: 768px) {
+    .filter-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .clientes-table {
+        font-size: 0.85rem;
+    }
+    
+    .cliente-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
+</style>
+
+<script>
+function filtrarClientes() {
+    const busqueda = document.getElementById('buscarCliente').value.toLowerCase();
+    const fechaDesde = document.getElementById('fechaDesde').value;
+    const fechaHasta = document.getElementById('fechaHasta').value;
+    const filas = document.querySelectorAll('.cliente-row');
+    
+    let clientesVisibles = 0;
+    let totalCitas = 0;
+    let totalPedidos = 0;
+    let ingresosTotales = 0;
+    
+    filas.forEach(fila => {
+        const nombre = fila.dataset.nombre;
+        const email = fila.dataset.email;
+        const ultimaActividad = fila.dataset.ultima;
+        let mostrar = true;
+        
+        // Filtro por texto
+        if (busqueda && !nombre.includes(busqueda) && !email.includes(busqueda)) {
+            mostrar = false;
+        }
+        
+        // Filtros por fecha (si hay actividad registrada)
+        if (ultimaActividad && fechaDesde && ultimaActividad < fechaDesde) {
+            mostrar = false;
+        }
+        
+        if (ultimaActividad && fechaHasta && ultimaActividad > fechaHasta) {
+            mostrar = false;
+        }
+        
+        if (mostrar) {
+            fila.style.display = '';
+            clientesVisibles++;
+            totalCitas += parseInt(fila.dataset.citas) || 0;
+            totalPedidos += parseInt(fila.querySelector('.pedidos-badge strong').textContent) || 0;
+            ingresosTotales += parseFloat(fila.dataset.total) || 0;
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+    
+    // Actualizar estadísticas
+    document.getElementById('totalClientes').textContent = clientesVisibles;
+    document.getElementById('totalCitas').textContent = totalCitas;
+    document.getElementById('totalPedidos').textContent = totalPedidos;
+    document.getElementById('ingresosTotales').textContent = 'S/. ' + ingresosTotales.toFixed(2);
+}
+
+function ordenarClientes() {
+    const orden = document.getElementById('ordenarPor').value;
+    const tabla = document.getElementById('tablaClientes');
+    const filas = Array.from(tabla.querySelectorAll('.cliente-row'));
+    
+    filas.sort((a, b) => {
+        switch(orden) {
+            case 'nombre':
+                return a.dataset.nombre.localeCompare(b.dataset.nombre);
+            case 'total_gastado':
+                return parseFloat(b.dataset.total) - parseFloat(a.dataset.total);
+            case 'total_citas':
+                return parseInt(b.dataset.citas) - parseInt(a.dataset.citas);
+            case 'ultima_actividad':
+            default:
+                const fechaA = a.dataset.ultima || '0000-00-00';
+                const fechaB = b.dataset.ultima || '0000-00-00';
+                return fechaB.localeCompare(fechaA);
+        }
+    });
+    
+    const tbody = tabla.querySelector('tbody');
+    filas.forEach(fila => tbody.appendChild(fila));
+}
+
+function limpiarFiltros() {
+    document.getElementById('buscarCliente').value = '';
+    document.getElementById('fechaDesde').value = '';
+    document.getElementById('fechaHasta').value = '';
+    document.getElementById('ordenarPor').value = 'ultima_actividad';
+    
+    // Mostrar todas las filas
+    const filas = document.querySelectorAll('.cliente-row');
+    filas.forEach(fila => {
+        fila.style.display = '';
+    });
+    
+    // Restaurar estadísticas originales
+    location.reload(); // Forma simple de restaurar valores originales
+}
+
+// Configuración inicial
+document.addEventListener('DOMContentLoaded', function() {
+    const hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('fechaHasta').value = hoy;
+});
+</script>
+{% endblock %}

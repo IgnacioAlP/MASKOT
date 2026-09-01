@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout - MASKOT Petshop{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <!-- Información del Pedido -->
+        <div class="col-lg-7">
+            <div class="checkout-section">
+                <h3 class="section-title mb-4">
+                    <i class="fas fa-user me-2 text-primary"></i>
+                    Información del Cliente
+                </h3>
+                
+                <form id="checkout-form" method="POST" action="{{ url_for('procesar_pago') }}">
+                    <!-- Datos del Cliente -->
+                    <div class="customer-info-card mb-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="nombre" class="form-label">Nombre Completo *</label>
+                                <input type="text" class="form-control" id="nombre" name="nombre" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">Email *</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="telefono" class="form-label">Teléfono *</label>
+                                <input type="tel" class="form-control" id="telefono" name="telefono" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="documento" class="form-label">RUT/CI</label>
+                                <input type="text" class="form-control" id="documento" name="documento">
+                            </div>
+                            <div class="col-12">
+                                <label for="direccion" class="form-label">Dirección de Entrega *</label>
+                                <textarea class="form-control" id="direccion" name="direccion" rows="2" required placeholder="Calle, número, comuna/ciudad"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Métodos de Pago -->
+                    <h4 class="section-title mb-3">
+                        <i class="fas fa-credit-card me-2 text-success"></i>
+                        Método de Pago
+                    </h4>
+                    
+                    <div class="payment-methods mb-4">
+                        <div class="payment-option">
+                            <input type="radio" class="btn-check" name="metodo_pago" id="credito" value="credito" autocomplete="off">
+                            <label class="btn btn-outline-primary payment-btn" for="credito">
+                                <i class="fas fa-credit-card me-2"></i>
+                                <div class="payment-info">
+                                    <strong>Tarjeta de Crédito</strong>
+                                    <small>Visa, Mastercard, American Express</small>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="payment-option">
+                            <input type="radio" class="btn-check" name="metodo_pago" id="debito" value="debito" autocomplete="off">
+                            <label class="btn btn-outline-primary payment-btn" for="debito">
+                                <i class="fas fa-money-check-alt me-2"></i>
+                                <div class="payment-info">
+                                    <strong>Tarjeta de Débito</strong>
+                                    <small>RedCompra, Maestro</small>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div class="payment-option">
+                            <input type="radio" class="btn-check" name="metodo_pago" id="transferencia" value="transferencia" autocomplete="off">
+                            <label class="btn btn-outline-primary payment-btn" for="transferencia">
+                                <i class="fas fa-university me-2"></i>
+                                <div class="payment-info">
+                                    <strong>Transferencia Bancaria</strong>
+                                    <small>Todas las instituciones financieras</small>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Formulario de Tarjeta (oculto inicialmente) -->
+                    <div id="card-form" class="card-form" style="display: none;">
+                        <h5 class="mb-3">
+                            <i class="fas fa-lock me-2 text-warning"></i>
+                            Datos de la Tarjeta
+                        </h5>
+                        
+                        <div class="card-visual mb-4">
+                            <div class="credit-card">
+                                <div class="card-chip"></div>
+                                <div class="card-number">
+                                    <span id="card-display">•••• •••• •••• ••••</span>
+                                </div>
+                                <div class="card-info">
+                                    <div class="card-holder">
+                                        <small>TITULAR</small>
+                                        <span id="holder-display">NOMBRE DEL TITULAR</span>
+                                    </div>
+                                    <div class="card-expiry">
+                                        <small>VÁLIDA</small>
+                                        <span id="expiry-display">MM/AA</span>
+                                    </div>
+                                </div>
+                                <div class="card-brand" id="card-brand"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label for="numero_tarjeta" class="form-label">Número de Tarjeta *</label>
+                                <input type="text" class="form-control" id="numero_tarjeta" name="numero_tarjeta" 
+                                       placeholder="1234 5678 9012 3456" maxlength="19" autocomplete="cc-number">
+                            </div>
+                            <div class="col-12">
+                                <label for="nombre_titular" class="form-label">Nombre del Titular *</label>
+                                <input type="text" class="form-control" id="nombre_titular" name="nombre_titular" 
+                                       placeholder="Como aparece en la tarjeta" autocomplete="cc-name">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="expiracion" class="form-label">Expiración *</label>
+                                <input type="text" class="form-control" id="expiracion" name="expiracion" 
+                                       placeholder="MM/AA" maxlength="5" autocomplete="cc-exp">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="cvv" class="form-label">CVV *</label>
+                                <input type="text" class="form-control" id="cvv" name="cvv" 
+                                       placeholder="123" maxlength="4" autocomplete="cc-csc">
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="guardar_tarjeta">
+                                    <label class="form-check-label" for="guardar_tarjeta">
+                                        <i class="fas fa-save me-1"></i>
+                                        Guardar esta tarjeta para futuras compras
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instrucciones de Transferencia (oculto inicialmente) -->
+                    <div id="transfer-info" class="transfer-info" style="display: none;">
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle me-2"></i>Instrucciones de Transferencia</h5>
+                            <p><strong>Banco:</strong> Banco Estado</p>
+                            <p><strong>Cuenta Corriente:</strong> 12345678-9</p>
+                            <p><strong>RUT:</strong> 12.345.678-9</p>
+                            <p><strong>Beneficiario:</strong> MASKOT SpA</p>
+                            <p><strong>Email:</strong> pagos@maskot.cl</p>
+                            <hr>
+                            <small class="text-muted">
+                                Después de realizar la transferencia, envía el comprobante por email para confirmar tu pedido.
+                            </small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Resumen del Pedido -->
+        <div class="col-lg-5">
+            <div class="order-summary">
+                <h4 class="mb-4">
+                    <i class="fas fa-shopping-bag me-2 text-primary"></i>
+                    Resumen del Pedido
+                </h4>
+                
+                <div class="order-items">
+                    {% for item in items %}
+                    <div class="order-item">
+                        <div class="item-image">
+                            {% if item.imagen %}
+                            <img src="{{ url_for('static', filename='images/' ~ item.imagen) }}" alt="{{ item.nombre }}">
+                            {% else %}
+                            <div class="no-image"><i class="fas fa-box"></i></div>
+                            {% endif %}
+                        </div>
+                        <div class="item-info">
+                            <h6>{{ item.nombre }}</h6>
+                            <small>Cantidad: {{ item.qty }}</small>
+                        </div>
+                        <div class="item-price">
+                            S/ {{ "{:,}".format(item.subtotal) }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="order-totals">
+                    {% set subtotal = total %}
+                    {% set igv = (subtotal * 0.18)|round(2) %}
+                    {% set total_final = (subtotal + igv)|round(2) %}
+                    
+                    <div class="total-line">
+                        <span>Subtotal:</span>
+                        <span>S/ {{ "{:,.2f}".format(subtotal) }}</span>
+                    </div>
+                    <div class="total-line">
+                        <span>IGV (18%):</span>
+                        <span>S/ {{ "{:,.2f}".format(igv) }}</span>
+                    </div>
+                    <div class="total-line">
+                        <span>Envío:</span>
+                        <span class="text-success">Gratis</span>
+                    </div>
+                    <div class="total-line total">
+                        <span><strong>Total:</strong></span>
+                        <span><strong>S/ {{ "{:,.2f}".format(total_final) }}</strong></span>
+                    </div>
+                </div>
+                
+                <div class="checkout-actions mt-4">
+                    <button type="submit" form="checkout-form" class="btn btn-maskot-primary btn-lg w-100" id="submit-btn">
+                        <i class="fas fa-lock me-2"></i>
+                        Completar Compra
+                    </button>
+                    <a href="{{ url_for('ver_carrito') }}" class="btn btn-outline-secondary w-100 mt-2">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Volver al Carrito
+                    </a>
+                </div>
+                
+                <div class="security-badges mt-3 text-center">
+                    <small class="text-muted">
+                        <i class="fas fa-shield-alt me-1"></i>
+                        Transacción 100% segura y encriptada
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.checkout-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom: 2rem;
+}
+
+.customer-info-card {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 10px;
+    border-left: 4px solid #ffa301;
+}
+
+.payment-methods {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.payment-option {
+    width: 100%;
+}
+
+.payment-btn {
+    width: 100%;
+    padding: 1rem;
+    text-align: left;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+}
+
+.payment-btn:hover {
+    border-color: #ffa301;
+    transform: translateY(-2px);
+}
+
+.payment-btn.active {
+    border-color: #ffa301;
+    background-color: rgba(255, 163, 1, 0.1);
+}
+
+.btn-check:checked + .payment-btn {
+    border-color: #ffa301 !important;
+    background-color: rgba(255, 163, 1, 0.1) !important;
+}
+
+.payment-info {
+    margin-left: 0.5rem;
+}
+
+.payment-info small {
+    display: block;
+    color: #6c757d;
+}
+
+.card-form {
+    background: #f8f9fa;
+    padding: 2rem;
+    border-radius: 15px;
+    margin-top: 1rem;
+    border: 2px solid #e9ecef;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.credit-card {
+    width: 100%;
+    max-width: 350px;
+    height: 200px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 20px;
+    color: white;
+    position: relative;
+    margin: 0 auto;
+    transition: all 0.3s ease;
+}
+
+.credit-card:hover {
+    transform: scale(1.02);
+}
+
+.card-chip {
+    width: 40px;
+    height: 28px;
+    background: #ffd700;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+.card-number {
+    font-size: 1.2rem;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+}
+
+.card-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+}
+
+.card-holder, .card-expiry {
+    font-size: 0.8rem;
+}
+
+.card-holder small, .card-expiry small {
+    display: block;
+    opacity: 0.8;
+    font-size: 0.7rem;
+}
+
+.card-brand {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 1.5rem;
+}
+
+.transfer-info {
+    background: #e3f2fd;
+    padding: 1.5rem;
+    border-radius: 10px;
+    border-left: 4px solid #2196f3;
+    margin-top: 1rem;
+    animation: slideDown 0.3s ease-out;
+}
+
+.order-summary {
+    background: white;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    position: sticky;
+    top: 100px;
+}
+
+.order-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.order-item:last-child {
+    border-bottom: none;
+}
+
+.item-image {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-right: 1rem;
+}
+
+.item-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.no-image {
+    width: 100%;
+    height: 100%;
+    background: #f8f9fa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6c757d;
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-info h6 {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.item-price {
+    font-weight: 600;
+    color: #ffa301;
+}
+
+.order-totals {
+    padding-top: 1rem;
+    border-top: 2px solid #e9ecef;
+    margin-top: 1rem;
+}
+
+.total-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.total-line.total {
+    padding-top: 0.5rem;
+    border-top: 1px solid #e9ecef;
+    font-size: 1.1rem;
+}
+
+.security-badges {
+    padding-top: 1rem;
+    border-top: 1px solid #e9ecef;
+}
+
+@media (max-width: 768px) {
+    .payment-methods {
+        gap: 0.5rem;
+    }
+    
+    .credit-card {
+        max-width: 100%;
+        height: 180px;
+    }
+    
+    .order-summary {
+        position: static;
+        margin-top: 2rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cardForm = document.getElementById('card-form');
+    const transferInfo = document.getElementById('transfer-info');
+    const paymentRadios = document.querySelectorAll('input[name="metodo_pago"]');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    // Card form elements
+    const cardNumber = document.getElementById('numero_tarjeta');
+    const cardHolder = document.getElementById('nombre_titular');
+    const cardExpiry = document.getElementById('expiracion');
+    const cardCvv = document.getElementById('cvv');
+    
+    // Card display elements
+    const cardDisplay = document.getElementById('card-display');
+    const holderDisplay = document.getElementById('holder-display');
+    const expiryDisplay = document.getElementById('expiry-display');
+    const brandDisplay = document.getElementById('card-brand');
+
+    // Handle payment method selection
+    paymentRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            cardForm.style.display = 'none';
+            transferInfo.style.display = 'none';
+            
+            if (this.value === 'credito' || this.value === 'debito') {
+                cardForm.style.display = 'block';
+                updateSubmitButton('card');
+                // Make card fields required
+                cardNumber.required = true;
+                cardHolder.required = true;
+                cardExpiry.required = true;
+                cardCvv.required = true;
+            } else if (this.value === 'transferencia') {
+                transferInfo.style.display = 'block';
+                updateSubmitButton('transfer');
+                // Remove card field requirements
+                cardNumber.required = false;
+                cardHolder.required = false;
+                cardExpiry.required = false;
+                cardCvv.required = false;
+            }
+        });
+    });
+
+    // Card number formatting and validation
+    if (cardNumber) {
+        cardNumber.addEventListener('input', function() {
+            let value = this.value.replace(/\D/g, '');
+            value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+            this.value = value;
+            
+            // Update card display
+            if (value.length > 0) {
+                cardDisplay.textContent = value.padEnd(19, '•');
+            } else {
+                cardDisplay.textContent = '•••• •••• •••• ••••';
+            }
+            
+            // Detect card brand
+            detectCardBrand(value.replace(/\s/g, ''));
+        });
+    }
+
+    // Card holder name
+    if (cardHolder) {
+        cardHolder.addEventListener('input', function() {
+            holderDisplay.textContent = this.value.toUpperCase() || 'NOMBRE DEL TITULAR';
+        });
+    }
+
+    // Card expiry formatting
+    if (cardExpiry) {
+        cardExpiry.addEventListener('input', function() {
+            let value = this.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0,2) + '/' + value.substring(2,4);
+            }
+            this.value = value;
+            expiryDisplay.textContent = value || 'MM/AA';
+        });
+    }
+
+    // CVV formatting
+    if (cardCvv) {
+        cardCvv.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    }
+
+    function detectCardBrand(number) {
+        const brands = {
+            visa: /^4/,
+            mastercard: /^5[1-5]/,
+            amex: /^3[47]/,
+            discover: /^6(?:011|5)/
+        };
+
+        let brand = '';
+        let icon = '';
+        
+        for (let [name, regex] of Object.entries(brands)) {
+            if (regex.test(number)) {
+                brand = name;
+                break;
+            }
+        }
+
+        switch(brand) {
+            case 'visa':
+                icon = '<i class="fab fa-cc-visa" style="color: #1a1f71;"></i>';
+                break;
+            case 'mastercard':
+                icon = '<i class="fab fa-cc-mastercard" style="color: #eb001b;"></i>';
+                break;
+            case 'amex':
+                icon = '<i class="fab fa-cc-amex" style="color: #006fcf;"></i>';
+                break;
+            case 'discover':
+                icon = '<i class="fab fa-cc-discover" style="color: #ff6000;"></i>';
+                break;
+            default:
+                icon = '<i class="fas fa-credit-card"></i>';
+        }
+
+        brandDisplay.innerHTML = icon;
+    }
+
+    function updateSubmitButton(type) {
+        if (type === 'card') {
+            submitBtn.innerHTML = '<i class="fas fa-credit-card me-2"></i>Pagar Ahora';
+        } else if (type === 'transfer') {
+            submitBtn.innerHTML = '<i class="fas fa-university me-2"></i>Confirmar Pedido';
+        }
+    }
+
+    // Form validation
+    document.getElementById('checkout-form').addEventListener('submit', function(e) {
+        const selectedPayment = document.querySelector('input[name="metodo_pago"]:checked');
+        
+        if (!selectedPayment) {
+            e.preventDefault();
+            if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Por favor selecciona un método de pago', 'warning'); else showMaskotNotification('Por favor selecciona un método de pago', 'warning');
+            return;
+        }
+
+        if (selectedPayment.value === 'credito' || selectedPayment.value === 'debito') {
+            // Validate card fields
+            if (!cardNumber.value || !cardHolder.value || !cardExpiry.value || !cardCvv.value) {
+                e.preventDefault();
+                if (typeof window.mostrarAlertaUI === 'function') window.mostrarAlertaUI('Por favor completa todos los datos de la tarjeta', 'warning'); else showMaskotNotification('Por favor completa todos los datos de la tarjeta', 'warning');
+                return;
+            }
+        }
+
+        // Show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
+    });
+});
+</script>
+{% endblock %}
