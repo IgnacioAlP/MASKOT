@@ -411,7 +411,25 @@ def almacen():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    productos_lista = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
+    raw_prods = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
+    productos_lista = []
+    
+    for p in raw_prods:
+        if isinstance(p, (tuple, list)):
+            p_list = list(p)
+            while len(p_list) < 8:
+                p_list.append(None)
+            p_list[3] = p_list[3] if p_list[3] is not None else 0  # stock
+            p_list[4] = float(p_list[4]) if p_list[4] is not None else 0.0 # precio
+            p_list[5] = p_list[5] if p_list[5] is not None else 5  # stock_minimo
+            productos_lista.append(p_list)
+        elif isinstance(p, dict):
+            p['stock'] = p.get('stock') if p.get('stock') is not None else 0
+            p['stock_minimo'] = p.get('stock_minimo') if p.get('stock_minimo') is not None else 5
+            productos_lista.append(p)
+        else:
+            productos_lista.append(p)
+            
     return render_template('almacen.html', productos=productos_lista)
 
 
@@ -494,6 +512,22 @@ def cambiar_estado_servicio():
 
 
 @app.route('/clientes', endpoint='clientes')
+@app.route('/clientes/crear', methods=['POST'], endpoint='crear_cliente')
+def crear_cliente():
+    if session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        nombre = request.form.get('nombre')
+        email = request.form.get('email', '')
+        telefono = request.form.get('telefono', '')
+        direccion = request.form.get('direccion', '')
+        documento = request.form.get('documento', '')
+        if hasattr(clientes_controlador, 'insertar_cliente'):
+            clientes_controlador.insertar_cliente(nombre, email, telefono, direccion, documento)
+        flash('Cliente registrado exitosamente.', 'success')
+    except Exception as e:
+        flash(f'Error al registrar cliente: {e}', 'error')
+    return redirect(url_for('clientes'))
 @app.route('/clientes/lista', endpoint='listar_clientes')
 def clientes():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
@@ -609,8 +643,14 @@ def historial_ventas():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
+    filtros = {
+        'fecha_inicio': request.args.get('fecha_inicio', ''),
+        'fecha_fin': request.args.get('fecha_fin', ''),
+        'busqueda': request.args.get('busqueda', '')
+    }
+    
     lista = ventas_controlador.obtener_ventas_por_fecha() if hasattr(ventas_controlador, 'obtener_ventas_por_fecha') else []
-    return render_template('historial_ventas.html', ventas=lista)
+    return render_template('historial_ventas.html', ventas=lista, filtros=filtros)
 
 
 @app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
