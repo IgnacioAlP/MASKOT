@@ -7,23 +7,34 @@ try:
 except Exception:
     requests = None
 
-LOG_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
-LOG_DIR = os.path.abspath(LOG_DIR)
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
+# Manejo seguro del directorio de logs para compatibilidad con Vercel
+if os.environ.get('VERCEL'):
+    LOG_DIR = '/tmp/logs'
+else:
+    LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'logs'))
+
+try:
+    os.makedirs(LOG_DIR, exist_ok=True)
+except Exception:
+    pass
 
 LOG_FILE = os.path.join(LOG_DIR, 'fidelizacion.log')
 WSP_PHONE = os.environ.get('WSP_PHONE', '+51959703099')
 
-# Optional WhatsApp Business API configuration via environment variables
+# Configuración opcional de WhatsApp Business API
 WSP_API_URL = os.environ.get('WSP_API_URL')
 WSP_API_TOKEN = os.environ.get('WSP_API_TOKEN')
 
 
 def _log(text):
     now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    with open(LOG_FILE, 'a', encoding='utf-8') as f:
-        f.write(f"{now} | {text}\n")
+    log_msg = f"{now} | {text}\n"
+    print(log_msg, end='')  # Muestra en consola para la vista de logs de Vercel
+    try:
+        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(log_msg)
+    except Exception:
+        pass
 
 
 def _get_fidelizacion_row(cursor, email, tenant_id):
@@ -98,34 +109,28 @@ def obtener_alertas_recientes(limit=10):
     tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-                # Unir con la tabla clientes para obtener teléfono y nombre real cuando esté disponible.
-                cursor.execute("""
-                    SELECT 
-                        COALESCE(c.nombre, fh.cliente_email) as cliente_nombre,
-                        c.telefono as cliente_telefono,
-                        fh.evento,
-                        fh.descripcion,
-                        fh.created_at
-                    FROM fidelizacion_historial fh
-                    LEFT JOIN clientes c ON fh.cliente_email = c.email AND c.tenant_id = fh.tenant_id
-                    WHERE fh.evento IN ('alerta_5', 'alerta_10') AND fh.tenant_id = %s
-                    ORDER BY fh.created_at DESC
-                    LIMIT %s
-                """, (tenant_id, limit))
-                alertas = cursor.fetchall()
+            # Unir con la tabla clientes para obtener teléfono y nombre real cuando esté disponible.
+            cursor.execute("""
+                SELECT 
+                    COALESCE(c.nombre, fh.cliente_email) as cliente_nombre,
+                    c.telefono as cliente_telefono,
+                    fh.evento,
+                    fh.descripcion,
+                    fh.created_at
+                FROM fidelizacion_historial fh
+                LEFT JOIN clientes c ON fh.cliente_email = c.email AND c.tenant_id = fh.tenant_id
+                WHERE fh.evento IN ('alerta_5', 'alerta_10') AND fh.tenant_id = %s
+                ORDER BY fh.created_at DESC
+                LIMIT %s
+            """, (tenant_id, limit))
+            alertas = cursor.fetchall()
     finally:
         conexion.close()
     return alertas
 
 
 def sincronizar_fidelizacion_desde_citas():
-    """Sincroniza la tabla `fidelizacion` leyendo las citas completadas por cliente (por email).
-    - Cuenta las citas con estado 'completada' por cliente_email en `citas`.
-    - Actualiza o inserta la fila en `fidelizacion` con el contador correcto.
-    - Inserta en `fidelizacion_historial` eventos de alerta cuando se alcanzan 5 o 10 citas.
-    - Reinicia el contador a 0 si alcanza 10 y registra el reinicio.
-    Esta función es idempotente y puede ejecutarse periódicamente.
-    """
+    """Sincroniza la tabla `fidelizacion` leyendo las citas completadas por cliente (por email)."""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
@@ -155,10 +160,8 @@ def sincronizar_fidelizacion_desde_citas():
                 else:
                     cursor.execute("INSERT INTO fidelizacion (cliente_email, cliente_nombre, contador, tenant_id) VALUES (%s, %s, %s, %s)", (email, nombre, total, tenant_id))
 
-                # Generar alertas si corresponde: insertar en historial cuando se cruza 5 o 10
-                # Verificar si ya existe alerta_5/alerta_10 reciente para evitar duplicados
+                # Generar alertas si corresponde
                 if total >= 5:
-                    # Inssert or update alerta_5 para este email con el mensaje actualizado
                     telefono = _get_cliente_telefono(cursor, email, tenant_id) or 'sin teléfono'
                     mensaje_5 = f"¡Increíble! El {nombre} ha acumulado {total} citas. Tiene un 10% de descuento en su próximo baño. Contactarse a ({telefono})"
                     cursor.execute("SELECT id FROM fidelizacion_historial WHERE cliente_email=%s AND evento='alerta_5' AND tenant_id=%s ORDER BY created_at DESC LIMIT 1", (email, tenant_id))
@@ -177,6 +180,7 @@ def sincronizar_fidelizacion_desde_citas():
                         cursor.execute("UPDATE fidelizacion_historial SET descripcion=%s, created_at=NOW() WHERE id=%s", (mensaje_10, row_alerta10[0]))
                     else:
                         _insert_historial(cursor, email, 'alerta_10', mensaje_10, tenant_id)
+                    
                     # Reiniciar contador a 0 después de otorgar el beneficio
                     cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s AND tenant_id = %s", (email, tenant_id))
                     _insert_historial(cursor, email, 'reinicio', f'contador reiniciado tras alcanzar {total}', tenant_id)
@@ -187,11 +191,7 @@ def sincronizar_fidelizacion_desde_citas():
 
 
 def procesar_fidelizacion_para_cliente(cliente_nombre, cliente_email, enviar_automatico=False):
-    """Procesa la fidelización incrementando contador en DB, registrando historial y devolviendo info.
-    - Si el contador alcanza 5 o 10, se inserta un historial y se construye una URL de WA.
-    - Si enviar_automatico=True y la API está configurada, intentará enviar el mensaje.
-    Retorna: dict { total_citas, wa_url (optional), sent (bool), send_info }
-    """
+    """Procesa la fidelización incrementando contador en DB, registrando historial y devolviendo info."""
     result = {'total_citas': 0, 'wa_url': None, 'sent': False, 'send_info': None}
 
     if not cliente_email:
@@ -201,11 +201,8 @@ def procesar_fidelizacion_para_cliente(cliente_nombre, cliente_email, enviar_aut
     tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            # Incrementar contador en la tabla fidelizacion
             total = _create_or_update_fidelizacion(cursor, cliente_nombre, cliente_email, tenant_id)
             _insert_historial(cursor, cliente_email, 'incremento', f'contador ahora {total}', tenant_id)
-
-            # Commit temporal para persistir cambios
             conexion.commit()
 
             result['total_citas'] = total
@@ -220,20 +217,17 @@ def procesar_fidelizacion_para_cliente(cliente_nombre, cliente_email, enviar_aut
                 mensaje = f"¡Increíble! El {cliente_nombre} ha acumulado {total} citas. Tiene un 20% de descuento en su próximo baño. Contactarse a ({telefono})"
                 _insert_historial(cursor, cliente_email, 'alerta_10', mensaje, tenant_id)
 
-                # Reiniciar contador a 0 automáticamente
                 cursor.execute("UPDATE fidelizacion SET contador = 0 WHERE cliente_email = %s AND tenant_id = %s", (cliente_email, tenant_id))
                 _insert_historial(cursor, cliente_email, 'reinicio', f'contador reiniciado tras alcanzar {total}', tenant_id)
                 conexion.commit()
                 result['total_citas'] = 0
 
-            # Registrar en log de archivos
             _log(f"{cliente_email} | {cliente_nombre} | total_citas={total} | mensaje_needed={'yes' if mensaje else 'no'}")
 
             if mensaje:
                 wa_url = _build_wa_url(mensaje)
                 result['wa_url'] = wa_url
 
-                # Intentar envío automático si se pidió y la API está configurada
                 if enviar_automatico and WSP_API_URL and WSP_API_TOKEN:
                     sent, info = _send_via_whatsapp_business('+' + ''.join([c for c in WSP_PHONE if c.isdigit()]), mensaje)
                     result['sent'] = sent
