@@ -3,6 +3,7 @@ import logging
 import time
 from datetime import datetime, date
 import hashlib
+import json
 import os
 from werkzeug.utils import secure_filename
 from functools import wraps
@@ -377,7 +378,7 @@ def dashboard():
     return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion)
 
 
-# ─── RUTAS PRINCIPALES DEL SISTEMA (ENDPOINTS DEL MENÚ) ──────────────────────
+# ─── RUTAS PRINCIPALES DEL SISTEMA Y GESTIÓN ──────────────────────────────────
 
 @app.route('/punto_de_venta', methods=['GET', 'POST'])
 @app.route('/pos', methods=['GET', 'POST'])
@@ -401,23 +402,47 @@ def productos():
     return render_template('productos.html', productos=lista)
 
 
+@app.route('/almacen')
+def almacen():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    productos_lista = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
+    try:
+        return render_template('almacen.html', productos=productos_lista)
+    except Exception:
+        return render_template('productos.html', productos=productos_lista)
+
+
 @app.route('/producto/<int:producto_id>')
 def ver_producto(producto_id):
     producto = productos_controlador.obtener_producto_por_id(producto_id)
     if not producto:
         flash('Producto no encontrado.', 'error')
         return redirect(url_for('productos'))
-    return render_template('ver_producto.html', producto=producto)
+    return render_template('producto_detalle.html', producto=producto)
 
 
-@app.route('/servicios')
+@app.route('/servicios', endpoint='servicios')
+@app.route('/gestion_servicios', endpoint='gestion_servicios')
+@app.route('/servicios_publicos', endpoint='servicios_publicos')
 def servicios():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
+        lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
+        try:
+            return render_template('servicios_publicos.html', servicios=lista)
+        except Exception:
+            return render_template('servicios.html', servicios=lista)
     
-    lista = servicios_controlador.obtener_servicios()
-    return render_template('gestion_servicios.html', servicios=lista)
+    lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
+    try:
+        return render_template('servicios.html', servicios=lista)
+    except Exception:
+        try:
+            return render_template('gestion_servicios.html', servicios=lista)
+        except Exception:
+            return render_template('servicios_publicos.html', servicios=lista)
 
 
 @app.route('/servicios/agregar', methods=['POST'])
@@ -465,7 +490,7 @@ def cambiar_estado_servicio():
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
     try:
         data = request.get_json() or {}
-        servicio_id = data.get('id')
+        servicio_id = data.get('id') or data.get('servicio_id')
         activo = data.get('activo', True)
         
         conexion = obtener_conexion()
@@ -478,14 +503,35 @@ def cambiar_estado_servicio():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/clientes')
+@app.route('/clientes', endpoint='clientes')
+@app.route('/clientes/lista', endpoint='listar_clientes')
 def clientes():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
     lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
-    return render_template('clientes.html', clientes=lista)
+    try:
+        return render_template('clientes.html', clientes=lista)
+    except Exception:
+        return render_template('historial-clientes.html', clientes=lista)
+
+
+@app.route('/historial_clientes', endpoint='historial_clientes')
+@app.route('/historial-clientes')
+def historial_clientes():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
+    try:
+        return render_template('historial-clientes.html', clientes=lista, historial=lista)
+    except Exception:
+        try:
+            return render_template('historial_clientes.html', clientes=lista, historial=lista)
+        except Exception:
+            return render_template('clientes.html', clientes=lista)
 
 
 @app.route('/mascotas')
@@ -504,9 +550,16 @@ def personal():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    empleados = personal_controlador.obtener_empleados() if hasattr(personal_controlador, 'obtener_empleados') else []
+    empleados = []
+    if hasattr(personal_controlador, 'obtener_empleados'):
+        empleados = personal_controlador.obtener_empleados()
+    elif hasattr(personal_controlador, 'obtener_personal'):
+        empleados = personal_controlador.obtener_personal()
+        
     usuarios = usuarios_controlador.obtener_usuarios() if hasattr(usuarios_controlador, 'obtener_usuarios') else []
-    return render_template('personal.html', empleados=empleados, usuarios=usuarios)
+    puede_modificar = session.get('rol') in ['admin', 'dueño']
+    
+    return render_template('personal.html', empleados=empleados, usuarios=usuarios, puede_modificar=puede_modificar)
 
 
 @app.route('/personal/agregar', methods=['POST'])
@@ -515,8 +568,8 @@ def agregar_personal():
         flash('Sin permisos.', 'error')
         return redirect(url_for('personal'))
     try:
-        nombre = request.form.get('nombre')
-        cargo = request.form.get('cargo')
+        nombre = request.form.get('nombre') or request.form.get('username')
+        cargo = request.form.get('cargo', 'Empleado')
         salario = float(request.form.get('salario', 0.0))
         if hasattr(personal_controlador, 'insertar_empleado'):
             personal_controlador.insertar_empleado(nombre, cargo, salario)
@@ -536,8 +589,32 @@ def compras():
     return render_template('compras.html', compras=lista)
 
 
-@app.route('/ventas', endpoint='historial_ventas')
-@app.route('/historial_ventas')
+@app.route('/historial_compras', endpoint='historial_compras')
+@app.route('/historial-compras')
+def historial_compras():
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
+    monto_total = 0.0
+    for c in lista:
+        try:
+            monto_total += float(c[3] if isinstance(c, (list, tuple)) and len(c) > 3 else getattr(c, 'total', 0))
+        except Exception:
+            pass
+            
+    estadisticas = {
+        'total_compras': len(lista),
+        'monto_total': monto_total
+    }
+    try:
+        return render_template('historial_compras.html', compras=lista, estadisticas=estadisticas)
+    except Exception:
+        return render_template('compras.html', compras=lista, estadisticas=estadisticas)
+
+
+@app.route('/ventas')
 def ventas():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
@@ -545,6 +622,20 @@ def ventas():
     
     lista = ventas_controlador.obtener_ventas_por_fecha() if hasattr(ventas_controlador, 'obtener_ventas_por_fecha') else []
     return render_template('ventas.html', ventas=lista)
+
+
+@app.route('/historial_ventas', endpoint='historial_ventas')
+@app.route('/historial-ventas')
+def historial_ventas():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = ventas_controlador.obtener_ventas_por_fecha() if hasattr(ventas_controlador, 'obtener_ventas_por_fecha') else []
+    try:
+        return render_template('historial_ventas.html', ventas=lista)
+    except Exception:
+        return render_template('ventas.html', ventas=lista)
 
 
 @app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
@@ -578,12 +669,26 @@ def asistencia():
     if 'rol' not in session:
         return redirect(url_for('login'))
         
+    usuario_id = session.get('user_id')
+    
     if request.method == 'POST':
         try:
-            usuario_id = session.get('user_id')
-            tipo = request.form.get('tipo', 'entrada')
+            tipo = request.form.get('tipo')
+            if not tipo:
+                if 'entrada' in request.form:
+                    tipo = 'entrada'
+                elif 'salida' in request.form:
+                    tipo = 'salida'
+                else:
+                    tipo = 'entrada'
+                    
             if hasattr(asistencia_controlador, 'registrar_asistencia'):
                 asistencia_controlador.registrar_asistencia(usuario_id, tipo)
+            elif hasattr(asistencia_controlador, 'insertar_asistencia'):
+                asistencia_controlador.insertar_asistencia(usuario_id, tipo)
+            elif hasattr(asistencia_controlador, 'marcar_asistencia'):
+                asistencia_controlador.marcar_asistencia(usuario_id, tipo)
+                
             flash('Asistencia registrada correctamente.', 'success')
         except Exception as e:
             logger.error(f"Error registrando asistencia: {e}")
@@ -591,15 +696,49 @@ def asistencia():
         return redirect(url_for('asistencia'))
 
     registros = []
+    asistencia_actual = None
     try:
+        if hasattr(asistencia_controlador, 'obtener_asistencia_usuario_hoy'):
+            asistencia_actual = asistencia_controlador.obtener_asistencia_usuario_hoy(usuario_id)
+        
         if hasattr(asistencia_controlador, 'obtener_asistencia_hoy'):
             registros = asistencia_controlador.obtener_asistencia_hoy()
         elif hasattr(asistencia_controlador, 'obtener_registros'):
             registros = asistencia_controlador.obtener_registros()
+            
+        if not asistencia_actual and registros:
+            for r in registros:
+                if len(r) > 1 and r[1] == usuario_id:
+                    asistencia_actual = r
+                    break
     except Exception as e:
         logger.warning(f"Error cargando registros de asistencia: {e}")
 
-    return render_template('asistencia.html', registros=registros)
+    return render_template('asistencia.html', registros=registros, asistencia=asistencia_actual)
+
+
+@app.route('/historial_asistencia', endpoint='historial_asistencia')
+@app.route('/historial-asistencia')
+def historial_asistencia():
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+        
+    registros = []
+    try:
+        if hasattr(asistencia_controlador, 'obtener_registros'):
+            registros = asistencia_controlador.obtener_registros()
+        elif hasattr(asistencia_controlador, 'obtener_asistencia_hoy'):
+            registros = asistencia_controlador.obtener_asistencia_hoy()
+    except Exception as e:
+        logger.warning(f"Error cargando historial de asistencia: {e}")
+
+    try:
+        return render_template('historial-asistencias.html', historial=registros, registros=registros)
+    except Exception:
+        try:
+            return render_template('historial_asistencia.html', historial=registros, registros=registros)
+        except Exception:
+            return render_template('asistencia.html', registros=registros)
 
 
 @app.route('/citas')
@@ -798,19 +937,38 @@ def procesar_venta_pos():
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
     
     try:
-        data = request.get_json() or {}
-        items = data.get('items', [])
-        cliente_nombre = data.get('cliente_nombre', 'Cliente General')
-        cliente_doc = data.get('cliente_documento', '')
-        metodo_pago = data.get('metodo_pago', 'efectivo')
-        monto_recibido = float(data.get('monto_recibido', 0.0))
-        subtotal = float(data.get('subtotal', 0.0))
-        igv = float(data.get('igv', 0.0))
-        total = float(data.get('total', 0.0))
-        cambio = float(data.get('cambio', 0.0))
+        data = request.get_json(silent=True) or {}
+        
+        # Obtener items de JSON, Form o datos de sesión
+        items = data.get('items') or data.get('productos') or data.get('cart')
+        
+        if not items and request.form.get('items'):
+            try:
+                items = json.loads(request.form.get('items'))
+            except Exception:
+                items = []
+                
+        if not items and request.form.get('cart'):
+            try:
+                items = json.loads(request.form.get('cart'))
+            except Exception:
+                items = []
+
+        if not items:
+            cart = session.get('cart', {})
+            items = [{'id': k, 'cantidad': v.get('qty', 1), 'precio': 0} for k, v in cart.items()]
         
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
+
+        cliente_nombre = data.get('cliente_nombre') or request.form.get('cliente_nombre', 'Cliente General')
+        cliente_doc = data.get('cliente_documento') or request.form.get('cliente_documento', '')
+        metodo_pago = data.get('metodo_pago') or request.form.get('metodo_pago', 'efectivo')
+        monto_recibido = float(data.get('monto_recibido') or request.form.get('monto_recibido', 0.0))
+        subtotal = float(data.get('subtotal') or request.form.get('subtotal', 0.0))
+        igv = float(data.get('igv') or request.form.get('igv', 0.0))
+        total = float(data.get('total') or request.form.get('total', 0.0))
+        cambio = float(data.get('cambio') or request.form.get('cambio', 0.0))
 
         vendedor_nombre = session.get('usuario', 'Cajero')
         tenant_id = session.get('tenant_id', 1)
@@ -831,8 +989,8 @@ def procesar_venta_pos():
             
             for item in items:
                 pid = item.get('id')
-                cant = int(item.get('cantidad', 1))
-                precio = float(item.get('precio', 0.0))
+                cant = int(item.get('cantidad', item.get('qty', 1)))
+                precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
                 cursor.execute("""
                     INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
                     VALUES (%s, %s, %s, %s, %s)
@@ -843,6 +1001,7 @@ def procesar_venta_pos():
         conexion.commit()
         conexion.close()
         
+        session.pop('cart', None)
         ticket_url = url_for('ticket_venta', venta_id=venta_id)
         return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
     except Exception as e:
