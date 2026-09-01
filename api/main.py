@@ -69,6 +69,7 @@ def _ensure_schema():
         ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_barra VARCHAR(100) DEFAULT NULL"),
         ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
         ("ventas",    "tenant_id",   "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
+        ("ventas",    "vendedor_id", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_id INT DEFAULT NULL"),
     ]
     try:
         conn = obtener_conexion()
@@ -83,15 +84,17 @@ def _ensure_schema():
                     conn.commit()
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
 
-            cursor.execute("""
-                SELECT is_nullable FROM information_schema.columns 
-                WHERE table_name = 'ventas' AND column_name = 'vendedor_nombre'
-            """)
-            vn_col = cursor.fetchone()
-            if vn_col and (vn_col[0] or '').upper() == 'NO':
-                cursor.execute("ALTER TABLE ventas ALTER COLUMN vendedor_nombre DROP NOT NULL")
-                conn.commit()
-                logger.info("Schema migration: ventas.vendedor_nombre ahora acepta NULL.")
+            # Permitir NULL en vendedor_nombre y vendedor_id para evitar errores de constraing
+            for col in ['vendedor_nombre', 'vendedor_id']:
+                cursor.execute("""
+                    SELECT is_nullable FROM information_schema.columns 
+                    WHERE table_name = 'ventas' AND column_name = %s
+                """, (col,))
+                v_col = cursor.fetchone()
+                if v_col and (v_col[0] or '').upper() == 'NO':
+                    cursor.execute(f"ALTER TABLE ventas ALTER COLUMN {col} DROP NOT NULL")
+                    conn.commit()
+                    logger.info(f"Schema migration: ventas.{col} ahora acepta NULL.")
 
         conn.close()
     except Exception as e:
@@ -409,10 +412,7 @@ def almacen():
         return redirect(url_for('dashboard'))
     
     productos_lista = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
-    try:
-        return render_template('almacen.html', productos=productos_lista)
-    except Exception:
-        return render_template('productos.html', productos=productos_lista)
+    return render_template('almacen.html', productos=productos_lista)
 
 
 @app.route('/producto/<int:producto_id>')
@@ -421,28 +421,18 @@ def ver_producto(producto_id):
     if not producto:
         flash('Producto no encontrado.', 'error')
         return redirect(url_for('productos'))
-    return render_template('producto_detalle.html', producto=producto)
+    return render_template('ver_producto.html', producto=producto)
 
 
 @app.route('/servicios', endpoint='servicios')
 @app.route('/gestion_servicios', endpoint='gestion_servicios')
-@app.route('/servicios_publicos', endpoint='servicios_publicos')
 def servicios():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
-        try:
-            return render_template('servicios_publicos.html', servicios=lista)
-        except Exception:
-            return render_template('servicios.html', servicios=lista)
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
     
     lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
-    try:
-        return render_template('servicios.html', servicios=lista)
-    except Exception:
-        try:
-            return render_template('gestion_servicios.html', servicios=lista)
-        except Exception:
-            return render_template('servicios_publicos.html', servicios=lista)
+    return render_template('servicios.html', servicios=lista)
 
 
 @app.route('/servicios/agregar', methods=['POST'])
@@ -511,10 +501,7 @@ def clientes():
         return redirect(url_for('dashboard'))
     
     lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
-    try:
-        return render_template('clientes.html', clientes=lista)
-    except Exception:
-        return render_template('historial-clientes.html', clientes=lista)
+    return render_template('clientes.html', clientes=lista)
 
 
 @app.route('/historial_clientes', endpoint='historial_clientes')
@@ -525,13 +512,7 @@ def historial_clientes():
         return redirect(url_for('dashboard'))
     
     lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
-    try:
-        return render_template('historial-clientes.html', clientes=lista, historial=lista)
-    except Exception:
-        try:
-            return render_template('historial_clientes.html', clientes=lista, historial=lista)
-        except Exception:
-            return render_template('clientes.html', clientes=lista)
+    return render_template('historial_clientes.html', clientes=lista, historial=lista)
 
 
 @app.route('/mascotas')
@@ -608,10 +589,7 @@ def historial_compras():
         'total_compras': len(lista),
         'monto_total': monto_total
     }
-    try:
-        return render_template('historial_compras.html', compras=lista, estadisticas=estadisticas)
-    except Exception:
-        return render_template('compras.html', compras=lista, estadisticas=estadisticas)
+    return render_template('historial_compras.html', compras=lista, estadisticas=estadisticas)
 
 
 @app.route('/ventas')
@@ -632,10 +610,7 @@ def historial_ventas():
         return redirect(url_for('dashboard'))
     
     lista = ventas_controlador.obtener_ventas_por_fecha() if hasattr(ventas_controlador, 'obtener_ventas_por_fecha') else []
-    try:
-        return render_template('historial_ventas.html', ventas=lista)
-    except Exception:
-        return render_template('ventas.html', ventas=lista)
+    return render_template('historial_ventas.html', ventas=lista)
 
 
 @app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
@@ -667,13 +642,16 @@ def fidelizacion():
 @app.route('/asistencia', methods=['GET', 'POST'])
 def asistencia():
     if 'rol' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': 'No autorizado'}), 401
         return redirect(url_for('login'))
         
     usuario_id = session.get('user_id')
     
     if request.method == 'POST':
         try:
-            tipo = request.form.get('tipo')
+            data = request.get_json(silent=True) or {}
+            tipo = data.get('tipo') or request.form.get('tipo')
             if not tipo:
                 if 'entrada' in request.form:
                     tipo = 'entrada'
@@ -682,16 +660,32 @@ def asistencia():
                 else:
                     tipo = 'entrada'
                     
+            registrado = False
             if hasattr(asistencia_controlador, 'registrar_asistencia'):
-                asistencia_controlador.registrar_asistencia(usuario_id, tipo)
-            elif hasattr(asistencia_controlador, 'insertar_asistencia'):
-                asistencia_controlador.insertar_asistencia(usuario_id, tipo)
-            elif hasattr(asistencia_controlador, 'marcar_asistencia'):
-                asistencia_controlador.marcar_asistencia(usuario_id, tipo)
+                try:
+                    asistencia_controlador.registrar_asistencia(usuario_id, tipo)
+                    registrado = True
+                except Exception as ex_ctrl:
+                    logger.warning(f"Error registrando mediante controlador: {ex_ctrl}")
+            
+            if not registrado:
+                conexion = obtener_conexion()
+                with conexion.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO asistencia (usuario_id, fecha, hora, tipo)
+                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
+                    """, (usuario_id, tipo))
+                conexion.commit()
+                conexion.close()
+
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'success': True, 'message': 'Asistencia registrada correctamente'})
                 
             flash('Asistencia registrada correctamente.', 'success')
         except Exception as e:
             logger.error(f"Error registrando asistencia: {e}")
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'success': False, 'error': str(e)}), 500
             flash('Error al registrar la asistencia.', 'error')
         return redirect(url_for('asistencia'))
 
@@ -705,12 +699,6 @@ def asistencia():
             registros = asistencia_controlador.obtener_asistencia_hoy()
         elif hasattr(asistencia_controlador, 'obtener_registros'):
             registros = asistencia_controlador.obtener_registros()
-            
-        if not asistencia_actual and registros:
-            for r in registros:
-                if len(r) > 1 and r[1] == usuario_id:
-                    asistencia_actual = r
-                    break
     except Exception as e:
         logger.warning(f"Error cargando registros de asistencia: {e}")
 
@@ -732,13 +720,7 @@ def historial_asistencia():
     except Exception as e:
         logger.warning(f"Error cargando historial de asistencia: {e}")
 
-    try:
-        return render_template('historial-asistencias.html', historial=registros, registros=registros)
-    except Exception:
-        try:
-            return render_template('historial_asistencia.html', historial=registros, registros=registros)
-        except Exception:
-            return render_template('asistencia.html', registros=registros)
+    return render_template('historial_asistencia.html', historial=registros, registros=registros)
 
 
 @app.route('/citas')
@@ -939,7 +921,7 @@ def procesar_venta_pos():
     try:
         data = request.get_json(silent=True) or {}
         
-        # Obtener items de JSON, Form o datos de sesión
+        # Obtener items de JSON, Form Data o Sesión
         items = data.get('items') or data.get('productos') or data.get('cart')
         
         if not items and request.form.get('items'):
@@ -970,6 +952,7 @@ def procesar_venta_pos():
         total = float(data.get('total') or request.form.get('total', 0.0))
         cambio = float(data.get('cambio') or request.form.get('cambio', 0.0))
 
+        vendedor_id = session.get('user_id')
         vendedor_nombre = session.get('usuario', 'Cajero')
         tenant_id = session.get('tenant_id', 1)
         num_venta = f"VNT-{int(time.time())}"
@@ -978,11 +961,11 @@ def procesar_venta_pos():
         with conexion.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO ventas (numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
-                                    vendedor_nombre, metodo_pago, subtotal, igv, total, 
+                                    vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
                                     monto_recibido, cambio_entregado, estado, tenant_id)
-                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada', %s)
+                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada', %s)
                 RETURNING id
-            """, (num_venta, cliente_nombre, cliente_doc, vendedor_nombre, metodo_pago,
+            """, (num_venta, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
                   subtotal, igv, total, monto_recibido, cambio, tenant_id))
             
             venta_id = cursor.fetchone()[0]
