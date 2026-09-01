@@ -24,7 +24,7 @@ from controladores import (
 # Módulo de fidelización (moved into controladores)
 from controladores import fidelizacion_controlador as fidelizacion
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), '../templates'))
 # Leer SECRET_KEY desde variable de entorno para seguridad
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')  # Cambia en prod y configura en el entorno
 
