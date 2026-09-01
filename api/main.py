@@ -244,7 +244,7 @@ def _add_service_to_cart(servicio_id, quantity=1):
 
 # Si en tu main.py / app.py la función se llama diferente:
 @app.route('/asistencia')
-def control_asistencia():  # <-- Este es el nombre del endpoint
+def asistencia():  # <-- Este es el nombre del endpoint
     return render_template('asistencia.html')
 
 @app.route('/carrito')
