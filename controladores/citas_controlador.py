@@ -7,9 +7,9 @@ def obtener_citas():
     with conexion.cursor() as cursor:
         cursor.execute("""
             SELECT c.id, c.cliente_nombre, c.cliente_email, 
-                   GROUP_CONCAT(DISTINCT s.nombre SEPARATOR ', ') as servicios, 
+                   STRING_AGG(DISTINCT s.nombre, ', ') as servicios, 
                    c.fecha, c.hora, c.estado,
-                   GROUP_CONCAT(DISTINCT m.nombre SEPARATOR ', ') as mascotas,
+                   STRING_AGG(DISTINCT m.nombre, ', ') as mascotas,
                    c.precio_total, c.observaciones
             FROM citas c
             LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
@@ -17,7 +17,7 @@ def obtener_citas():
             LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
             LEFT JOIN mascotas m ON cm.mascota_id = m.id
             WHERE c.tenant_id = %s
-            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado
+            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado, c.precio_total, c.observaciones
             ORDER BY c.fecha, c.hora
         """, (tenant_id,))
         citas = cursor.fetchall()
@@ -33,13 +33,14 @@ def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servici
             # Verificar/insertar cliente
             cliente_id = verificar_o_insertar_cliente(cursor, cliente_nombre, cliente_email)
             
-            # Insertar cita principal
+            # Insertar cita principal con RETURNING id
             tenant_id = obtener_tenant_id()
             cursor.execute("""
                 INSERT INTO citas (cliente_id, cliente_nombre, cliente_email, fecha, hora, estado, observaciones, tenant_id) 
                 VALUES (%s, %s, %s, %s, %s, 'pendiente', %s, %s)
+                RETURNING id
             """, (cliente_id, cliente_nombre, cliente_email, fecha, hora, observaciones, tenant_id))
-            cita_id = cursor.lastrowid
+            cita_id = cursor.fetchone()[0]
             
             # Insertar mascotas y vincular con la cita
             for mascota_data in mascotas_data:
@@ -52,7 +53,6 @@ def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servici
             for servicio_id in servicios_ids:
                 cursor.execute("INSERT INTO citas_servicios (cita_id, servicio_id) VALUES (%s, %s)", 
                              (cita_id, servicio_id))
-                # Aquí podrías agregar lógica para calcular precios por servicio
             
             # Actualizar precio total si es necesario
             if precio_total > 0:
@@ -76,12 +76,15 @@ def verificar_o_insertar_cliente(cursor, nombre, email, tenant_id=None):
     if cliente:
         return cliente[0]
     else:
-        cursor.execute("INSERT INTO clientes (nombre, email, fecha_registro, tenant_id) VALUES (%s, %s, NOW(), %s)", 
-                      (nombre, email, tenant_id))
-        return cursor.lastrowid
+        cursor.execute("""
+            INSERT INTO clientes (nombre, email, fecha_registro, tenant_id) 
+            VALUES (%s, %s, CURRENT_TIMESTAMP, %s) 
+            RETURNING id
+        """, (nombre, email, tenant_id))
+        return cursor.fetchone()[0]
 
 def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data, tenant_id=None):
-    """Inserta o obtiene una mascota existente"""
+    """Inserta u obtiene una mascota existente"""
     if tenant_id is None:
         tenant_id = obtener_tenant_id()
     nombre = mascota_data.get('nombre', '')
@@ -93,7 +96,7 @@ def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data, tenant_id=None)
     # Buscar mascota existente
     cursor.execute("""
         SELECT id FROM mascotas 
-        WHERE cliente_id = %s AND nombre = %s AND especie = %s AND activo = 1 AND tenant_id = %s
+        WHERE cliente_id = %s AND nombre = %s AND especie = %s AND activo = true AND tenant_id = %s
     """, (cliente_id, nombre, especie, tenant_id))
     mascota = cursor.fetchone()
     
@@ -106,12 +109,13 @@ def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data, tenant_id=None)
         """, (raza, edad, peso, mascota[0]))
         return mascota[0]
     else:
-        # Insertar nueva mascota
+        # Insertar nueva mascota con RETURNING id
         cursor.execute("""
             INSERT INTO mascotas (cliente_id, nombre, especie, raza, edad, peso, fecha_registro, tenant_id) 
-            VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+            RETURNING id
         """, (cliente_id, nombre, especie, raza, edad, peso, tenant_id))
-        return cursor.lastrowid
+        return cursor.fetchone()[0]
 
 # Mantener funciones de compatibilidad hacia atrás
 def insertar_cita(cliente_nombre, cliente_email, servicio_id, fecha, hora, 
@@ -129,7 +133,6 @@ def insertar_cita(cliente_nombre, cliente_email, servicio_id, fecha, hora,
 def eliminar_cita(id):
     conexion = obtener_conexion()
     with conexion.cursor() as cursor:
-        # Las tablas relacionadas se eliminan automáticamente por CASCADE
         cursor.execute("DELETE FROM citas WHERE id = %s", (id,))
     conexion.commit()
     conexion.close()
@@ -149,16 +152,16 @@ def obtener_cita_por_id(id):
         cursor.execute("""
             SELECT c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado,
                    c.observaciones, c.precio_total,
-                   GROUP_CONCAT(DISTINCT CONCAT(m.nombre, '|', m.especie, '|', COALESCE(m.raza, ''), '|', 
-                                              COALESCE(m.edad, ''), '|', COALESCE(m.peso, '')) SEPARATOR ';') as mascotas,
-                   GROUP_CONCAT(DISTINCT CONCAT(s.id, '|', s.nombre) SEPARATOR ';') as servicios
+                   STRING_AGG(DISTINCT CONCAT(m.nombre, '|', m.especie, '|', COALESCE(m.raza, ''), '|', 
+                                              COALESCE(m.edad::text, ''), '|', COALESCE(m.peso::text, '')), ';') as mascotas,
+                   STRING_AGG(DISTINCT CONCAT(s.id, '|', s.nombre), ';') as servicios
             FROM citas c
             LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
             LEFT JOIN mascotas m ON cm.mascota_id = m.id
             LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
             LEFT JOIN servicios s ON cs.servicio_id = s.id
             WHERE c.id = %s
-            GROUP BY c.id
+            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado, c.observaciones, c.precio_total
         """, (id,))
         cita = cursor.fetchone()
     conexion.close()
@@ -189,16 +192,16 @@ def obtener_citas_por_fecha(fecha):
     with conexion.cursor() as cursor:
         cursor.execute("""
             SELECT c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado,
-                   GROUP_CONCAT(DISTINCT s.nombre SEPARATOR ', ') as servicios,
-                   GROUP_CONCAT(DISTINCT m.nombre SEPARATOR ', ') as mascotas,
+                   STRING_AGG(DISTINCT s.nombre, ', ') as servicios,
+                   STRING_AGG(DISTINCT m.nombre, ', ') as mascotas,
                    c.observaciones, c.precio_total
             FROM citas c 
             LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
             LEFT JOIN servicios s ON cs.servicio_id = s.id
             LEFT JOIN citas_mascotas cm ON c.id = cm.cita_id
             LEFT JOIN mascotas m ON cm.mascota_id = m.id
-            WHERE c.fecha=%s AND c.tenant_id = %s
-            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado
+            WHERE c.fecha = %s AND c.tenant_id = %s
+            GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado, c.observaciones, c.precio_total
             ORDER BY c.hora
         """, (fecha, tenant_id))
         citas = cursor.fetchall()
@@ -212,7 +215,6 @@ def actualizar_cita(id, cliente_nombre, cliente_email, servicio_id, fecha, hora,
             "UPDATE citas SET cliente_nombre = %s, cliente_email = %s, fecha = %s, hora = %s, estado = %s WHERE id = %s",
             (cliente_nombre, cliente_email, fecha, hora, estado, id)
         )
-        # Actualizar servicio (simplificado para compatibilidad)
         cursor.execute("DELETE FROM citas_servicios WHERE cita_id = %s", (id,))
         cursor.execute("INSERT INTO citas_servicios (cita_id, servicio_id) VALUES (%s, %s)", (id, servicio_id))
     conexion.commit()
