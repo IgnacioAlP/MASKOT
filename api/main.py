@@ -33,6 +33,8 @@ app = Flask(
     static_folder=os.path.join(ROOT_DIR, 'static'),
     static_url_path='/static'
 )
+print(">>> Ruta static:", app.static_folder)
+print(">>> ¿Existe main.js?:", os.path.exists(os.path.join(app.static_folder, 'js', 'main.js')))
 
 # Configuración de cookies de sesión seguras
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')
