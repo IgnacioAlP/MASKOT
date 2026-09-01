@@ -23,11 +23,15 @@ from controladores import (
 )
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # MASKOT/api
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, '..')) # MASKOT
+
 app = Flask(
-    __name__, 
-    template_folder=os.path.join(os.path.dirname(__file__), '../templates'),
-    static_folder=os.path.join(os.path.dirname(__file__), '../static')
+    __name__,
+    template_folder=os.path.join(ROOT_DIR, 'templates'),
+    static_folder=os.path.join(ROOT_DIR, 'static')
 )
+
 # Configuración de cookies de sesión seguras
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')
 use_secure_cookies = os.environ.get('FLASK_ENV', '').lower() == 'production' or os.environ.get('USE_SECURE_COOKIES', '') == 'True'
