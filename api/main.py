@@ -216,8 +216,10 @@ def requiere_autenticacion(roles_permitidos=None):
 # def hash_password(...): ...
 
 @app.route('/')
+@app.route('/api/main')
 def home():
-    return "App funcionando en Vercel"
+    # Tu vista o render_template existente aquí
+    return render_template('index.html')
 
 @app.route('/favicon.ico')
 def favicon():
@@ -754,7 +756,7 @@ def agendar_cita():
         logger.error(f"Error en agendar_cita: {e}")
     
     return redirect(url_for('index'))
-
+    
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     print("=== LOGIN ROUTE ACCESSED ===")
