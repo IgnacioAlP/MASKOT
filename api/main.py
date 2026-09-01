@@ -8,7 +8,7 @@ from werkzeug.utils import secure_filename
 from functools import wraps
 from bd import obtener_conexion, obtener_tenant_id
 
-# Importar controladores
+# Importar todos los controladores
 from controladores import (
     usuarios_controlador,
     citas_controlador,
@@ -18,9 +18,10 @@ from controladores import (
     asistencia_controlador,
     clientes_controlador,
     compras_controlador,
-    ventas_controlador
+    ventas_controlador,
+    mascotas_controlador
 )
-from controladores import fidelizacion_controlador as fidelizacion
+from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
 app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), '../templates'))
 
@@ -34,7 +35,6 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
-# Configuración para uploads (compatible con Vercel)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
 
 if os.environ.get('VERCEL'):
@@ -49,9 +49,6 @@ try:
 except Exception:
     pass
 
-_pos_device_registry = {}
-_pos_device_queues = {}
-
 
 def _ensure_schema():
     """Migración ligera al arranque adaptada para PostgreSQL / Supabase."""
@@ -63,7 +60,6 @@ def _ensure_schema():
     try:
         conn = obtener_conexion()
         with conn.cursor() as cursor:
-            # --- Columnas faltantes ---
             for table, column, sql in column_migrations:
                 cursor.execute("""
                     SELECT 1 FROM information_schema.columns 
@@ -74,7 +70,6 @@ def _ensure_schema():
                     conn.commit()
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
 
-            # --- ventas.vendedor_nombre debe aceptar NULL ---
             cursor.execute("""
                 SELECT is_nullable FROM information_schema.columns 
                 WHERE table_name = 'ventas' AND column_name = 'vendedor_nombre'
@@ -257,14 +252,211 @@ def _save_cart(cart):
     session['cart'] = cart
 
 
-def _add_service_to_cart(servicio_id, quantity=1):
-    cart = _get_cart()
-    key = f'service_{servicio_id}'
-    existing = int(cart.get(key, {}).get('qty', 0))
-    new_qty = existing + quantity
-    cart[key] = {'qty': new_qty, 'type': 'service'}
-    _save_cart(cart)
-    return True
+# ─── AUTENTICACIÓN Y SESIÓN ──────────────────────────────────────────────────
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'rol' in session and session.get('rol') in ['dueño', 'admin', 'empleado', 'superadmin']:
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = (request.form.get('password') or '').strip()
+        next_url = request.args.get('next') or request.form.get('next')
+
+        if not username or not password:
+            flash('Por favor complete todos los campos.', 'warning')
+            return render_template('login.html')
+        
+        try:
+            auth = usuarios_controlador.verificar_credenciales(username, password)
+        except Exception as e:
+            logger.error(f"Error en autenticación: {e}")
+            flash('Error interno del sistema', 'error')
+            return render_template('login.html')
+            
+        if not auth.get('success'):
+            flash(auth.get('message', 'Credenciales inválidas'), 'error')
+            return render_template('login.html')
+            
+        user = auth.get('user')
+        session.permanent = True
+        session['user_id'] = user[0]
+        session['usuario'] = user[1]
+        session['rol'] = user[3]
+        session['tenant_id'] = user[5] if len(user) > 5 and user[5] else 1
+        
+        flash(f"¡Bienvenido de nuevo, {user[1]}!", 'success')
+        if next_url and next_url.startswith('/'):
+            return redirect(next_url)
+        
+        if user[3] == 'superadmin':
+            return redirect(url_for('gestionar_tenants'))
+            
+        return redirect(url_for('dashboard'))
+            
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+
+# ─── DASHBOARD ───────────────────────────────────────────────────────────────
+
+@app.route('/dashboard')
+def dashboard():
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+    
+    rol = session['rol']
+    hoy = date.today().strftime('%Y-%m-%d')
+    
+    citas_hoy = []
+    alertas_fidelizacion = []
+    
+    if rol in ['admin', 'empleado', 'dueño']:
+        try:
+            citas_hoy = citas_controlador.obtener_citas_por_fecha(hoy)
+        except Exception as e:
+            logger.warning(f"Error obteniendo citas de hoy: {e}")
+            
+        try:
+            if hasattr(fidelizacion_ctrl, 'sincronizar_fidelizacion_desde_citas'):
+                fidelizacion_ctrl.sincronizar_fidelizacion_desde_citas()
+            if hasattr(fidelizacion_ctrl, 'obtener_alertas_recientes'):
+                alertas_fidelizacion = fidelizacion_ctrl.obtener_alertas_recientes(limit=10)
+        except Exception as e:
+            logger.warning(f"Error fidelización: {e}")
+    
+    if rol == 'dueño':
+        total_empleados = 0
+        servicios_activos = 0
+        productos_bajos = []
+        
+        try:
+            if hasattr(personal_controlador, 'obtener_personal'):
+                total_empleados = len(personal_controlador.obtener_personal())
+            elif hasattr(personal_controlador, 'obtener_empleados'):
+                total_empleados = len(personal_controlador.obtener_empleados())
+        except Exception as e:
+            logger.warning(f"Error personal dashboard: {e}")
+
+        try:
+            if hasattr(servicios_controlador, 'obtener_servicios_activos'):
+                servicios_activos = len(servicios_controlador.obtener_servicios_activos())
+            elif hasattr(servicios_controlador, 'obtener_servicios'):
+                servicios_activos = len(servicios_controlador.obtener_servicios())
+        except Exception as e:
+            logger.warning(f"Error servicios dashboard: {e}")
+
+        try:
+            if hasattr(productos_controlador, 'obtener_productos_bajo_stock'):
+                productos_bajos = productos_controlador.obtener_productos_bajo_stock()
+        except Exception as e:
+            logger.warning(f"Error productos stock bajo dashboard: {e}")
+        
+        return render_template('dashboard.html', citas_hoy=citas_hoy, total_empleados=total_empleados,
+                               servicios_activos=servicios_activos, productos_bajos=productos_bajos,
+                               alertas_fidelizacion=alertas_fidelizacion)
+    
+    return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion)
+
+
+# ─── RUTAS PRINCIPALES DEL SISTEMA (ENDPOINTS DEL MENÚ) ──────────────────────
+
+@app.route('/punto_de_venta', methods=['GET', 'POST'])
+@app.route('/pos', methods=['GET', 'POST'])
+def punto_de_venta():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    productos_lista = productos_controlador.obtener_productos_tienda() if hasattr(productos_controlador, 'obtener_productos_tienda') else []
+    servicios_lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
+    return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
+
+
+@app.route('/productos')
+def productos():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = productos_controlador.obtener_productos()
+    return render_template('productos.html', productos=lista)
+
+
+@app.route('/servicios')
+def servicios():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = servicios_controlador.obtener_servicios()
+    return render_template('servicios.html', servicios=lista)
+
+
+@app.route('/clientes')
+def clientes():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
+    return render_template('clientes.html', clientes=lista)
+
+
+@app.route('/mascotas')
+def mascotas():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = mascotas_controlador.obtener_mascotas() if hasattr(mascotas_controlador, 'obtener_mascotas') else []
+    return render_template('mascotas.html', mascotas=lista)
+
+
+@app.route('/personal')
+def personal():
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = personal_controlador.obtener_empleados()
+    return render_template('personal.html', empleados=lista)
+
+
+@app.route('/compras')
+def compras():
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
+    return render_template('compras.html', compras=lista)
+
+
+@app.route('/ventas')
+def ventas():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = ventas_controlador.obtener_ventas_por_fecha() if hasattr(ventas_controlador, 'obtener_ventas_por_fecha') else []
+    return render_template('ventas.html', ventas=lista)
+
+
+@app.route('/fidelizacion')
+def fidelizacion():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    alertas = fidelizacion_ctrl.obtener_alertas_recientes() if hasattr(fidelizacion_ctrl, 'obtener_alertas_recientes') else []
+    return render_template('fidelizacion.html', alertas=alertas)
 
 
 @app.route('/asistencia', methods=['GET', 'POST'])
@@ -295,6 +487,114 @@ def asistencia():
 
     return render_template('asistencia.html', registros=registros)
 
+
+@app.route('/citas')
+def citas():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    fecha_filtro = request.args.get('fecha', default=date.today().strftime('%Y-%m-%d'))
+    citas_list = citas_controlador.obtener_citas_por_fecha(fecha_filtro)
+    servicios_lista = servicios_controlador.obtener_servicios()
+    
+    return render_template('citas.html', citas=citas_list, fecha_filtro=fecha_filtro, servicios=servicios_lista)
+
+
+# ─── ACCIONES CITAS ──────────────────────────────────────────────────────────
+
+@app.route('/cita/<int:cita_id>/status', methods=['POST'])
+def cambiar_estado_cita(cita_id):
+    if 'usuario' not in session or session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    
+    conexion = None
+    try:
+        data = request.get_json() or {}
+        nuevo_estado = data.get('status')
+        motivo = data.get('motivo', '')
+        
+        if not nuevo_estado or nuevo_estado not in ['pendiente', 'confirmada', 'en_progreso', 'completada', 'cancelada']:
+            return jsonify({'success': False, 'error': 'Estado no válido'}), 400
+        
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (nuevo_estado, cita_id))
+        
+        if motivo:
+            cursor.execute("""
+                UPDATE citas 
+                SET observaciones = CASE 
+                    WHEN observaciones IS NULL OR observaciones = '' THEN %s
+                    ELSE observaciones || ' | ' || %s
+                END
+                WHERE id = %s
+            """, (f"Motivo: {motivo}", f"Motivo: {motivo}", cita_id))
+        
+        conexion.commit()
+        return jsonify({'success': True, 'message': 'Estado actualizado'})
+    except Exception as e:
+        if conexion:
+            conexion.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conexion:
+            conexion.close()
+
+
+@app.route('/cita/<int:cita_id>/eliminar', methods=['DELETE'])
+def eliminar_cita(cita_id):
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+    
+    conexion = None
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
+        
+        cursor.execute("DELETE FROM cita_mascotas WHERE cita_id = %s", (cita_id,))
+        cursor.execute("DELETE FROM cita_servicios WHERE cita_id = %s", (cita_id,))
+        cursor.execute("DELETE FROM citas WHERE id = %s", (cita_id,))
+        
+        conexion.commit()
+        return jsonify({'success': True, 'message': 'Cita eliminada permanentemente'})
+    except Exception as e:
+        if conexion:
+            conexion.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conexion:
+            conexion.close()
+
+
+@app.route('/agendar_cita', methods=['POST'])
+def agendar_cita():
+    try:
+        nombre = request.form['cliente_nombre']
+        email = request.form['cliente_email']
+        telefono = request.form.get('cliente_telefono', '').strip()
+        direccion = request.form.get('cliente_direccion', '').strip()
+        fecha = request.form['fecha']
+        hora = request.form['hora']
+        
+        servicios_ids = [int(sid) for sid in request.form.getlist('servicio_id[]') if sid]
+        if not servicios_ids or not telefono or not direccion:
+            flash('Por favor proporciona los campos requeridos.', 'error')
+            return redirect(url_for('index'))
+
+        mascota_nombres = request.form.getlist('mascota_nombre[]')
+        mascotas_data = [{'nombre': m.strip()} for m in mascota_nombres if m.strip()]
+        
+        cita_id = citas_controlador.insertar_cita_completa(nombre, email, mascotas_data, servicios_ids, fecha, hora)
+        flash('Cita agendada exitosamente.', 'success')
+    except Exception as e:
+        flash(f'Error al agendar la cita: {str(e)}', 'error')
+    
+    return redirect(url_for('index'))
+
+
+# ─── CARRITO Y CHECKOUT TIENDA ───────────────────────────────────────────────
 
 @app.route('/carrito')
 def ver_carrito():
@@ -549,233 +849,7 @@ def procesar_pago():
         return redirect(url_for('checkout'))
 
 
-@app.route('/agendar_cita', methods=['POST'])
-def agendar_cita():
-    try:
-        nombre = request.form['cliente_nombre']
-        email = request.form['cliente_email']
-        telefono = request.form.get('cliente_telefono', '').strip()
-        direccion = request.form.get('cliente_direccion', '').strip()
-        fecha = request.form['fecha']
-        hora = request.form['hora']
-        
-        servicios_ids = [int(sid) for sid in request.form.getlist('servicio_id[]') if sid]
-        if not servicios_ids or not telefono or not direccion:
-            flash('Por favor proporciona los campos requeridos.', 'error')
-            return redirect(url_for('index'))
-
-        mascota_nombres = request.form.getlist('mascota_nombre[]')
-        mascotas_data = [{'nombre': m.strip()} for m in mascota_nombres if m.strip()]
-        
-        cita_id = citas_controlador.insertar_cita_completa(nombre, email, mascotas_data, servicios_ids, fecha, hora)
-        flash('Cita agendada exitosamente.', 'success')
-    except Exception as e:
-        flash(f'Error al agendar la cita: {str(e)}', 'error')
-    
-    return redirect(url_for('index'))
-
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if 'rol' in session and session.get('rol') in ['dueño', 'admin', 'empleado', 'superadmin']:
-        return redirect(url_for('dashboard'))
-
-    if request.method == 'POST':
-        username = (request.form.get('username') or '').strip()
-        password = (request.form.get('password') or '').strip()
-        next_url = request.args.get('next') or request.form.get('next')
-
-        if not username or not password:
-            flash('Por favor complete todos los campos.', 'warning')
-            return render_template('login.html')
-        
-        try:
-            auth = usuarios_controlador.verificar_credenciales(username, password)
-        except Exception as e:
-            logger.error(f"Error en autenticación: {e}")
-            flash('Error interno del sistema', 'error')
-            return render_template('login.html')
-            
-        if not auth.get('success'):
-            flash(auth.get('message', 'Credenciales inválidas'), 'error')
-            return render_template('login.html')
-            
-        user = auth.get('user')
-        session.permanent = True
-        session['user_id'] = user[0]
-        session['usuario'] = user[1]
-        session['rol'] = user[3]
-        session['tenant_id'] = user[5] if len(user) > 5 and user[5] else 1
-        
-        flash(f"¡Bienvenido de nuevo, {user[1]}!", 'success')
-        if next_url and next_url.startswith('/'):
-            return redirect(next_url)
-        
-        if user[3] == 'superadmin':
-            return redirect(url_for('gestionar_tenants'))
-            
-        return redirect(url_for('dashboard'))
-            
-    return render_template('login.html')
-
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
-
-
-@app.route('/dashboard')
-def dashboard():
-    if 'rol' not in session:
-        return redirect(url_for('login'))
-    
-    rol = session['rol']
-    hoy = date.today().strftime('%Y-%m-%d')
-    
-    citas_hoy = []
-    alertas_fidelizacion = []
-    
-    if rol in ['admin', 'empleado', 'dueño']:
-        try:
-            citas_hoy = citas_controlador.obtener_citas_por_fecha(hoy)
-        except Exception as e:
-            logger.warning(f"Error obteniendo citas de hoy: {e}")
-            
-        try:
-            if hasattr(fidelizacion, 'sincronizar_fidelizacion_desde_citas'):
-                fidelizacion.sincronizar_fidelizacion_desde_citas()
-            if hasattr(fidelizacion, 'obtener_alertas_recientes'):
-                alertas_fidelizacion = fidelizacion.obtener_alertas_recientes(limit=10)
-        except Exception as e:
-            logger.warning(f"Error fidelización: {e}")
-    
-    if rol == 'dueño':
-        total_empleados = 0
-        servicios_activos = 0
-        productos_bajos = []
-        
-        try:
-            if hasattr(personal_controlador, 'obtener_personal'):
-                total_empleados = len(personal_controlador.obtener_personal())
-            elif hasattr(personal_controlador, 'obtener_empleados'):
-                total_empleados = len(personal_controlador.obtener_empleados())
-        except Exception as e:
-            logger.warning(f"Error personal dashboard: {e}")
-
-        try:
-            if hasattr(servicios_controlador, 'obtener_servicios_activos'):
-                servicios_activos = len(servicios_controlador.obtener_servicios_activos())
-            elif hasattr(servicios_controlador, 'obtener_servicios'):
-                servicios_activos = len(servicios_controlador.obtener_servicios())
-        except Exception as e:
-            logger.warning(f"Error servicios dashboard: {e}")
-
-        try:
-            if hasattr(productos_controlador, 'obtener_productos_bajo_stock'):
-                productos_bajos = productos_controlador.obtener_productos_bajo_stock()
-            elif hasattr(productos_controlador, 'obtener_productos_stock_bajo'):
-                productos_bajos = productos_controlador.obtener_productos_stock_bajo()
-        except Exception as e:
-            logger.warning(f"Error productos stock bajo dashboard: {e}")
-        
-        return render_template('dashboard.html', citas_hoy=citas_hoy, total_empleados=total_empleados,
-                               servicios_activos=servicios_activos, productos_bajos=productos_bajos,
-                               alertas_fidelizacion=alertas_fidelizacion)
-    
-    return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion)
-
-
-@app.route('/citas')
-def citas():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    fecha_filtro = request.args.get('fecha', default=date.today().strftime('%Y-%m-%d'))
-    
-    try:
-        citas_list = citas_controlador.obtener_citas_por_fecha(fecha_filtro)
-    except Exception as e:
-        logger.error(f"Error al obtener citas: {e}")
-        citas_list = []
-        
-    try:
-        servicios_lista = servicios_controlador.obtener_servicios()
-    except Exception as e:
-        logger.error(f"Error al obtener servicios: {e}")
-        servicios_lista = []
-    
-    return render_template('citas.html', citas=citas_list, fecha_filtro=fecha_filtro, servicios=servicios_lista)
-
-
-# ======================= RUTAS DE GESTIÓN DE CITAS =======================
-
-@app.route('/cita/<int:cita_id>/status', methods=['POST'])
-def cambiar_estado_cita(cita_id):
-    if 'usuario' not in session or session.get('rol') not in ['admin', 'empleado', 'dueño']:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
-    
-    conexion = None
-    try:
-        data = request.get_json() or {}
-        nuevo_estado = data.get('status')
-        motivo = data.get('motivo', '')
-        
-        if not nuevo_estado or nuevo_estado not in ['pendiente', 'confirmada', 'en_progreso', 'completada', 'cancelada']:
-            return jsonify({'success': False, 'error': 'Estado no válido'}), 400
-        
-        conexion = obtener_conexion()
-        cursor = conexion.cursor()
-        
-        cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (nuevo_estado, cita_id))
-        
-        if motivo:
-            cursor.execute("""
-                UPDATE citas 
-                SET observaciones = CASE 
-                    WHEN observaciones IS NULL OR observaciones = '' THEN %s
-                    ELSE observaciones || ' | ' || %s
-                END
-                WHERE id = %s
-            """, (f"Motivo: {motivo}", f"Motivo: {motivo}", cita_id))
-        
-        conexion.commit()
-        return jsonify({'success': True, 'message': 'Estado actualizado'})
-    except Exception as e:
-        if conexion:
-            conexion.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if conexion:
-            conexion.close()
-
-
-@app.route('/cita/<int:cita_id>/eliminar', methods=['DELETE'])
-def eliminar_cita(cita_id):
-    if session.get('rol') not in ['admin', 'dueño']:
-        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
-    
-    conexion = None
-    try:
-        conexion = obtener_conexion()
-        cursor = conexion.cursor()
-        
-        cursor.execute("DELETE FROM cita_mascotas WHERE cita_id = %s", (cita_id,))
-        cursor.execute("DELETE FROM cita_servicios WHERE cita_id = %s", (cita_id,))
-        cursor.execute("DELETE FROM citas WHERE id = %s", (cita_id,))
-        
-        conexion.commit()
-        return jsonify({'success': True, 'message': 'Cita eliminada permanentemente'})
-    except Exception as e:
-        if conexion:
-            conexion.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if conexion:
-            conexion.close()
-
-# ─── Gestión de Tenants (solo superadmin) ────────────────────────────────────
+# ─── GESTIÓN DE TENANTS ──────────────────────────────────────────────────────
 
 @app.route('/gestionar_tenants')
 def gestionar_tenants():
