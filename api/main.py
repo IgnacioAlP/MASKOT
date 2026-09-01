@@ -23,13 +23,15 @@ from controladores import (
 )
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # MASKOT/api
-ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, '..')) # MASKOT
+# Obtener la ruta de la carpeta raíz del proyecto (MASKOT)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # Ruta de /api
+ROOT_DIR = os.path.dirname(BASE_DIR)                   # Ruta de /MASKOT
 
 app = Flask(
     __name__,
     template_folder=os.path.join(ROOT_DIR, 'templates'),
-    static_folder=os.path.join(ROOT_DIR, 'static')
+    static_folder=os.path.join(ROOT_DIR, 'static'),
+    static_url_path='/static'
 )
 
 # Configuración de cookies de sesión seguras
