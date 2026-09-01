@@ -1,25 +1,30 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}MASKOT - Petshop y Grooming{% endblock %}</title>
-    
+
     <!-- Bootstrap 5.3 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
-    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
     <!-- Font Awesome 6 -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
-    
+
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Fredoka+One:wght@400&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Fredoka+One:wght@400&display=swap"
+        rel="stylesheet">
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    
+
     <!-- Favicon -->
     <link rel="icon" href="{{ url_for('static', filename='img/maskot-favicon.ico') }}" type="image/x-icon">
 </head>
+
 <body>
     <!-- Navigation Header -->
     <nav class="navbar navbar-expand-lg navbar-light fixed-top maskot-navbar">
@@ -51,7 +56,7 @@
                             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
                     </li>
-                    
+
                     {% if session.rol in ['admin', 'empleado'] %}
                     <li class="nav-item">
                         <a class="nav-link maskot-nav-link" href="{{ url_for('citas') }}">
@@ -64,7 +69,7 @@
                         </a>
                     </li>
                     {% endif %}
-                    
+
                     {% if session.rol in ['admin', 'empleado', 'dueño'] %}
                     <li class="nav-item">
                         <a class="nav-link maskot-nav-link" href="{{ url_for('punto_de_venta') }}">
@@ -79,38 +84,53 @@
                     </li>
                     {% endif %}
                     {% endif %}
-                    
+
                     {% if session.rol in ['dueño', 'admin'] %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle maskot-nav-link" href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle maskot-nav-link" href="#" role="button"
+                            data-bs-toggle="dropdown">
                             <i class="fas fa-cogs me-2"></i>Gestión
                         </a>
                         <ul class="dropdown-menu maskot-dropdown">
-                            <li><a class="dropdown-item" href="{{ url_for('servicios') }}"><i class="fas fa-concierge-bell me-2"></i>Servicios</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('personal') }}"><i class="fas fa-users me-2"></i>Personal</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('listar_clientes') }}"><i class="fas fa-address-card me-2"></i>Clientes</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('almacen') }}"><i class="fas fa-boxes me-2"></i>Almacén</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('historial_ventas') }}"><i class="fas fa-receipt me-2"></i>Historial de Ventas</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('historial_compras') }}"><i class="fas fa-shopping-cart me-2"></i>Historial de Compras</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('historial_asistencias') }}"><i class="fas fa-history me-2"></i>Historial Asistencias</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('historial_clientes') }}"><i class="fas fa-address-book me-2"></i>Historial Clientes</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('servicios') }}"><i
+                                        class="fas fa-concierge-bell me-2"></i>Servicios</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('personal') }}"><i
+                                        class="fas fa-users me-2"></i>Personal</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('listar_clientes') }}"><i
+                                        class="fas fa-address-card me-2"></i>Clientes</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('almacen') }}"><i
+                                        class="fas fa-boxes me-2"></i>Almacén</a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item" href="{{ url_for('historial_ventas') }}"><i
+                                        class="fas fa-receipt me-2"></i>Historial de Ventas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('historial_compras') }}"><i
+                                        class="fas fa-shopping-cart me-2"></i>Historial de Compras</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('historial_asistencias') }}"><i
+                                        class="fas fa-history me-2"></i>Historial Asistencias</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('historial_clientes') }}"><i
+                                        class="fas fa-address-book me-2"></i>Historial Clientes</a></li>
                         </ul>
                     </li>
                     {% endif %}
                 </ul>
-                
+
                 <!-- User Menu -->
                 <ul class="navbar-nav">
                     <li class="nav-item me-2" id="nav-cart" data-hidden-for-now="true" style="display:none;">
                         <!-- Carrito oculto temporalmente. Para mostrar, eliminar style display:none o cambiar data-hidden-for-now. -->
-                        <a class="btn btn-outline-primary position-relative me-2" href="{{ url_for('ver_carrito') }}" title="Ver carrito" style="display:none;">
+                        <a class="btn btn-outline-primary position-relative me-2" href="{{ url_for('ver_carrito') }}"
+                            title="Ver carrito" style="display:none;">
                             <i class="fas fa-shopping-cart"></i>
-                            <span id="cart-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">{{ cart_count }}</span>
+                            <span id="cart-count"
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                style="display:none;">{{ cart_count }}</span>
                         </a>
                     </li>
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle maskot-user-menu" href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle maskot-user-menu" href="#" role="button"
+                            data-bs-toggle="dropdown">
                             <div class="user-avatar">
                                 <i class="fas fa-user"></i>
                             </div>
@@ -120,8 +140,11 @@
                         <ul class="dropdown-menu dropdown-menu-end maskot-dropdown">
                             <li><a class="dropdown-item" href="#"><i class="fas fa-user-edit me-2"></i>Perfil</a></li>
                             <li><a class="dropdown-item" href="#"><i class="fas fa-cog me-2"></i>Configuración</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión</a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i
+                                        class="fas fa-sign-out-alt me-2"></i>Cerrar Sesión</a></li>
                         </ul>
                     </li>
                 </ul>
@@ -142,9 +165,12 @@
                 </ul>
                 <ul class="navbar-nav">
                     <li class="nav-item me-2" style="display:none;">
-                        <a class="btn btn-outline-primary position-relative me-2" href="{{ url_for('ver_carrito') }}" title="Ver carrito" style="display:none;">
+                        <a class="btn btn-outline-primary position-relative me-2" href="{{ url_for('ver_carrito') }}"
+                            title="Ver carrito" style="display:none;">
                             <i class="fas fa-shopping-cart"></i>
-                            <span id="cart-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">{{ cart_count }}</span>
+                            <span id="cart-count"
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                style="display:none;">{{ cart_count }}</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -162,26 +188,26 @@
     <main class="main-content">
         <!-- Flash Messages -->
         {% with flashes = get_flashed_messages(with_categories=True) %}
-            {% if flashes %}
-                <div class="container mt-3">
-                    {% for category, message in flashes %}
-                        {% set cls = 'alert-primary' %}
-                        {% if category == 'success' %}
-                            {% set cls = 'alert-success' %}
-                        {% elif category == 'error' %}
-                            {% set cls = 'alert-danger' %}
-                        {% elif category == 'warning' %}
-                            {% set cls = 'alert-warning' %}
-                        {% elif category == 'info' %}
-                            {% set cls = 'alert-info' %}
-                        {% endif %}
-                        <div class="alert {{ cls }} alert-dismissible fade show maskot-alert" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                </div>
+        {% if flashes %}
+        <div class="container mt-3">
+            {% for category, message in flashes %}
+            {% set cls = 'alert-primary' %}
+            {% if category == 'success' %}
+            {% set cls = 'alert-success' %}
+            {% elif category == 'error' %}
+            {% set cls = 'alert-danger' %}
+            {% elif category == 'warning' %}
+            {% set cls = 'alert-warning' %}
+            {% elif category == 'info' %}
+            {% set cls = 'alert-info' %}
             {% endif %}
+            <div class="alert {{ cls }} alert-dismissible fade show maskot-alert" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         {% block content %}{% endblock %}
@@ -202,7 +228,8 @@
                                 <small class="brand-tagline">petshop & grooming</small>
                             </div>
                         </div>
-                        <p class="text-muted">Tu compañero de confianza para el cuidado y bienestar de tus mascotas. Productos de calidad y servicios profesionales.</p>
+                        <p class="text-muted">Tu compañero de confianza para el cuidado y bienestar de tus mascotas.
+                            Productos de calidad y servicios profesionales.</p>
                         <div class="social-links">
                             <a href="#" class="text-decoration-none me-3"><i class="fab fa-facebook-f"></i></a>
                             <a href="#" class="text-decoration-none me-3"><i class="fab fa-instagram"></i></a>
@@ -223,10 +250,12 @@
                 <div class="col-lg-3 col-md-6 mb-4">
                     <h5 class="text-warning mb-3">Contacto</h5>
                     <div class="contact-info">
-                        <p class="text-muted mb-2"><i class="fas fa-map-marker-alt me-2 text-warning"></i>Calle Principal 123, Ciudad</p>
+                        <p class="text-muted mb-2"><i class="fas fa-map-marker-alt me-2 text-warning"></i>Calle
+                            Principal 123, Ciudad</p>
                         <p class="text-muted mb-2"><i class="fas fa-phone me-2 text-warning"></i>+1 (555) 123-4567</p>
                         <p class="text-muted mb-2"><i class="fas fa-envelope me-2 text-warning"></i>info@maskot.com</p>
-                        <p class="text-muted mb-0"><i class="fas fa-clock me-2 text-warning"></i>Lun - Sáb: 8:00 AM - 8:00 PM</p>
+                        <p class="text-muted mb-0"><i class="fas fa-clock me-2 text-warning"></i>Lun - Sáb: 8:00 AM -
+                            8:00 PM</p>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-4">
@@ -243,7 +272,8 @@
             <hr class="my-4">
             <div class="row align-items-center">
                 <div class="col-md-6">
-                    <p class="text-muted mb-0">&copy; 2024 MASKOT - Petshop y Grooming. Todos los derechos reservados.</p>
+                    <p class="text-muted mb-0">&copy; 2024 MASKOT - Petshop y Grooming. Todos los derechos reservados.
+                    </p>
                 </div>
                 <div class="col-md-6 text-md-end">
                     <a href="#" class="text-muted text-decoration-none me-3">Política de Privacidad</a>
@@ -254,13 +284,15 @@
     </footer>
 
     <!-- Bootstrap 5.3 JS Bundle -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+
     <!-- Custom JavaScript solo para páginas que no sean login -->
     {% if request.endpoint != 'login' %}
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% endif %}
-    
+
     {% block scripts %}{% endblock %}
     <!-- Global confirm modal for replacing native confirm() -->
     <div class="modal fade" id="globalConfirmModal" tabindex="-1" aria-hidden="true">
@@ -274,11 +306,13 @@
                     <p id="globalConfirmMessage">¿Estás seguro?</p>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="globalConfirmCancel">Cancelar</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                        id="globalConfirmCancel">Cancelar</button>
                     <button type="button" class="btn btn-danger" id="globalConfirmOk">Confirmar</button>
                 </div>
             </div>
         </div>
     </div>
 </body>
+
 </html>
