@@ -23,7 +23,11 @@ from controladores import (
 )
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
-app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), '../templates'))
+app = Flask(
+    __name__, 
+    template_folder=os.path.join(os.path.dirname(__file__), '../templates'),
+    static_folder=os.path.join(os.path.dirname(__file__), '../static')
+)
 
 # Configuración de cookies de sesión seguras
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')
