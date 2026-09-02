@@ -412,6 +412,49 @@ def almacen():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
 
+    if request.method == 'POST':
+        try:
+            nombre = request.form.get('nombre', '').strip()
+            codigo_barra = request.form.get('codigo_barra', '').strip() or None
+            tipo = request.form.get('tipo', 'stock').strip().lower()
+
+            precio_raw = request.form.get('precio', '').strip()
+            precio = float(precio_raw) if precio_raw else 0.0
+
+            cantidad_raw = request.form.get('stock', request.form.get('cantidad', '')).strip()
+            cantidad = int(cantidad_raw) if cantidad_raw else 0
+
+            conexion = obtener_conexion()
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (nombre, codigo_barra, tipo, cantidad, precio))
+            conexion.commit()
+            conexion.close()
+
+            flash('Producto registrado correctamente en el almacén.', 'success')
+        except Exception as e:
+            logger.error(f"Error al registrar producto: {e}")
+            flash(f'Error al registrar producto: {e}', 'error')
+        return redirect(url_for('almacen'))
+
+    # Lectura directa desde Supabase usando los campos reales
+    productos_lista = []
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT id, nombre, tipo, NULL as img, cantidad, precio FROM productos ORDER BY id ASC")
+            productos_lista = cursor.fetchall()
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando productos: {e}")
+
+    return render_template('almacen.html', productos=productos_lista)
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
     # Procesar registro de nuevo producto
     if request.method == 'POST':
         try:
