@@ -734,6 +734,8 @@ def mascotas():
     return render_template('mascotas.html', mascotas=lista)
 
 
+# ─── MÓDULO DE GESTIÓN DE PERSONAL Y USUARIOS ───────────────────────────────
+
 @app.route('/personal')
 def personal():
     if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
@@ -747,7 +749,7 @@ def personal():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Consulta con JOIN entre personal y usuarios segun el esquema oficial
+            # 1. Consulta JOIN entre personal y usuarios según tu esquema SQL
             cursor.execute("""
                 SELECT 
                     p.id AS personal_id,
@@ -786,7 +788,7 @@ def personal():
                     'activo': activo,
                     'estado': estado_str,
                     'usuario_id': usuario_id,
-                    # Mapeo posicional hasta el indice 7 para evitar 'has no element 6'
+                    # Mapeo posicional completo (0 a 7) para evitar errores en Jinja2 (p[6], p[7])
                     0: p_id,
                     1: username,
                     2: cargo,
@@ -798,7 +800,7 @@ def personal():
                 }
                 empleados_lista.append(item)
 
-            # 2. Cargar todos los usuarios del tenant para asignaciones
+            # 2. Obtener lista completa de usuarios para asignaciones o modales
             cursor.execute("""
                 SELECT id, username, rol, COALESCE(activo, true) 
                 FROM usuarios 
@@ -816,7 +818,7 @@ def personal():
 
         conexion.close()
     except Exception as e:
-        logger.error(f"Error cargando modulo personal: {e}")
+        logger.error(f"Error cargando módulo personal: {e}")
 
     puede_modificar = session.get('rol') in ['admin', 'dueño']
 
@@ -840,20 +842,20 @@ def agregar_personal():
         usuario_id_raw = request.form.get('usuario_id')
         username = (request.form.get('username') or request.form.get('nombre') or '').strip()
         cargo = (request.form.get('cargo') or 'Empleado').strip()
+        rol = (request.form.get('rol') or 'empleado').strip().lower()
         
         salario_raw = request.form.get('salario', request.form.get('sueldo', '')).strip()
         salario = float(salario_raw) if salario_raw else 0.0
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Caso A: Se selecciono un usuario existente
+            # Opción A: Enlazar usuario existente
             if usuario_id_raw and usuario_id_raw.isdigit():
                 usuario_id = int(usuario_id_raw)
-            # Caso B: Se ingreso un nuevo nombre de usuario (crear en usuarios primero)
+            # Opción B: Crear usuario nuevo en la tabla 'usuarios'
             elif username:
                 from controladores.usuarios_controlador import hash_password
                 password_default = hash_password('123456')
-                rol = request.form.get('rol', 'empleado').strip().lower()
 
                 cursor.execute("""
                     INSERT INTO usuarios (username, password, rol, activo, tenant_id)
@@ -862,10 +864,10 @@ def agregar_personal():
                 """, (username, password_default, rol, tenant_id))
                 usuario_id = cursor.fetchone()[0]
             else:
-                flash('Debe seleccionar un usuario o ingresar un nombre válido.', 'warning')
+                flash('Debe ingresar un nombre de usuario válido.', 'warning')
                 return redirect(url_for('personal'))
 
-            # Insertar registro en la tabla personal enlazando usuario_id
+            # Insertar en la tabla 'personal' utilizando la relación usuario_id
             cursor.execute("""
                 INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
                 VALUES (%s, %s, %s, true, %s)
@@ -880,45 +882,8 @@ def agregar_personal():
         flash(f'Error al agregar personal: {e}', 'error')
 
     return redirect(url_for('personal'))
-def agregar_personal():
-    if session.get('rol') not in ['admin', 'dueño']:
-        flash('Sin permisos.', 'error')
-        return redirect(url_for('personal'))
-    try:
-        nombre = (request.form.get('nombre') or request.form.get('username') or '').strip()
-        cargo = request.form.get('cargo', 'Empleado').strip()
-        rol = request.form.get('rol', 'empleado').strip().lower()
-        salario_raw = request.form.get('salario', request.form.get('sueldo', '')).strip()
-        salario = float(salario_raw) if salario_raw else 0.0
 
-        if not nombre:
-            flash('El nombre o usuario es obligatorio.', 'warning')
-            return redirect(url_for('personal'))
 
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS personal (
-                    id SERIAL PRIMARY KEY,
-                    nombre VARCHAR(150),
-                    cargo VARCHAR(100) DEFAULT 'Empleado',
-                    rol VARCHAR(50) DEFAULT 'empleado',
-                    salario NUMERIC(10,2) DEFAULT 0.0,
-                    activo BOOLEAN DEFAULT true
-                )
-            """)
-            cursor.execute("""
-                INSERT INTO personal (nombre, cargo, rol, salario, activo)
-                VALUES (%s, %s, %s, %s, true)
-            """, (nombre, cargo, rol, salario))
-        conexion.commit()
-        conexion.close()
-
-        flash(f'Empleado "{nombre}" registrado correctamente.', 'success')
-    except Exception as e:
-        logger.error(f"Error al agregar personal: {e}")
-        flash(f'Error al agregar personal: {e}', 'error')
-    return redirect(url_for('personal'))
 @app.route('/personal/editar', methods=['POST'])
 def editar_personal():
     if session.get('rol') not in ['admin', 'dueño']:
@@ -942,7 +907,7 @@ def editar_personal():
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Actualizar datos de personal y obtener usuario_id vinculado
+            # 1. Actualizar tabla personal y obtener usuario_id
             cursor.execute("""
                 UPDATE personal 
                 SET cargo = %s, salario = %s
@@ -953,7 +918,7 @@ def editar_personal():
             res = cursor.fetchone()
             if res and res[0]:
                 usuario_id = res[0]
-                # Actualizar credenciales / rol en la tabla usuarios
+                # 2. Actualizar tabla usuarios (username y rol_usuario_enum)
                 if username and rol:
                     cursor.execute("""
                         UPDATE usuarios 
@@ -968,67 +933,14 @@ def editar_personal():
         conexion.commit()
         conexion.close()
 
-        flash('Datos del empleado y acceso actualizados correctamente.', 'success')
+        flash('Empleado actualizado correctamente.', 'success')
     except Exception as e:
         logger.error(f"Error al editar personal: {e}")
         flash(f'Error al modificar datos: {e}', 'error')
 
     return redirect(url_for('personal'))
-@app.route('/personal/editar', methods=['POST'])
-def editar_personal():
-    if session.get('rol') not in ['admin', 'dueño']:
-        flash('Sin permisos para modificar personal.', 'error')
-        return redirect(url_for('personal'))
 
-    try:
-        tenant_id = session.get('tenant_id', 1)
-        personal_id = request.form.get('id') or request.form.get('personal_id')
-        
-        if not personal_id:
-            flash('ID de personal no proporcionado.', 'warning')
-            return redirect(url_for('personal'))
 
-        cargo = (request.form.get('cargo') or 'Empleado').strip()
-        salario_raw = request.form.get('salario', request.form.get('sueldo', '')).strip()
-        salario = float(salario_raw) if salario_raw else 0.0
-        
-        username = request.form.get('username', '').strip()
-        rol = request.form.get('rol', '').strip().lower()
-
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # Actualizar datos de personal y obtener usuario_id vinculado
-            cursor.execute("""
-                UPDATE personal 
-                SET cargo = %s, salario = %s
-                WHERE id = %s AND tenant_id = %s
-                RETURNING usuario_id
-            """, (cargo, salario, personal_id, tenant_id))
-            
-            res = cursor.fetchone()
-            if res and res[0]:
-                usuario_id = res[0]
-                # Actualizar credenciales / rol en la tabla usuarios
-                if username and rol:
-                    cursor.execute("""
-                        UPDATE usuarios 
-                        SET username = %s, rol = %s::rol_usuario_enum
-                        WHERE id = %s AND tenant_id = %s
-                    """, (username, rol, usuario_id, tenant_id))
-                elif username:
-                    cursor.execute("UPDATE usuarios SET username = %s WHERE id = %s AND tenant_id = %s", (username, usuario_id, tenant_id))
-                elif rol:
-                    cursor.execute("UPDATE usuarios SET rol = %s::rol_usuario_enum WHERE id = %s AND tenant_id = %s", (rol, usuario_id, tenant_id))
-
-        conexion.commit()
-        conexion.close()
-
-        flash('Datos del empleado y acceso actualizados correctamente.', 'success')
-    except Exception as e:
-        logger.error(f"Error al editar personal: {e}")
-        flash(f'Error al modificar datos: {e}', 'error')
-
-    return redirect(url_for('personal'))
 @app.route('/personal/toggle-estado/<int:personal_id>', methods=['POST'])
 @app.route('/personal/desactivar/<int:personal_id>', methods=['POST'])
 def toggle_estado_personal(personal_id):
@@ -1039,7 +951,7 @@ def toggle_estado_personal(personal_id):
         tenant_id = session.get('tenant_id', 1)
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Alternar estado del registro de personal
+            # Alternar el estado activo en personal
             cursor.execute("""
                 UPDATE personal
                 SET activo = NOT COALESCE(activo, true)
@@ -1054,7 +966,7 @@ def toggle_estado_personal(personal_id):
 
             usuario_id, nuevo_estado = res[0], res[1]
 
-            # Desactivar/Activar la cuenta de acceso a login
+            # Desactivar/Activar el login del usuario vinculado
             if usuario_id:
                 cursor.execute("""
                     UPDATE usuarios
@@ -1065,16 +977,57 @@ def toggle_estado_personal(personal_id):
         conexion.commit()
         conexion.close()
 
-        return jsonify({
-            'success': True, 
-            'nuevo_estado': nuevo_estado,
-            'mensaje': 'Acceso y estado del personal actualizados.'
-        })
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'mensaje': 'Estado y acceso actualizados.'})
+
+        flash('Estado y acceso de usuario actualizados correctamente.', 'success')
+        return redirect(url_for('personal'))
     except Exception as e:
         logger.error(f"Error al cambiar estado de personal: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Error: {e}', 'error')
+        return redirect(url_for('personal'))
+
+
 @app.route('/personal/eliminar/<int:personal_id>', methods=['POST', 'DELETE'])
 def eliminar_personal(personal_id):
+    if session.get('rol') not in ['admin', 'dueño']:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+        flash('Sin permisos para eliminar personal.', 'error')
+        return redirect(url_for('personal'))
+
+    try:
+        tenant_id = session.get('tenant_id', 1)
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # Obtener el usuario_id enlazado
+            cursor.execute("SELECT usuario_id FROM personal WHERE id = %s AND tenant_id = %s", (personal_id, tenant_id))
+            res = cursor.fetchone()
+            usuario_id = res[0] if res else None
+
+            # Eliminar la ficha de la tabla personal
+            cursor.execute("DELETE FROM personal WHERE id = %s AND tenant_id = %s", (personal_id, tenant_id))
+
+            # Desactivar el usuario en lugar de eliminarlo para mantener la integridad de ventas y citas pasadas
+            if usuario_id:
+                cursor.execute("UPDATE usuarios SET activo = false WHERE id = %s AND tenant_id = %s", (usuario_id, tenant_id))
+
+        conexion.commit()
+        conexion.close()
+
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': 'Empleado eliminado y acceso desactivado.'})
+
+        flash('Empleado eliminado y acceso desactivado.', 'success')
+    except Exception as e:
+        logger.error(f"Error eliminando personal: {e}")
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Error al eliminar personal: {e}', 'error')
+
+    return redirect(url_for('personal'))
     if session.get('rol') not in ['admin', 'dueño']:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': 'Sin permisos'}), 403
