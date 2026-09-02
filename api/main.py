@@ -416,10 +416,15 @@ def almacen():
     if request.method == 'POST':
         try:
             nombre = request.form.get('nombre', '').strip()
-            precio = float(request.form.get('precio', 0.0))
-            stock = int(request.form.get('stock', 0))
             codigo_barra = request.form.get('codigo_barra', '').strip()
             descripcion = request.form.get('descripcion', '').strip()
+
+            # Conversión segura para evitar float('') o int('')
+            precio_raw = request.form.get('precio', '').strip()
+            precio = float(precio_raw) if precio_raw else 0.0
+
+            stock_raw = request.form.get('stock', '').strip()
+            stock = int(stock_raw) if stock_raw else 0
 
             if hasattr(productos_controlador, 'insertar_producto'):
                 productos_controlador.insertar_producto(nombre, descripcion, stock, precio, codigo_barra)
@@ -438,7 +443,7 @@ def almacen():
             logger.error(f"Error al registrar producto: {e}")
             flash(f'Error al registrar producto: {e}', 'error')
         return redirect(url_for('almacen'))
-
+        
     # Renderizar vista GET de Almacén
     raw_prods = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
     productos_lista = []
