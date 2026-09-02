@@ -439,13 +439,13 @@ def almacen():
             flash(f'Error al registrar producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # Lectura y conversión explícita de tipos de datos para Jinja2
+    # Lectura y estructuración alineada para Jinja2 (compatibilidad con índices y claves)
     productos_lista = []
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, tipo, codigo_barra, cantidad, precio 
+                SELECT id, nombre, tipo, cantidad, precio, codigo_barra 
                 FROM productos 
                 ORDER BY id ASC
             """)
@@ -454,30 +454,32 @@ def almacen():
                 p_id = r[0]
                 nombre = r[1] or ''
                 tipo = str(r[2]) if r[2] is not None else 'stock'
-                codigo_barra = r[3] or ''
                 
-                # Conversión limpia para prevenir comparación None <= Decimal
-                cantidad = int(r[4]) if r[4] is not None else 0
-                precio = float(r[5]) if r[5] is not None else 0.0
-                stock_minimo = 5  # Umbral por defecto
+                # Conversiones numéricas estrictas para evitar comparaciones con cadenas
+                cantidad = int(r[3]) if r[3] is not None else 0
+                precio = float(r[4]) if r[4] is not None else 0.0
+                stock_minimo = 5
+                codigo_barra = r[5] or ''
 
-                productos_lista.append({
+                item = {
                     'id': p_id,
                     'nombre': nombre,
                     'tipo': tipo,
-                    'codigo_barra': codigo_barra,
                     'cantidad': cantidad,
                     'stock': cantidad,
                     'precio': precio,
                     'stock_minimo': stock_minimo,
-                    0: p_id,
-                    1: nombre,
-                    2: tipo,
-                    3: codigo_barra,
-                    4: cantidad,
-                    5: stock_minimo,
-                    6: precio
-                })
+                    'codigo_barra': codigo_barra,
+                    # Mapeo posicional estándar para plantillas basadas en tuplas
+                    0: p_id,          # ID
+                    1: nombre,        # Nombre
+                    2: tipo,          # Tipo
+                    3: cantidad,      # Cantidad / Stock (int) -> evita p[3] como string
+                    4: precio,        # Precio (float)
+                    5: stock_minimo,  # Stock mínimo (int)
+                    6: codigo_barra   # Código de barra
+                }
+                productos_lista.append(item)
         conexion.close()
     except Exception as e:
         logger.error(f"Error consultando productos en almacén: {e}")
