@@ -405,12 +405,41 @@ def productos():
     return render_template('productos.html', productos=lista)
 
 
-@app.route('/almacen')
+@app.route('/almacen', methods=['GET', 'POST'])
+@app.route('/productos/agregar', methods=['POST'], endpoint='agregar_producto')
 def almacen():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
-    
+
+    # Procesar registro de nuevo producto
+    if request.method == 'POST':
+        try:
+            nombre = request.form.get('nombre', '').strip()
+            precio = float(request.form.get('precio', 0.0))
+            stock = int(request.form.get('stock', 0))
+            codigo_barra = request.form.get('codigo_barra', '').strip()
+            descripcion = request.form.get('descripcion', '').strip()
+
+            if hasattr(productos_controlador, 'insertar_producto'):
+                productos_controlador.insertar_producto(nombre, descripcion, stock, precio, codigo_barra)
+            else:
+                conexion = obtener_conexion()
+                with conexion.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO productos (nombre, descripcion, stock, precio, codigo_barra, activo)
+                        VALUES (%s, %s, %s, %s, %s, true)
+                    """, (nombre, descripcion, stock, precio, codigo_barra))
+                conexion.commit()
+                conexion.close()
+
+            flash('Producto registrado correctamente en el almacén.', 'success')
+        except Exception as e:
+            logger.error(f"Error al registrar producto: {e}")
+            flash(f'Error al registrar producto: {e}', 'error')
+        return redirect(url_for('almacen'))
+
+    # Renderizar vista GET de Almacén
     raw_prods = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
     productos_lista = []
     
@@ -419,17 +448,13 @@ def almacen():
             p_list = list(p)
             while len(p_list) < 8:
                 p_list.append(None)
-            p_list[3] = p_list[3] if p_list[3] is not None else 0  # stock
-            p_list[4] = float(p_list[4]) if p_list[4] is not None else 0.0 # precio
-            p_list[5] = p_list[5] if p_list[5] is not None else 5  # stock_minimo
+            p_list[3] = p_list[3] if p_list[3] is not None else 0
+            p_list[4] = float(p_list[4]) if p_list[4] is not None else 0.0
+            p_list[5] = p_list[5] if p_list[5] is not None else 5
             productos_lista.append(p_list)
-        elif isinstance(p, dict):
-            p['stock'] = p.get('stock') if p.get('stock') is not None else 0
-            p['stock_minimo'] = p.get('stock_minimo') if p.get('stock_minimo') is not None else 5
-            productos_lista.append(p)
         else:
             productos_lista.append(p)
-            
+
     return render_template('almacen.html', productos=productos_lista)
 
 
@@ -512,7 +537,24 @@ def cambiar_estado_servicio():
 
 
 @app.route('/clientes', endpoint='clientes')
+@app.route('/clientes/lista', endpoint='listar_clientes')
+def clientes():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    lista = []
+    try:
+        if hasattr(clientes_controlador, 'obtener_clientes'):
+            lista = clientes_controlador.obtener_clientes() or []
+    except Exception as e:
+        logger.error(f"Error cargando clientes: {e}")
+        
+    return render_template('clientes.html', clientes=lista)
+
+
 @app.route('/clientes/crear', methods=['POST'], endpoint='crear_cliente')
+@app.route('/clientes/agregar', methods=['POST'], endpoint='agregar_cliente')
 def crear_cliente():
     if session.get('rol') not in ['admin', 'empleado', 'dueño']:
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
@@ -522,20 +564,24 @@ def crear_cliente():
         telefono = request.form.get('telefono', '')
         direccion = request.form.get('direccion', '')
         documento = request.form.get('documento', '')
+        
         if hasattr(clientes_controlador, 'insertar_cliente'):
             clientes_controlador.insertar_cliente(nombre, email, telefono, direccion, documento)
+        else:
+            conexion = obtener_conexion()
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO clientes (nombre, email, telefono, direccion, documento)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (nombre, email, telefono, direccion, documento))
+            conexion.commit()
+            conexion.close()
+            
         flash('Cliente registrado exitosamente.', 'success')
     except Exception as e:
+        logger.error(f"Error al registrar cliente: {e}")
         flash(f'Error al registrar cliente: {e}', 'error')
     return redirect(url_for('clientes'))
-@app.route('/clientes/lista', endpoint='listar_clientes')
-def clientes():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
-    return render_template('clientes.html', clientes=lista)
 
 
 @app.route('/historial_clientes', endpoint='historial_clientes')
