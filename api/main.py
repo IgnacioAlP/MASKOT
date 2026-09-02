@@ -415,7 +415,7 @@ def almacen():
 
     if request.method == 'POST':
         try:
-            # Captura flexible del ID desde cualquier nombre de campo en el modal HTML
+            # Captura de ID
             raw_id = (request.form.get('id') or 
                       request.form.get('producto_id') or 
                       request.form.get('edit_id') or 
@@ -433,32 +433,36 @@ def almacen():
             cantidad_raw = request.form.get('stock', request.form.get('cantidad', '')).strip()
             cantidad = int(cantidad_raw) if cantidad_raw else 0
 
+            # Captura dinámica del Stock Mínimo
+            stk_min_raw = (request.form.get('stock_minimo') or 
+                           request.form.get('cant_min') or 
+                           request.form.get('stock_min') or '').strip()
+            stock_minimo = int(stk_min_raw) if stk_min_raw and stk_min_raw.isdigit() else 5
+
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
+                # Asegurar que la columna existe en la base de datos
+                cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
+                
                 if producto_id:
-                    # Intento de actualización de producto existente
                     cursor.execute("""
                         UPDATE productos 
-                        SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s
+                        SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s, stock_minimo = %s
                         WHERE id = %s
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, producto_id))
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, producto_id))
                     
-                    filas_afectadas = cursor.rowcount
-                    logger.info(f"UPDATE productos ID={producto_id} - Filas afectadas: {filas_afectadas}")
-                    
-                    if filas_afectadas > 0:
+                    if cursor.rowcount > 0:
                         mensaje = f'Producto "{nombre}" actualizado correctamente.'
                         categoria = 'success'
                     else:
-                        mensaje = f'No se encontró ningún producto con ID {producto_id} para actualizar.'
+                        mensaje = f'No se encontró el producto con ID {producto_id}.'
                         categoria = 'warning'
                 else:
-                    # Inserción de un nuevo producto
                     cursor.execute("""
-                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (nombre, codigo_barra, tipo, cantidad, precio))
-                    mensaje = f'Producto "{nombre}" registrado correctamente en el almacén.'
+                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo))
+                    mensaje = f'Producto "{nombre}" registrado correctamente.'
                     categoria = 'success'
 
             conexion.commit()
@@ -470,13 +474,14 @@ def almacen():
             flash(f'Error al procesar el producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # Lectura de productos para renderizar la tabla
+    # Lectura de productos incluyendo la columna stock_minimo
     productos_lista = []
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, codigo_barra 
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(stock_minimo, 5), codigo_barra 
                 FROM productos 
                 ORDER BY id ASC
             """)
@@ -487,8 +492,8 @@ def almacen():
                 tipo = str(r[2]) if r[2] is not None else 'stock'
                 cantidad = int(r[3]) if r[3] is not None else 0
                 precio = float(r[4]) if r[4] is not None else 0.0
-                stock_minimo = 5
-                codigo_barra = r[5] or ''
+                stock_minimo = int(r[5]) if r[5] is not None else 5
+                codigo_barra = r[6] or ''
 
                 item = {
                     'id': p_id,
@@ -499,6 +504,7 @@ def almacen():
                     'precio': precio,
                     'stock_minimo': stock_minimo,
                     'codigo_barra': codigo_barra,
+                    # Mapeo posicional para la plantilla HTML
                     0: p_id,
                     1: nombre,
                     2: tipo,
