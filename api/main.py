@@ -407,6 +407,7 @@ def productos():
 
 @app.route('/almacen', methods=['GET', 'POST'])
 @app.route('/productos/agregar', methods=['POST'], endpoint='agregar_producto')
+@app.route('/productos/editar', methods=['POST'], endpoint='editar_producto')
 def almacen():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
@@ -414,6 +415,11 @@ def almacen():
 
     if request.method == 'POST':
         try:
+            # Detectar si es una modificación (presencia de ID) o una creación
+            producto_id = request.form.get('id') or request.form.get('producto_id')
+            if producto_id:
+                producto_id = int(producto_id)
+
             nombre = request.form.get('nombre', '').strip()
             codigo_barra = request.form.get('codigo_barra', '').strip() or None
             tipo = request.form.get('tipo', 'stock').strip().lower()
@@ -426,20 +432,32 @@ def almacen():
 
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (nombre, codigo_barra, tipo, cantidad, precio))
+                if producto_id:
+                    # Actualización de producto existente
+                    cursor.execute("""
+                        UPDATE productos 
+                        SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s
+                        WHERE id = %s
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, producto_id))
+                    mensaje = 'Producto actualizado correctamente.'
+                else:
+                    # Inserción de nuevo producto
+                    cursor.execute("""
+                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (nombre, codigo_barra, tipo, cantidad, precio))
+                    mensaje = 'Producto registrado correctamente en el almacén.'
+
             conexion.commit()
             conexion.close()
 
-            flash('Producto registrado correctamente en el almacén.', 'success')
+            flash(mensaje, 'success')
         except Exception as e:
-            logger.error(f"Error al registrar producto: {e}")
-            flash(f'Error al registrar producto: {e}', 'error')
+            logger.error(f"Error procesando producto: {e}")
+            flash(f'Error al procesar el producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # Lectura y estructuración alineada para Jinja2 (compatibilidad con índices y claves)
+    # Lectura de productos para la tabla
     productos_lista = []
     try:
         conexion = obtener_conexion()
@@ -454,8 +472,6 @@ def almacen():
                 p_id = r[0]
                 nombre = r[1] or ''
                 tipo = str(r[2]) if r[2] is not None else 'stock'
-                
-                # Conversiones numéricas estrictas para evitar comparaciones con cadenas
                 cantidad = int(r[3]) if r[3] is not None else 0
                 precio = float(r[4]) if r[4] is not None else 0.0
                 stock_minimo = 5
@@ -470,14 +486,13 @@ def almacen():
                     'precio': precio,
                     'stock_minimo': stock_minimo,
                     'codigo_barra': codigo_barra,
-                    # Mapeo posicional estándar para plantillas basadas en tuplas
-                    0: p_id,          # ID
-                    1: nombre,        # Nombre
-                    2: tipo,          # Tipo
-                    3: cantidad,      # Cantidad / Stock (int) -> evita p[3] como string
-                    4: precio,        # Precio (float)
-                    5: stock_minimo,  # Stock mínimo (int)
-                    6: codigo_barra   # Código de barra
+                    0: p_id,
+                    1: nombre,
+                    2: tipo,
+                    3: cantidad,
+                    4: precio,
+                    5: stock_minimo,
+                    6: codigo_barra
                 }
                 productos_lista.append(item)
         conexion.close()
