@@ -734,7 +734,7 @@ def mascotas():
     return render_template('mascotas.html', mascotas=lista)
 
 
-# ─── MÓDULO DE GESTIÓN DE PERSONAL Y USUARIOS ───────────────────────────────
+# ─── MÓDULO DE GESTIÓN DE PERSONAL Y USUARIOS (COMPLETO Y SINCRONIZADO) ─────
 
 @app.route('/personal', methods=['GET', 'POST'])
 @app.route('/personal/agregar', methods=['POST'], endpoint='agregar_personal')
@@ -761,32 +761,40 @@ def personal():
                     v = request.form.get(k)
                     if v is not None and str(v).strip() != '':
                         return str(v).strip()
-                    v = request.args.get(k)
-                    if v is not None and str(v).strip() != '':
-                        return str(v).strip()
                 return default
 
-            # Captura flexible del ID del registro objetivo
-            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'id_personal', 'id_usuario', 'target_id', 'user_id')
+            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id')
             target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
 
-            # Detección explícita de acciones desde formularios HTML o JavaScript
-            accion = get_param('accion', 'action', 'tipo_accion').lower()
-
-            # Redireccionar a Desactivar si la acción solicitada es toggle/desactivar
-            if accion in ['desactivar', 'toggle', 'toggle_estado', 'desactivar_acceso']:
+            # 1. Interceptar botón "Desactivar" desde el formulario HTML (<button name="eliminar">)
+            if 'eliminar' in request.form or get_param('accion') in ['desactivar', 'eliminar']:
                 if target_id:
-                    return toggle_estado_personal(target_id)
-                msg = 'ID de usuario no proporcionado para desactivar.'
-                return jsonify({'success': False, 'error': msg}) if request.is_json else (flash(msg, 'warning') or redirect(url_for('personal')))
+                    conexion = obtener_conexion()
+                    with conexion.cursor() as cursor:
+                        cursor.execute("UPDATE personal SET activo = false WHERE id = %s OR usuario_id = %s RETURNING usuario_id", (target_id, target_id))
+                        res = cursor.fetchone()
+                        if res and res[0]:
+                            cursor.execute("UPDATE usuarios SET activo = false WHERE id = %s", (res[0],))
+                    conexion.commit()
+                    conexion.close()
+                    flash('Empleado desactivado correctamente.', 'success')
+                    return redirect(url_for('personal'))
 
-            # Redireccionar a Eliminar si la acción solicitada es eliminar/delete
-            if accion in ['eliminar', 'delete', 'borrar', 'eliminar_permanente']:
+            # 2. Interceptar botón "Reactivar" desde el formulario HTML (<button name="reactivar">)
+            if 'reactivar' in request.form or get_param('accion') in ['reactivar']:
                 if target_id:
-                    return eliminar_personal_permanente(target_id)
-                msg = 'ID de usuario no proporcionado para eliminar.'
-                return jsonify({'success': False, 'error': msg}) if request.is_json else (flash(msg, 'warning') or redirect(url_for('personal')))
+                    conexion = obtener_conexion()
+                    with conexion.cursor() as cursor:
+                        cursor.execute("UPDATE personal SET activo = true WHERE id = %s OR usuario_id = %s RETURNING usuario_id", (target_id, target_id))
+                        res = cursor.fetchone()
+                        if res and res[0]:
+                            cursor.execute("UPDATE usuarios SET activo = true WHERE id = %s", (res[0],))
+                    conexion.commit()
+                    conexion.close()
+                    flash('Empleado reactivado correctamente.', 'success')
+                    return redirect(url_for('personal'))
 
+            # 3. Procesar Edición o Registro de Nuevo Empleado
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
             rol = get_param('rol', default='empleado').lower()
@@ -800,49 +808,28 @@ def personal():
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if target_id:
-                    # CASO 1: EDICIÓN DE UN REGISTRO EXISTENTE
-                    cursor.execute("""
-                        SELECT p.id, p.usuario_id 
-                        FROM personal p 
-                        WHERE p.id = %s OR p.usuario_id = %s
-                    """, (target_id, target_id))
+                    # CASO A: Modificación de un empleado existente
+                    cursor.execute("SELECT id, usuario_id FROM personal WHERE id = %s OR usuario_id = %s", (target_id, target_id))
                     p_row = cursor.fetchone()
-
                     if p_row:
                         p_id, usuario_id = p_row[0], p_row[1]
-                        cursor.execute("""
-                            UPDATE personal 
-                            SET cargo = %s, salario = %s
-                            WHERE id = %s
-                        """, (cargo, salario, p_id))
+                        cursor.execute("UPDATE personal SET cargo = %s, salario = %s WHERE id = %s", (cargo, salario, p_id))
                     else:
                         usuario_id = target_id
-                        cursor.execute("""
-                            INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
-                            VALUES (%s, %s, %s, true, %s)
-                        """, (usuario_id, cargo, salario, tenant_id))
+                        cursor.execute("INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id) VALUES (%s, %s, %s, true, %s)", (usuario_id, cargo, salario, tenant_id))
 
-                    # Actualizar credenciales en la tabla usuarios si se proporcionó un nombre
                     if usuario_id and username:
-                        cursor.execute("""
-                            UPDATE usuarios 
-                            SET username = %s, rol = %s::rol_usuario_enum
-                            WHERE id = %s
-                        """, (username, rol_final, usuario_id))
+                        cursor.execute("UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum WHERE id = %s", (username, rol_final, usuario_id))
                     elif usuario_id and rol:
-                        cursor.execute("""
-                            UPDATE usuarios 
-                            SET rol = %s::rol_usuario_enum
-                            WHERE id = %s
-                        """, (rol_final, usuario_id))
+                        cursor.execute("UPDATE usuarios SET rol = %s::rol_usuario_enum WHERE id = %s", (rol_final, usuario_id))
 
-                    mensaje = 'Datos de personal actualizados correctamente.'
+                    mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
-                    # CASO 2: CREACIÓN DE UN NUEVO EMPLEADO
+                    # CASO B: Creación de un nuevo empleado
                     if not username:
                         conexion.close()
                         msg = 'El nombre de usuario es obligatorio para registrar un nuevo empleado.'
-                        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                        if request.is_json:
                             return jsonify({'success': False, 'error': msg}), 400
                         flash(msg, 'warning')
                         return redirect(url_for('personal'))
@@ -879,7 +866,7 @@ def personal():
 
         return redirect(url_for('personal'))
 
-    # ─── VISTA GET: CONSULTA DE PERSONAL Y USUARIOS ─────────────────────────
+    # ─── VISTA GET: CONSULTA CON MAPEO POSICIONAL EXACTO PARA PERSONAL.HTML ──
     empleados_lista = []
     usuarios_lista = []
 
@@ -903,42 +890,41 @@ def personal():
             rows = cursor.fetchall()
             for r in rows:
                 p_id = r[0]
-                username = r[1] or ''
+                username = r[1] or 'Sin Usuario'
                 cargo = r[2] or 'Empleado'
                 rol = str(r[3]) if r[3] else 'empleado'
                 salario = float(r[4]) if r[4] is not None else 0.0
-                activo = bool(r[5])
+                activo_bool = bool(r[5])
+                activo_int = 1 if activo_bool else 0
                 usuario_id = r[6]
-                estado_str = 'Activo' if activo else 'Inactivo'
+                estado_str = 'Activo' if activo_bool else 'Inactivo'
 
                 item = {
                     'id': p_id,
-                    'nombre': username,
+                    'personal_id': p_id,
                     'usuario': username,
+                    'nombre': username,
                     'username': username,
                     'cargo': cargo,
                     'rol': rol,
                     'salario': salario,
                     'sueldo': salario,
-                    'activo': activo,
+                    'activo': activo_int,
                     'estado': estado_str,
                     'usuario_id': usuario_id,
-                    0: p_id,
-                    1: username,
-                    2: cargo,
-                    3: rol,
-                    4: salario,
-                    5: activo,
-                    6: estado_str,
-                    7: usuario_id
+                    # Mapeo de índices alineado a tu plantilla personal.html
+                    0: p_id,         # empleado[0] -> ID
+                    1: usuario_id,   # empleado[1] -> ID Usuario
+                    2: username,     # empleado[2] -> Nombre de Usuario (Columna Usuario)
+                    3: cargo,        # empleado[3] -> Cargo (Columna Cargo)
+                    4: salario,      # empleado[4] -> Salario (Columna Salario)
+                    5: activo_int,   # empleado[5] -> Activo (1 o 0) (Efectúa el check de badges)
+                    6: rol,          # empleado[6] -> Rol (Columna Rol)
+                    7: estado_str
                 }
                 empleados_lista.append(item)
 
-            cursor.execute("""
-                SELECT id, username, rol, COALESCE(activo, true) 
-                FROM usuarios 
-                ORDER BY id ASC
-            """)
+            cursor.execute("SELECT id, username, rol, COALESCE(activo, true) FROM usuarios ORDER BY id ASC")
             for u in cursor.fetchall():
                 usuarios_lista.append({
                     'id': u[0],
@@ -972,7 +958,6 @@ def toggle_estado_personal(target_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Alternar estado en la tabla personal
             cursor.execute("""
                 UPDATE personal
                 SET activo = NOT COALESCE(activo, true)
@@ -987,7 +972,6 @@ def toggle_estado_personal(target_id):
                 if usuario_id:
                     cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (nuevo_estado, usuario_id))
             else:
-                # Alternar estado directo en la tabla usuarios si no existe la ficha de personal
                 cursor.execute("""
                     UPDATE usuarios
                     SET activo = NOT COALESCE(activo, true)
@@ -1036,7 +1020,6 @@ def eliminar_personal_permanente(target_id):
             else:
                 personal_id, usuario_id = None, target_id
 
-            # Limpiar dependencias en cascada en la tabla asistencia
             if personal_id:
                 cursor.execute("DELETE FROM asistencia WHERE personal_id = %s", (personal_id,))
                 cursor.execute("DELETE FROM personal WHERE id = %s", (personal_id,))
@@ -1044,12 +1027,8 @@ def eliminar_personal_permanente(target_id):
             if usuario_id:
                 cursor.execute("DELETE FROM asistencia WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s)", (usuario_id,))
                 cursor.execute("DELETE FROM personal WHERE usuario_id = %s", (usuario_id,))
-                
-                # Desvincular referencias en ventas y compras
                 cursor.execute("UPDATE ventas SET vendedor_id = NULL WHERE vendedor_id = %s", (usuario_id,))
                 cursor.execute("UPDATE compras SET vendedor_id = NULL WHERE vendedor_id = %s", (usuario_id,))
-                
-                # Eliminar la cuenta de usuario permanentemente
                 cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
 
         conexion.commit()
