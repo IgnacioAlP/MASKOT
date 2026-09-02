@@ -748,10 +748,9 @@ def personal():
 
     tenant_id = session.get('tenant_id', 1)
 
-    # ─── PROCESAMIENTO DE PETICIONES POST (CREAR / EDITAR) ───────────────────
+    # ─── PROCESAMIENTO DE PETICIONES POST ─────────────────────────────────────
     if request.method == 'POST':
         try:
-            # Extracción híbrida compatible con JSON (fetch) y Form Data tradicional
             req_json = request.get_json(silent=True) or {}
             
             def get_param(*keys, default=''):
@@ -762,11 +761,31 @@ def personal():
                     v = request.form.get(k)
                     if v is not None and str(v).strip() != '':
                         return str(v).strip()
+                    v = request.args.get(k)
+                    if v is not None and str(v).strip() != '':
+                        return str(v).strip()
                 return default
 
-            # Captura de ID desde cualquier posible nombre de parámetro
-            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'id_personal', 'id_usuario')
+            # Captura flexible del ID del registro objetivo
+            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'id_personal', 'id_usuario', 'target_id', 'user_id')
             target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
+
+            # Detección explícita de acciones desde formularios HTML o JavaScript
+            accion = get_param('accion', 'action', 'tipo_accion').lower()
+
+            # Redireccionar a Desactivar si la acción solicitada es toggle/desactivar
+            if accion in ['desactivar', 'toggle', 'toggle_estado', 'desactivar_acceso']:
+                if target_id:
+                    return toggle_estado_personal(target_id)
+                msg = 'ID de usuario no proporcionado para desactivar.'
+                return jsonify({'success': False, 'error': msg}) if request.is_json else (flash(msg, 'warning') or redirect(url_for('personal')))
+
+            # Redireccionar a Eliminar si la acción solicitada es eliminar/delete
+            if accion in ['eliminar', 'delete', 'borrar', 'eliminar_permanente']:
+                if target_id:
+                    return eliminar_personal_permanente(target_id)
+                msg = 'ID de usuario no proporcionado para eliminar.'
+                return jsonify({'success': False, 'error': msg}) if request.is_json else (flash(msg, 'warning') or redirect(url_for('personal')))
 
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
@@ -798,27 +817,34 @@ def personal():
                         """, (cargo, salario, p_id))
                     else:
                         usuario_id = target_id
-                        # Si no existe ficha en la tabla 'personal', la creamos
                         cursor.execute("""
                             INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
                             VALUES (%s, %s, %s, true, %s)
                         """, (usuario_id, cargo, salario, tenant_id))
 
-                    # Actualizar tabla 'usuarios'
+                    # Actualizar credenciales en la tabla usuarios si se proporcionó un nombre
                     if usuario_id and username:
                         cursor.execute("""
                             UPDATE usuarios 
                             SET username = %s, rol = %s::rol_usuario_enum
                             WHERE id = %s
                         """, (username, rol_final, usuario_id))
+                    elif usuario_id and rol:
+                        cursor.execute("""
+                            UPDATE usuarios 
+                            SET rol = %s::rol_usuario_enum
+                            WHERE id = %s
+                        """, (rol_final, usuario_id))
 
-                    mensaje = f'Empleado "{username}" actualizado correctamente en la base de datos.'
+                    mensaje = 'Datos de personal actualizados correctamente.'
                 else:
                     # CASO 2: CREACIÓN DE UN NUEVO EMPLEADO
                     if not username:
-                        if request.is_json:
-                            return jsonify({'success': False, 'error': 'El nombre de usuario es obligatorio.'}), 400
-                        flash('El nombre de usuario es obligatorio.', 'warning')
+                        conexion.close()
+                        msg = 'El nombre de usuario es obligatorio para registrar un nuevo empleado.'
+                        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                            return jsonify({'success': False, 'error': msg}), 400
+                        flash(msg, 'warning')
                         return redirect(url_for('personal'))
 
                     from controladores.usuarios_controlador import hash_password
@@ -853,7 +879,7 @@ def personal():
 
         return redirect(url_for('personal'))
 
-    # ─── VISTA GET: RENDERIZAR TABLA DE PERSONAL Y USUARIOS ─────────────────
+    # ─── VISTA GET: CONSULTA DE PERSONAL Y USUARIOS ─────────────────────────
     empleados_lista = []
     usuarios_lista = []
 
@@ -946,7 +972,7 @@ def toggle_estado_personal(target_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Alternar estado en la tabla 'personal'
+            # Alternar estado en la tabla personal
             cursor.execute("""
                 UPDATE personal
                 SET activo = NOT COALESCE(activo, true)
@@ -961,7 +987,7 @@ def toggle_estado_personal(target_id):
                 if usuario_id:
                     cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (nuevo_estado, usuario_id))
             else:
-                # Alternar directo en la tabla 'usuarios'
+                # Alternar estado directo en la tabla usuarios si no existe la ficha de personal
                 cursor.execute("""
                     UPDATE usuarios
                     SET activo = NOT COALESCE(activo, true)
@@ -978,7 +1004,7 @@ def toggle_estado_personal(target_id):
         conexion.close()
 
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'message': 'Estado actualizado.'})
+            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'message': 'Estado de acceso actualizado.'})
 
         flash('Estado de acceso actualizado correctamente.', 'success')
         return redirect(url_for('personal'))
@@ -1010,7 +1036,7 @@ def eliminar_personal_permanente(target_id):
             else:
                 personal_id, usuario_id = None, target_id
 
-            # Eliminar referencias en asistencia
+            # Limpiar dependencias en cascada en la tabla asistencia
             if personal_id:
                 cursor.execute("DELETE FROM asistencia WHERE personal_id = %s", (personal_id,))
                 cursor.execute("DELETE FROM personal WHERE id = %s", (personal_id,))
@@ -1019,11 +1045,11 @@ def eliminar_personal_permanente(target_id):
                 cursor.execute("DELETE FROM asistencia WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s)", (usuario_id,))
                 cursor.execute("DELETE FROM personal WHERE usuario_id = %s", (usuario_id,))
                 
-                # Desvincular claves foráneas en compras/ventas
+                # Desvincular referencias en ventas y compras
                 cursor.execute("UPDATE ventas SET vendedor_id = NULL WHERE vendedor_id = %s", (usuario_id,))
                 cursor.execute("UPDATE compras SET vendedor_id = NULL WHERE vendedor_id = %s", (usuario_id,))
                 
-                # Eliminar usuario permanentemente
+                # Eliminar la cuenta de usuario permanentemente
                 cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
 
         conexion.commit()
