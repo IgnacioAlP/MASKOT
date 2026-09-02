@@ -415,10 +415,13 @@ def almacen():
 
     if request.method == 'POST':
         try:
-            # Detectar si es una modificación (presencia de ID) o una creación
-            producto_id = request.form.get('id') or request.form.get('producto_id')
-            if producto_id:
-                producto_id = int(producto_id)
+            # Captura flexible del ID desde cualquier nombre de campo en el modal HTML
+            raw_id = (request.form.get('id') or 
+                      request.form.get('producto_id') or 
+                      request.form.get('edit_id') or 
+                      request.form.get('id_producto') or '').strip()
+            
+            producto_id = int(raw_id) if raw_id and raw_id.isdigit() else None
 
             nombre = request.form.get('nombre', '').strip()
             codigo_barra = request.form.get('codigo_barra', '').strip() or None
@@ -433,31 +436,41 @@ def almacen():
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if producto_id:
-                    # Actualización de producto existente
+                    # Intento de actualización de producto existente
                     cursor.execute("""
                         UPDATE productos 
                         SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s
                         WHERE id = %s
                     """, (nombre, codigo_barra, tipo, cantidad, precio, producto_id))
-                    mensaje = 'Producto actualizado correctamente.'
+                    
+                    filas_afectadas = cursor.rowcount
+                    logger.info(f"UPDATE productos ID={producto_id} - Filas afectadas: {filas_afectadas}")
+                    
+                    if filas_afectadas > 0:
+                        mensaje = f'Producto "{nombre}" actualizado correctamente.'
+                        categoria = 'success'
+                    else:
+                        mensaje = f'No se encontró ningún producto con ID {producto_id} para actualizar.'
+                        categoria = 'warning'
                 else:
-                    # Inserción de nuevo producto
+                    # Inserción de un nuevo producto
                     cursor.execute("""
                         INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio)
                         VALUES (%s, %s, %s, %s, %s)
                     """, (nombre, codigo_barra, tipo, cantidad, precio))
-                    mensaje = 'Producto registrado correctamente en el almacén.'
+                    mensaje = f'Producto "{nombre}" registrado correctamente en el almacén.'
+                    categoria = 'success'
 
             conexion.commit()
             conexion.close()
 
-            flash(mensaje, 'success')
+            flash(mensaje, categoria)
         except Exception as e:
-            logger.error(f"Error procesando producto: {e}")
+            logger.error(f"Error procesando producto en almacén: {e}")
             flash(f'Error al procesar el producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # Lectura de productos para la tabla
+    # Lectura de productos para renderizar la tabla
     productos_lista = []
     try:
         conexion = obtener_conexion()
