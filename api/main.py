@@ -739,17 +739,129 @@ def personal():
     if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
-    
-    empleados = []
-    if hasattr(personal_controlador, 'obtener_empleados'):
-        empleados = personal_controlador.obtener_empleados()
-    elif hasattr(personal_controlador, 'obtener_personal'):
-        empleados = personal_controlador.obtener_personal()
-        
-    usuarios = usuarios_controlador.obtener_usuarios() if hasattr(usuarios_controlador, 'obtener_usuarios') else []
+
+    empleados_lista = []
+    usuarios_lista = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # Asegurar la existencia de la tabla personal
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS personal (
+                    id SERIAL PRIMARY KEY,
+                    nombre VARCHAR(150),
+                    cargo VARCHAR(100) DEFAULT 'Empleado',
+                    rol VARCHAR(50) DEFAULT 'empleado',
+                    salario NUMERIC(10,2) DEFAULT 0.0,
+                    activo BOOLEAN DEFAULT true
+                )
+            """)
+            conexion.commit()
+
+            # 1. Lectura principal de la tabla 'personal'
+            try:
+                cursor.execute("""
+                    SELECT id, nombre, cargo, rol, salario, COALESCE(activo, true) 
+                    FROM personal 
+                    ORDER BY id ASC
+                """)
+                rows = cursor.fetchall()
+                for r in rows:
+                    p_id = r[0]
+                    nombre = r[1] or ''
+                    cargo = r[2] or 'Empleado'
+                    rol = r[3] or 'empleado'
+                    salario = float(r[4]) if r[4] is not None else 0.0
+                    activo = bool(r[5])
+
+                    item = {
+                        'id': p_id,
+                        'nombre': nombre,
+                        'usuario': nombre,
+                        'cargo': cargo,
+                        'rol': rol,
+                        'salario': salario,
+                        'sueldo': salario,
+                        'activo': activo,
+                        'estado': 'Activo' if activo else 'Inactivo',
+                        # Mapeo posicional para plantillas Jinja2 basadas en tuplas
+                        0: p_id,
+                        1: nombre,
+                        2: cargo,
+                        3: rol,
+                        4: salario,
+                        5: activo
+                    }
+                    empleados_lista.append(item)
+            except Exception as ex_p:
+                conexion.rollback()
+                logger.warning(f"Consulta a tabla 'personal' falló: {ex_p}")
+
+            # 2. Si la tabla 'personal' está vacía, consultar la tabla 'usuarios'
+            if not empleados_lista:
+                try:
+                    cursor.execute("""
+                        SELECT id, username, rol, COALESCE(activo, true) 
+                        FROM usuarios 
+                        ORDER BY id ASC
+                    """)
+                    rows_u = cursor.fetchall()
+                    for r in rows_u:
+                        u_id = r[0]
+                        username = r[1] or ''
+                        rol = r[2] or 'empleado'
+                        activo = bool(r[3])
+
+                        item = {
+                            'id': u_id,
+                            'nombre': username,
+                            'usuario': username,
+                            'cargo': rol.capitalize(),
+                            'rol': rol,
+                            'salario': 0.0,
+                            'sueldo': 0.0,
+                            'activo': activo,
+                            'estado': 'Activo' if activo else 'Inactivo',
+                            0: u_id,
+                            1: username,
+                            2: rol.capitalize(),
+                            3: rol,
+                            4: 0.0,
+                            5: activo
+                        }
+                        empleados_lista.append(item)
+                except Exception as ex_u:
+                    conexion.rollback()
+                    logger.error(f"Consulta a tabla 'usuarios' falló: {ex_u}")
+
+            # 3. Cargar la lista completa de usuarios para modales o asignaciones
+            try:
+                cursor.execute("SELECT id, username, rol, COALESCE(activo, true) FROM usuarios ORDER BY id ASC")
+                for r in cursor.fetchall():
+                    usuarios_lista.append({
+                        'id': r[0],
+                        'username': r[1],
+                        'rol': r[2],
+                        'activo': r[3],
+                        0: r[0], 1: r[1], 2: r[2], 3: r[3]
+                    })
+            except Exception:
+                conexion.rollback()
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error procesando módulo personal: {e}")
+
     puede_modificar = session.get('rol') in ['admin', 'dueño']
-    
-    return render_template('personal.html', empleados=empleados, usuarios=usuarios, puede_modificar=puede_modificar)
+
+    return render_template(
+        'personal.html', 
+        empleados=empleados_lista, 
+        personal=empleados_lista, 
+        usuarios=usuarios_lista, 
+        puede_modificar=puede_modificar
+    )
 
 
 @app.route('/personal/agregar', methods=['POST'])
@@ -758,13 +870,38 @@ def agregar_personal():
         flash('Sin permisos.', 'error')
         return redirect(url_for('personal'))
     try:
-        nombre = request.form.get('nombre') or request.form.get('username')
-        cargo = request.form.get('cargo', 'Empleado')
-        salario = float(request.form.get('salario', 0.0))
-        if hasattr(personal_controlador, 'insertar_empleado'):
-            personal_controlador.insertar_empleado(nombre, cargo, salario)
-        flash('Personal agregado correctamente.', 'success')
+        nombre = (request.form.get('nombre') or request.form.get('username') or '').strip()
+        cargo = request.form.get('cargo', 'Empleado').strip()
+        rol = request.form.get('rol', 'empleado').strip().lower()
+        salario_raw = request.form.get('salario', request.form.get('sueldo', '')).strip()
+        salario = float(salario_raw) if salario_raw else 0.0
+
+        if not nombre:
+            flash('El nombre o usuario es obligatorio.', 'warning')
+            return redirect(url_for('personal'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS personal (
+                    id SERIAL PRIMARY KEY,
+                    nombre VARCHAR(150),
+                    cargo VARCHAR(100) DEFAULT 'Empleado',
+                    rol VARCHAR(50) DEFAULT 'empleado',
+                    salario NUMERIC(10,2) DEFAULT 0.0,
+                    activo BOOLEAN DEFAULT true
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO personal (nombre, cargo, rol, salario, activo)
+                VALUES (%s, %s, %s, %s, true)
+            """, (nombre, cargo, rol, salario))
+        conexion.commit()
+        conexion.close()
+
+        flash(f'Empleado "{nombre}" registrado correctamente.', 'success')
     except Exception as e:
+        logger.error(f"Error al agregar personal: {e}")
         flash(f'Error al agregar personal: {e}', 'error')
     return redirect(url_for('personal'))
 
