@@ -417,12 +417,12 @@
                     </div>
 
                     <div id="productos-container"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; padding: 0 15px 15px 15px; max-height: 55vh; overflow-y: auto;">
                         {% for producto in productos %}
                         <div class="producto-card" data-nombre="{{ producto[1]|lower }}"
                             data-codigo="{{ producto[4] if producto[4] is defined else '' }}"
                             data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower or 'vitamina' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower or 'cama' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower or 'pelota' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower or 'jabón' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
-                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #ffa301;"
+                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #ffa301;"
                             onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.borderLeftColor='#6ccae2';"
                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.borderLeftColor='#ffa301';">
                             <div style="margin-bottom: 15px;">
@@ -437,7 +437,7 @@
                                     {{ producto[3] }}</span>
                             </div>
                             <button
-                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 14px 24px; font-weight: 700; font-size: 16px; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);"
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 12px; color: white; padding: 10px 20px; font-weight: 700; font-size: 14px; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(255, 163, 1, 0.15);"
                                 onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.background='linear-gradient(135deg, #6ccae2, #5ab8d9)';"
                                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.background='linear-gradient(135deg, #ffa301, #e6920e)';"
                                 {% if producto[1] and producto[2] is not none %}
@@ -458,11 +458,11 @@
                             style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.1); color: #2c3e50; font-weight: 500; margin-bottom: 20px;">
                     </div>
                     <div id="servicios-container"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; padding: 0 15px 15px 15px; max-height: 55vh; overflow-y: auto;">
                         {% for servicio in servicios %}
                         {% if servicio[5] %}
                         <div class="servicio-card" data-nombre="{{ servicio[1]|lower }}"
-                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(108, 202, 226, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #6ccae2;"
+                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #6ccae2;"
                             onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(108, 202, 226, 0.25)'; this.style.borderLeftColor='#ffa301';"
                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(108, 202, 226, 0.15)'; this.style.borderLeftColor='#6ccae2';">
                             <div style="margin-bottom: 15px;">
@@ -482,7 +482,7 @@
                                 servicio[4]|length > 80 %}…{% endif %}</p>
                             {% endif %}
                             <button
-                                style="background: linear-gradient(135deg, #6ccae2, #5ab8d9); border: none; border-radius: 15px; color: white; padding: 14px 24px; font-weight: 700; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; text-transform: uppercase; transition: all 0.4s ease; box-shadow: 0 8px 25px rgba(108, 202, 226, 0.3);"
+                                style="background: linear-gradient(135deg, #6ccae2, #5ab8d9); border: none; border-radius: 12px; color: white; padding: 10px 20px; font-weight: 700; font-size: 14px; cursor: pointer; width: 100%; margin-top: 10px; text-transform: uppercase; transition: all 0.4s ease; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.3);"
                                 onmouseover="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'; this.style.transform='translateY(-2px)';"
                                 onmouseout="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'; this.style.transform='translateY(0)';"
                                 onclick='agregarServicio({{ servicio[0] }}, "{{ servicio[1].replace("\"", "\\\"") }}", {{ servicio[2] }})'>

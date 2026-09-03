@@ -1862,20 +1862,20 @@ window.actualizarCarrito = function() {
         const subtotal = item.precio * item.cantidad;
         total += subtotal;
         html += `
-            <div style="background: #fff; border-radius: 15px; padding: 20px; margin-bottom: 15px; border-left: 4px solid #ffa301; box-shadow: 0 4px 15px rgba(255,163,1,0.1); border: 1px solid #e9ecef;">
-                <div style="margin-bottom: 8px;">
-                    <strong style="color: #2c3e50; display: block; font-size: 16px; font-weight: 700;">${item.nombre}</strong>
-                    <span style="color: #ffa301; font-weight: 600;">S/ ${item.precio.toFixed(2)} x ${item.cantidad}</span>
+            <div style="background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 10px; border-left: 4px solid #ffa301; box-shadow: 0 4px 10px rgba(255,163,1,0.1); border: 1px solid #e9ecef;">
+                <div style="margin-bottom: 5px;">
+                    <strong style="color: #2c3e50; display: block; font-size: 15px; font-weight: 700;">${item.nombre}</strong>
+                    <span style="color: #ffa301; font-weight: 600; font-size: 14px;">S/ ${item.precio.toFixed(2)} x ${item.cantidad}</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 12px; margin: 15px 0; justify-content: space-between;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <button onclick="window.cambiarCantidad('${item.id}', -1)" style="background: #ffa301; color: white; border: none; border-radius: 8px; width: 35px; height: 35px; cursor: pointer; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(255,163,1,0.3);">-</button>
-                        <span style="font-weight: 600; color: #2c3e50; min-width: 30px; text-align: center;">${item.cantidad}</span>
-                        <button onclick="window.cambiarCantidad('${item.id}', 1)" style="background: #ffa301; color: white; border: none; border-radius: 8px; width: 35px; height: 35px; cursor: pointer; font-weight: 700; font-size: 16px; box-shadow: 0 4px 15px rgba(255,163,1,0.3);">+</button>
+                <div style="display: flex; align-items: center; gap: 8px; margin: 8px 0; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button onclick="window.cambiarCantidad('${item.id}', -1)" style="background: #ffa301; color: white; border: none; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-weight: 700; font-size: 14px; box-shadow: 0 2px 8px rgba(255,163,1,0.3); padding:0;">-</button>
+                        <span style="font-weight: 600; color: #2c3e50; min-width: 24px; text-align: center; font-size: 14px;">${item.cantidad}</span>
+                        <button onclick="window.cambiarCantidad('${item.id}', 1)" style="background: #ffa301; color: white; border: none; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-weight: 700; font-size: 14px; box-shadow: 0 2px 8px rgba(255,163,1,0.3); padding:0;">+</button>
                     </div>
-                    <button onclick="window.eliminarItem('${item.id}')" style="background: #dc3545; color: white; border: none; border-radius: 8px; width: 35px; height: 35px; cursor: pointer; font-size: 18px; box-shadow: 0 4px 15px rgba(220,53,69,0.3);">×</button>
+                    <button onclick="window.eliminarItem('${item.id}')" style="background: #dc3545; color: white; border: none; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; box-shadow: 0 2px 8px rgba(220,53,69,0.3); padding:0; display: flex; align-items: center; justify-content: center;">×</button>
                 </div>
-                <div style="text-align: right; font-weight: 700; color: #ffa301; font-size: 16px;">S/ ${subtotal.toFixed(2)}</div>
+                <div style="text-align: right; font-weight: 700; color: #ffa301; font-size: 15px;">S/ ${subtotal.toFixed(2)}</div>
             </div>
         `;
     });
