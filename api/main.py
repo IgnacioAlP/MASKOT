@@ -944,6 +944,8 @@ def ticket_venta(venta_id):
 
 # ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
 
+# ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
+
 @app.route('/productos')
 def productos():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
@@ -1012,7 +1014,7 @@ def almacen():
 
                 if producto_id:
                     if not tipo:
-                        cursor.execute("SELECT tipo FROM productos WHERE id = %s", (producto_id,))
+                        cursor.execute("SELECT tipo::text FROM productos WHERE id = %s", (producto_id,))
                         res_tipo = cursor.fetchone()
                         if res_tipo and res_tipo[0]:
                             tipo = str(res_tipo[0]).strip().lower()
@@ -1064,14 +1066,14 @@ def almacen():
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
 
             sql_query = """
-                SELECT id, nombre, COALESCE(tipo, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra 
+                SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra 
                 FROM productos 
             """
 
             if tipo_filtro == 'stock':
-                sql_query += " WHERE LOWER(TRIM(COALESCE(tipo, 'stock'))) = 'stock' "
+                sql_query += " WHERE LOWER(COALESCE(tipo::text, 'stock')) = 'stock' "
             elif tipo_filtro == 'venta':
-                sql_query += " WHERE LOWER(TRIM(tipo)) = 'venta' "
+                sql_query += " WHERE LOWER(tipo::text) = 'venta' "
 
             sql_query += " ORDER BY id ASC "
 
