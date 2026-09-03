@@ -1023,26 +1023,18 @@ def ver_producto(producto_id):
     return render_template('ver_producto.html', producto=producto)
 
 
-# ─── SERVICIOS ───────────────────────────────────────────────────────────────
+# ─── MÓDULO DE SERVICIOS COMPLETO ─────────────────────────────────────────────
 
 @app.template_filter('moneda')
 def formato_moneda_filter(val):
-    """Formatea precios a moneda (S/ 0.00) de forma ultra segura."""
     try:
         return f"S/ {float(val):.2f}"
     except (ValueError, TypeError):
         return "S/ 0.00"
 
-@app.template_filter('decimales')
-def formato_decimales_filter(val):
-    """Formatea números a 2 decimales (0.00) de forma ultra segura."""
-    try:
-        return f"{float(val):.2f}"
-    except (ValueError, TypeError):
-        return "0.00"
 
-@app.route('/servicios', endpoint='servicios')
-@app.route('/gestion_servicios', endpoint='gestion_servicios')
+@app.route('/servicios', methods=['GET'], endpoint='servicios')
+@app.route('/gestion_servicios', methods=['GET'], endpoint='gestion_servicios')
 def servicios():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
@@ -1069,14 +1061,9 @@ def servicios():
             
             rows = cursor.fetchall()
             for s in rows:
-                # Compatibilidad unificada para DictCursor y Tuplas
                 if isinstance(s, dict):
-                    s_id = s.get('id')
-                    s_nom = s.get('nombre')
-                    s_desc = s.get('descripcion')
-                    raw_prec = s.get('precio')
-                    raw_dur = s.get('duracion')
-                    s_act = s.get('activo')
+                    s_id, s_nom, s_desc = s.get('id'), s.get('nombre'), s.get('descripcion')
+                    raw_prec, raw_dur, s_act = s.get('precio'), s.get('duracion'), s.get('activo')
                 else:
                     s_id, s_nom, s_desc = s[0], s[1], s[2]
                     raw_prec, raw_dur, s_act = s[3], s[4], s[5]
@@ -1104,21 +1091,124 @@ def servicios():
         conexion.close()
     except Exception as e:
         logger.error(f"Error consultando servicios desde DB: {e}")
-        if hasattr(servicios_controlador, 'obtener_servicios'):
-            raw_lista = servicios_controlador.obtener_servicios() or []
-            for item in raw_lista:
-                if isinstance(item, dict):
-                    try:
-                        item['precio'] = float(item.get('precio', 0.0))
-                    except (ValueError, TypeError):
-                        item['precio'] = 0.0
-                    try:
-                        item['duracion'] = int(item.get('duracion', 30))
-                    except (ValueError, TypeError):
-                        item['duracion'] = 30
-                    servicios_lista.append(item)
 
     return render_template('servicios.html', servicios=servicios_lista)
+
+
+@app.route('/servicios/agregar', methods=['POST'])
+def agregar_servicio():
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        tenant_id = session.get('tenant_id', 1)
+        
+        nombre = request.form.get('nombre', '').strip()
+        descripcion = request.form.get('descripcion', '').strip()
+        
+        try:
+            precio = float(request.form.get('precio', 0.0))
+        except (ValueError, TypeError):
+            precio = 0.0
+
+        try:
+            duracion = int(request.form.get('duracion', 30))
+        except (ValueError, TypeError):
+            duracion = 30
+
+        if not nombre:
+            flash('El nombre del servicio es obligatorio.', 'warning')
+            return redirect(url_for('servicios'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO servicios (nombre, descripcion, precio, duracion, activo, tenant_id)
+                VALUES (%s, %s, %s, %s, true, %s)
+            """, (nombre, descripcion, precio, duracion, tenant_id))
+        conexion.commit()
+        conexion.close()
+
+        flash('Servicio registrado exitosamente.', 'success')
+        return redirect(url_for('servicios'))
+    except Exception as e:
+        logger.error(f"Error al agregar servicio: {e}")
+        flash(f'Error al registrar servicio: {e}', 'error')
+        return redirect(url_for('servicios'))
+
+
+@app.route('/servicios/editar', methods=['POST'])
+def editar_servicio():
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        tenant_id = session.get('tenant_id', 1)
+
+        raw_id = request.form.get('servicio_id') or request.form.get('id')
+        servicio_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
+        
+        nombre = request.form.get('nombre', '').strip()
+        descripcion = request.form.get('descripcion', '').strip()
+        
+        try:
+            precio = float(request.form.get('precio', 0.0))
+        except (ValueError, TypeError):
+            precio = 0.0
+
+        try:
+            duracion = int(request.form.get('duracion', 30))
+        except (ValueError, TypeError):
+            duracion = 30
+
+        if not servicio_id or not nombre:
+            flash('Datos incompletos para actualizar el servicio.', 'error')
+            return redirect(url_for('servicios'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE servicios 
+                SET nombre = %s, descripcion = %s, precio = %s, duracion = %s
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (nombre, descripcion, precio, duracion, servicio_id, tenant_id))
+        conexion.commit()
+        conexion.close()
+
+        flash('Servicio actualizado exitosamente.', 'success')
+        return redirect(url_for('servicios'))
+    except Exception as e:
+        logger.error(f"Error al editar servicio: {e}")
+        flash(f'Error al actualizar servicio: {e}', 'error')
+        return redirect(url_for('servicios'))
+
+
+@app.route('/servicios/cambiar-estado', methods=['POST'])
+def cambiar_estado_servicio():
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+    try:
+        tenant_id = session.get('tenant_id', 1)
+        data = request.get_json(silent=True) or {}
+        
+        servicio_id = data.get('servicio_id') or data.get('id')
+        activo = data.get('activo', True)
+        
+        if not servicio_id:
+            return jsonify({'success': False, 'error': 'ID de servicio no especificado'}), 400
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE servicios 
+                SET activo = %s 
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (bool(activo), int(servicio_id), tenant_id))
+        conexion.commit()
+        conexion.close()
+        
+        return jsonify({'success': True, 'message': 'Estado del servicio actualizado correctamente.'})
+    except Exception as e:
+        logger.error(f"Error al cambiar estado del servicio: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ─── CLIENTES & MASCOTAS ─────────────────────────────────────────────────────
 
