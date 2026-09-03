@@ -1032,8 +1032,37 @@ def servicios():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
-    return render_template('servicios.html', servicios=lista)
+    tenant_id = session.get('tenant_id', 1)
+    servicios_lista = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, nombre, COALESCE(descripcion, ''), COALESCE(precio, 0.00), 
+                       COALESCE(duracion, 30), COALESCE(activo, true)
+                FROM servicios
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                ORDER BY nombre ASC
+            """, (tenant_id,))
+            
+            for s in cursor.fetchall():
+                servicios_lista.append({
+                    'id': s[0],
+                    'nombre': s[1],
+                    'descripcion': s[2],
+                    'precio': float(s[3]),
+                    'duracion': int(s[4]),
+                    'duracion_minutos': int(s[4]),
+                    'activo': bool(s[5]),
+                    0: s[0], 1: s[1], 2: s[2], 3: float(s[3]), 4: int(s[4]), 5: bool(s[5])
+                })
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando servicios: {e}")
+        servicios_lista = servicios_controlador.obtener_servicios() if hasattr(servicios_controlador, 'obtener_servicios') else []
+
+    return render_template('servicios.html', servicios=servicios_lista)
 
 
 @app.route('/servicios/agregar', methods=['POST'])
@@ -1041,16 +1070,50 @@ def agregar_servicio():
     if session.get('rol') not in ['admin', 'dueño']:
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
     try:
-        nombre = request.form.get('nombre')
-        descripcion = request.form.get('descripcion', '')
-        precio = float(request.form.get('precio', 0.0))
-        duracion = int(request.form.get('duracion_minutos', 30))
+        tenant_id = session.get('tenant_id', 1)
         
-        if hasattr(servicios_controlador, 'insertar_servicio'):
-            servicios_controlador.insertar_servicio(nombre, descripcion, precio, duracion)
+        def get_field(*keys, default=''):
+            for k in keys:
+                val = request.form.get(k)
+                if val is not None and str(val).strip() != '':
+                    return str(val).strip()
+            return default
+
+        nombre = get_field('nombre', 'nombre_servicio')
+        descripcion = get_field('descripcion', 'detalles')
+        
+        # Extraer precio y duración aceptando múltiples nombres posibles de input
+        precio_raw = get_field('precio', 'precio_servicio', 'costo', default='0.0')
+        duracion_raw = get_field('duracion_minutos', 'duracion', 'tiempo', default='30')
+
+        try:
+            precio = float(precio_raw)
+        except (ValueError, TypeError):
+            precio = 0.0
+
+        try:
+            duracion = int(duracion_raw)
+        except (ValueError, TypeError):
+            duracion = 30
+
+        if not nombre:
+            flash('El nombre del servicio es obligatorio.', 'warning')
+            return redirect(url_for('servicios'))
+
+        # Inserción directa en la base de datos con tenant_id
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO servicios (nombre, descripcion, precio, duracion, activo, tenant_id)
+                VALUES (%s, %s, %s, %s, true, %s)
+            """, (nombre, descripcion, precio, duracion, tenant_id))
+        conexion.commit()
+        conexion.close()
+
         flash('Servicio registrado exitosamente.', 'success')
         return redirect(url_for('servicios'))
     except Exception as e:
+        logger.error(f"Error al agregar servicio: {e}")
         flash(f'Error al registrar servicio: {e}', 'error')
         return redirect(url_for('servicios'))
 
@@ -1060,17 +1123,52 @@ def editar_servicio():
     if session.get('rol') not in ['admin', 'dueño']:
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
     try:
-        servicio_id = int(request.form.get('id'))
-        nombre = request.form.get('nombre')
-        descripcion = request.form.get('descripcion', '')
-        precio = float(request.form.get('precio', 0.0))
-        duracion = int(request.form.get('duracion_minutos', 30))
+        tenant_id = session.get('tenant_id', 1)
+
+        def get_field(*keys, default=''):
+            for k in keys:
+                val = request.form.get(k)
+                if val is not None and str(val).strip() != '':
+                    return str(val).strip()
+            return default
+
+        raw_id = get_field('id', 'servicio_id')
+        servicio_id = int(raw_id) if raw_id and raw_id.isdigit() else None
         
-        if hasattr(servicios_controlador, 'actualizar_servicio'):
-            servicios_controlador.actualizar_servicio(servicio_id, nombre, descripcion, precio, duracion)
+        nombre = get_field('nombre', 'nombre_servicio')
+        descripcion = get_field('descripcion', 'detalles')
+        
+        precio_raw = get_field('precio', 'precio_servicio', 'costo', default='0.0')
+        duracion_raw = get_field('duracion_minutos', 'duracion', 'tiempo', default='30')
+
+        try:
+            precio = float(precio_raw)
+        except (ValueError, TypeError):
+            precio = 0.0
+
+        try:
+            duracion = int(duracion_raw)
+        except (ValueError, TypeError):
+            duracion = 30
+
+        if not servicio_id:
+            flash('ID de servicio no válido.', 'error')
+            return redirect(url_for('servicios'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE servicios 
+                SET nombre = %s, descripcion = %s, precio = %s, duracion = %s
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (nombre, descripcion, precio, duracion, servicio_id, tenant_id))
+        conexion.commit()
+        conexion.close()
+
         flash('Servicio actualizado exitosamente.', 'success')
         return redirect(url_for('servicios'))
     except Exception as e:
+        logger.error(f"Error al editar servicio: {e}")
         flash(f'Error al actualizar servicio: {e}', 'error')
         return redirect(url_for('servicios'))
 
@@ -1080,13 +1178,18 @@ def cambiar_estado_servicio():
     if session.get('rol') not in ['admin', 'dueño']:
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
     try:
+        tenant_id = session.get('tenant_id', 1)
         data = request.get_json() or {}
         servicio_id = data.get('id') or data.get('servicio_id')
         activo = data.get('activo', True)
         
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("UPDATE servicios SET activo = %s WHERE id = %s", (activo, servicio_id))
+            cursor.execute("""
+                UPDATE servicios 
+                SET activo = %s 
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (activo, servicio_id, tenant_id))
         conexion.commit()
         conexion.close()
         return jsonify({'success': True, 'message': 'Estado del servicio actualizado'})
