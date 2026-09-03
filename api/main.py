@@ -1216,18 +1216,251 @@ def historial_asistencia():
     return render_template('historial_asistencia.html', historial=registros, registros=registros)
 
 
+# ─── MÓDULO DE GESTIÓN DE CITAS (COMPLETO) ───────────────────────────────────
+
 @app.route('/citas')
 def citas():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
+    tenant_id = session.get('tenant_id', 1)
     fecha_filtro = request.args.get('fecha', default=date.today().strftime('%Y-%m-%d'))
-    citas_list = citas_controlador.obtener_citas_por_fecha(fecha_filtro)
-    servicios_lista = servicios_controlador.obtener_servicios()
-    
+    citas_list = []
+    servicios_lista = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Consultar Citas filtradas por fecha
+            cursor.execute("""
+                SELECT 
+                    c.id, c.cliente_nombre, c.cliente_email, c.cliente_telefono,
+                    c.fecha, c.hora, c.mascota_nombre, c.mascota_especie,
+                    c.observaciones, c.precio_total, c.estado, s.nombre AS servicio_nombre,
+                    c.servicio_id, c.cliente_id
+                FROM citas c
+                LEFT JOIN servicios s ON c.servicio_id = s.id
+                WHERE c.tenant_id = %s AND c.fecha = %s
+                ORDER BY c.hora ASC
+            """, (tenant_id, fecha_filtro))
+            
+            for r in cursor.fetchall():
+                c_id = r[0]
+                c_nombre = r[1] or ''
+                c_email = r[2] or ''
+                c_tel = r[3] or ''
+                c_fecha = str(r[4]) if r[4] else ''
+                c_hora = str(r[5]) if r[5] else ''
+                m_nombre = r[6] or ''
+                m_especie = r[7] or ''
+                c_obs = r[8] or ''
+                c_precio = float(r[9]) if r[9] is not None else 0.0
+                c_estado = str(r[10]) if r[10] else 'pendiente'
+                s_nombre = r[11] or 'Servicio General'
+
+                item = {
+                    'id': c_id,
+                    'cliente_nombre': c_nombre,
+                    'cliente_email': c_email,
+                    'cliente_telefono': c_tel,
+                    'fecha': c_fecha,
+                    'hora': c_hora,
+                    'mascota_nombre': m_nombre,
+                    'mascota_especie': m_especie,
+                    'observaciones': c_obs,
+                    'precio_total': c_precio,
+                    'estado': c_estado,
+                    'servicio_nombre': s_nombre,
+                    'servicio_id': r[12],
+                    'cliente_id': r[13],
+                    # Mapeo posicional para plantillas Jinja2 basadas en tuplas
+                    0: c_id, 1: c_nombre, 2: c_email, 3: c_tel, 4: c_fecha, 5: c_hora, 
+                    6: m_nombre, 7: m_especie, 8: c_obs, 9: c_precio, 10: c_estado, 11: s_nombre
+                }
+                citas_list.append(item)
+
+            # 2. Consultar catálogo de servicios (cumpliendo {% if s[5] %} de personal/citas.html)
+            cursor.execute("""
+                SELECT id, nombre, precio, duracion, max_citas_dia, COALESCE(activo, true)
+                FROM servicios
+                WHERE tenant_id = %s
+                ORDER BY nombre ASC
+            """, (tenant_id,))
+            
+            for s in cursor.fetchall():
+                s_id = s[0]
+                s_nombre = s[1]
+                s_precio = float(s[2]) if s[2] is not None else 0.0
+                s_duracion = s[3]
+                s_max = s[4]
+                s_activo = bool(s[5])
+
+                servicios_lista.append({
+                    'id': s_id,
+                    'nombre': s_nombre,
+                    'precio': s_precio,
+                    'duracion': s_duracion,
+                    'max_citas_dia': s_max,
+                    'activo': s_activo,
+                    0: s_id,
+                    1: s_nombre,
+                    2: s_precio,
+                    3: s_duracion,
+                    4: s_max,
+                    5: s_activo
+                })
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando citas: {e}")
+
     return render_template('citas.html', citas=citas_list, fecha_filtro=fecha_filtro, servicios=servicios_lista)
 
+
+@app.route('/agendar_cita', methods=['POST'])
+def agendar_cita():
+    try:
+        tenant_id = session.get('tenant_id', 1)
+
+        # Captura de campos desde el formulario HTML
+        nombre = request.form.get('cliente_nombre', '').strip()
+        email = request.form.get('cliente_email', '').strip() or None
+        telefono = request.form.get('cliente_telefono', '').strip() or None
+        direccion = request.form.get('cliente_direccion', '').strip() or None
+        
+        fecha = request.form.get('fecha', '').strip()
+        hora = request.form.get('hora', '').strip()
+        
+        # Captura de servicio_id desde el selector simple <select name="servicio_id">
+        servicio_id_raw = request.form.get('servicio_id') or request.form.get('servicio')
+        if not servicio_id_raw and request.form.getlist('servicio_id[]'):
+            servicio_id_raw = request.form.getlist('servicio_id[]')[0]
+            
+        servicio_id = int(servicio_id_raw) if servicio_id_raw and str(servicio_id_raw).isdigit() else None
+
+        # Datos de mascota
+        mascota_nombre = request.form.get('mascota_nombre', '').strip() or None
+        mascota_especie = request.form.get('mascota_especie', 'perro').strip() or 'perro'
+        
+        # Observaciones y dirección
+        obs_input = request.form.get('observaciones', '').strip()
+        obs_partes = []
+        if direccion:
+            obs_partes.append(f"Dirección: {direccion}")
+        if obs_input:
+            obs_partes.append(obs_input)
+        observaciones = " | ".join(obs_partes) if obs_partes else None
+
+        # Validaciones de campos obligatorios (*)
+        if not nombre or not fecha or not hora or not servicio_id or not mascota_nombre:
+            flash('Por favor completa todos los campos obligatorios (*).', 'error')
+            return redirect(request.referrer or url_for('citas'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # Obtener el precio oficial del servicio
+            precio_total = 0.0
+            cursor.execute("SELECT precio FROM servicios WHERE id = %s", (servicio_id,))
+            s_row = cursor.fetchone()
+            if s_row and s_row[0] is not None:
+                precio_total = float(s_row[0])
+
+            # Insertar en la tabla citas
+            cursor.execute("""
+                INSERT INTO citas (
+                    cliente_nombre, cliente_email, cliente_telefono,
+                    servicio_id, fecha, hora, mascota_nombre, mascota_especie,
+                    observaciones, precio_total, estado, tenant_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendiente'::estado_cita_enum, %s)
+            """, (nombre, email, telefono, servicio_id, fecha, hora, mascota_nombre, mascota_especie, observaciones, precio_total, tenant_id))
+
+        conexion.commit()
+        conexion.close()
+
+        flash('Cita agendada exitosamente.', 'success')
+    except Exception as e:
+        logger.error(f"Error al agendar cita: {e}")
+        flash(f'Error al agendar la cita: {str(e)}', 'error')
+
+    return redirect(request.referrer or url_for('citas'))
+
+
+# ─── CAMBIO DE ESTADO DE CITAS (AJAX Y FORM) ───────────────────────────────
+
+@app.route('/cita/<int:cita_id>/status', methods=['POST'])
+@app.route('/citas/estado/<int:cita_id>', methods=['POST'])
+def cambiar_estado_cita(cita_id):
+    if session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+
+    try:
+        tenant_id = session.get('tenant_id', 1)
+        data = request.get_json(silent=True) or {}
+        
+        nuevo_estado = (data.get('status') or data.get('estado') or request.form.get('estado') or '').strip().lower()
+        motivo = (data.get('motivo') or request.form.get('motivo') or '').strip()
+
+        estados_validos = ['pendiente', 'confirmada', 'en_progreso', 'completada', 'cancelada']
+        if not nuevo_estado or nuevo_estado not in estados_validos:
+            return jsonify({'success': False, 'error': 'Estado no válido'}), 400
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("UPDATE citas SET estado = %s::estado_cita_enum WHERE id = %s AND tenant_id = %s", (nuevo_estado, cita_id, tenant_id))
+
+            if motivo:
+                cursor.execute("""
+                    UPDATE citas 
+                    SET observaciones = CASE 
+                        WHEN observaciones IS NULL OR observaciones = '' THEN %s
+                        ELSE observaciones || ' | ' || %s
+                    END
+                    WHERE id = %s AND tenant_id = %s
+                """, (f"Motivo: {motivo}", f"Motivo: {motivo}", cita_id, tenant_id))
+
+        conexion.commit()
+        conexion.close()
+
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': 'Estado de cita actualizado.'})
+
+        flash('Estado de la cita actualizado correctamente.', 'success')
+        return redirect(url_for('citas'))
+    except Exception as e:
+        logger.error(f"Error cambiando estado de cita: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─── ELIMINACIÓN DE CITAS ────────────────────────────────────────────────────
+
+@app.route('/cita/<int:cita_id>/eliminar', methods=['POST', 'DELETE'])
+@app.route('/citas/eliminar/<int:cita_id>', methods=['POST', 'DELETE'])
+def eliminar_cita(cita_id):
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+
+    try:
+        tenant_id = session.get('tenant_id', 1)
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("DELETE FROM citas_mascotas WHERE cita_id = %s AND tenant_id = %s", (cita_id, tenant_id))
+            cursor.execute("DELETE FROM citas_servicios WHERE cita_id = %s AND tenant_id = %s", (cita_id, tenant_id))
+            cursor.execute("DELETE FROM citas WHERE id = %s AND tenant_id = %s", (cita_id, tenant_id))
+        conexion.commit()
+        conexion.close()
+
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': 'Cita eliminada correctamente.'})
+
+        flash('Cita eliminada permanentemente.', 'success')
+        return redirect(url_for('citas'))
+    except Exception as e:
+        logger.error(f"Error eliminando cita: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─── IMPRESIÓN Y DETALLES DE CITAS (RECIBOS Y TICKETS) ───────────────────────
 
 @app.route('/cita/<int:cita_id>', endpoint='ver_detalles_cita')
 @app.route('/cita/recibo/<int:cita_id>')
@@ -1235,10 +1468,37 @@ def ver_recibo_cita(cita_id):
     if 'rol' not in session:
         return redirect(url_for('login'))
     
-    cita = citas_controlador.obtener_cita_por_id(cita_id) if hasattr(citas_controlador, 'obtener_cita_por_id') else None
+    tenant_id = session.get('tenant_id', 1)
+    cita = None
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    c.id, c.cliente_nombre, c.cliente_email, c.cliente_telefono,
+                    c.fecha, c.hora, c.mascota_nombre, c.mascota_especie,
+                    c.observaciones, c.precio_total, c.estado, s.nombre AS servicio_nombre
+                FROM citas c
+                LEFT JOIN servicios s ON c.servicio_id = s.id
+                WHERE c.id = %s AND c.tenant_id = %s
+            """, (cita_id, tenant_id))
+            r = cursor.fetchone()
+            if r:
+                cita = {
+                    'id': r[0], 'cliente_nombre': r[1], 'cliente_email': r[2], 'cliente_telefono': r[3],
+                    'fecha': str(r[4]), 'hora': str(r[5]), 'mascota_nombre': r[6], 'mascota_especie': r[7],
+                    'observaciones': r[8], 'precio_total': float(r[9]) if r[9] else 0.0, 'estado': str(r[10]),
+                    'servicio_nombre': r[11] or 'Servicio General'
+                }
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error obteniendo recibo de cita: {e}")
+
     if not cita:
         flash('Cita no encontrada.', 'error')
         return redirect(url_for('citas'))
+
     return render_template('recibo_cita.html', cita=cita)
 
 
@@ -1247,104 +1507,38 @@ def ver_ticket_cita(cita_id):
     if 'rol' not in session:
         return redirect(url_for('login'))
     
-    cita = citas_controlador.obtener_cita_por_id(cita_id) if hasattr(citas_controlador, 'obtener_cita_por_id') else None
+    tenant_id = session.get('tenant_id', 1)
+    cita = None
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    c.id, c.cliente_nombre, c.cliente_email, c.cliente_telefono,
+                    c.fecha, c.hora, c.mascota_nombre, c.mascota_especie,
+                    c.observaciones, c.precio_total, c.estado, s.nombre AS servicio_nombre
+                FROM citas c
+                LEFT JOIN servicios s ON c.servicio_id = s.id
+                WHERE c.id = %s AND c.tenant_id = %s
+            """, (cita_id, tenant_id))
+            r = cursor.fetchone()
+            if r:
+                cita = {
+                    'id': r[0], 'cliente_nombre': r[1], 'cliente_email': r[2], 'cliente_telefono': r[3],
+                    'fecha': str(r[4]), 'hora': str(r[5]), 'mascota_nombre': r[6], 'mascota_especie': r[7],
+                    'observaciones': r[8], 'precio_total': float(r[9]) if r[9] else 0.0, 'estado': str(r[10]),
+                    'servicio_nombre': r[11] or 'Servicio General'
+                }
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error obteniendo ticket de cita: {e}")
+
     if not cita:
         flash('Cita no encontrada.', 'error')
         return redirect(url_for('citas'))
+
     return render_template('ticket_cita.html', cita=cita)
-
-
-# ─── ACCIONES CITAS ──────────────────────────────────────────────────────────
-
-@app.route('/cita/<int:cita_id>/status', methods=['POST'])
-def cambiar_estado_cita(cita_id):
-    if 'usuario' not in session or session.get('rol') not in ['admin', 'empleado', 'dueño']:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
-    
-    conexion = None
-    try:
-        data = request.get_json() or {}
-        nuevo_estado = data.get('status')
-        motivo = data.get('motivo', '')
-        
-        if not nuevo_estado or nuevo_estado not in ['pendiente', 'confirmada', 'en_progreso', 'completada', 'cancelada']:
-            return jsonify({'success': False, 'error': 'Estado no válido'}), 400
-        
-        conexion = obtener_conexion()
-        cursor = conexion.cursor()
-        
-        cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (nuevo_estado, cita_id))
-        
-        if motivo:
-            cursor.execute("""
-                UPDATE citas 
-                SET observaciones = CASE 
-                    WHEN observaciones IS NULL OR observaciones = '' THEN %s
-                    ELSE observaciones || ' | ' || %s
-                END
-                WHERE id = %s
-            """, (f"Motivo: {motivo}", f"Motivo: {motivo}", cita_id))
-        
-        conexion.commit()
-        return jsonify({'success': True, 'message': 'Estado actualizado'})
-    except Exception as e:
-        if conexion:
-            conexion.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if conexion:
-            conexion.close()
-
-
-@app.route('/cita/<int:cita_id>/eliminar', methods=['DELETE'])
-def eliminar_cita(cita_id):
-    if session.get('rol') not in ['admin', 'dueño']:
-        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
-    
-    conexion = None
-    try:
-        conexion = obtener_conexion()
-        cursor = conexion.cursor()
-        
-        cursor.execute("DELETE FROM cita_mascotas WHERE cita_id = %s", (cita_id,))
-        cursor.execute("DELETE FROM cita_servicios WHERE cita_id = %s", (cita_id,))
-        cursor.execute("DELETE FROM citas WHERE id = %s", (cita_id,))
-        
-        conexion.commit()
-        return jsonify({'success': True, 'message': 'Cita eliminada permanentemente'})
-    except Exception as e:
-        if conexion:
-            conexion.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if conexion:
-            conexion.close()
-
-
-@app.route('/agendar_cita', methods=['POST'])
-def agendar_cita():
-    try:
-        nombre = request.form['cliente_nombre']
-        email = request.form['cliente_email']
-        telefono = request.form.get('cliente_telefono', '').strip()
-        direccion = request.form.get('cliente_direccion', '').strip()
-        fecha = request.form['fecha']
-        hora = request.form['hora']
-        
-        servicios_ids = [int(sid) for sid in request.form.getlist('servicio_id[]') if sid]
-        if not servicios_ids or not telefono or not direccion:
-            flash('Por favor proporciona los campos requeridos.', 'error')
-            return redirect(url_for('index'))
-
-        mascota_nombres = request.form.getlist('mascota_nombre[]')
-        mascotas_data = [{'nombre': m.strip()} for m in mascota_nombres if m.strip()]
-        
-        cita_id = citas_controlador.insertar_cita_completa(nombre, email, mascotas_data, servicios_ids, fecha, hora)
-        flash('Cita agendada exitosamente.', 'success')
-    except Exception as e:
-        flash(f'Error al agendar la cita: {str(e)}', 'error')
-    
-    return redirect(url_for('index'))
 
 
 # ─── API POS & TRANSACCIONES EN TIEMPO REAL ─────────────────────────────────
