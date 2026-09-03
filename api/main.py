@@ -971,7 +971,12 @@ def almacen():
 
             nombre = request.form.get('nombre', '').strip()
             codigo_barra = request.form.get('codigo_barra', '').strip() or None
-            tipo = request.form.get('tipo', 'stock').strip().lower()
+            
+            # Buscar el tipo probando diferentes nombres de campos posibles
+            tipo = (request.form.get('tipo') or 
+                    request.form.get('tipo_producto') or 
+                    request.form.get('tipo_item') or 
+                    request.form.get('edit_tipo') or '').strip().lower()
 
             precio_raw = request.form.get('precio', '').strip()
             precio = float(precio_raw) if precio_raw else 0.0
@@ -989,6 +994,17 @@ def almacen():
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 
                 if producto_id:
+                    # Si no llegó el tipo en el formulario al editar, conservar el tipo actual de la BD
+                    if not tipo:
+                        cursor.execute("SELECT tipo FROM productos WHERE id = %s", (producto_id,))
+                        res_tipo = cursor.fetchone()
+                        if res_tipo and res_tipo[0]:
+                            tipo = str(res_tipo[0]).strip().lower()
+                    
+                    # Si aún así sigue vacío, asignamos 'stock' por defecto
+                    if not tipo:
+                        tipo = 'stock'
+
                     cursor.execute("""
                         UPDATE productos 
                         SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s, stock_minimo = %s
@@ -1002,6 +1018,9 @@ def almacen():
                         mensaje = f'No se encontró el producto con ID {producto_id}.'
                         categoria = 'warning'
                 else:
+                    if not tipo:
+                        tipo = 'stock'
+
                     cursor.execute("""
                         INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo)
                         VALUES (%s, %s, %s, %s, %s, %s)
