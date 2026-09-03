@@ -398,6 +398,8 @@ def dashboard():
 
 # ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
 
+# ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
+
 @app.route('/punto_de_venta', methods=['GET', 'POST'])
 @app.route('/pos', methods=['GET', 'POST'])
 def punto_de_venta():
@@ -412,19 +414,20 @@ def punto_de_venta():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener productos usando la columna 'cantidad' de Supabase
+            # 1. Obtener SOLO productos de tipo 'venta' y activos
             cursor.execute("""
                 SELECT 
                     id,                                           -- 0
                     nombre,                                       -- 1
                     COALESCE(precio, 0.00) AS precio,             -- 2
-                    COALESCE(cantidad, 0) AS cantidad,            -- 3 (Existencias)
+                    COALESCE(cantidad, 0) AS cantidad,            -- 3
                     COALESCE(codigo_barra, '') AS codigo_barra,   -- 4
                     'General' AS categoria,                       -- 5
                     COALESCE(imagen, '') AS imagen                -- 6
                 FROM productos
                 WHERE (tenant_id = %s OR tenant_id IS NULL) 
                   AND COALESCE(activo, true) = true
+                  AND LOWER(tipo::text) = 'venta'
                 ORDER BY nombre ASC
             """, (tenant_id,))
             
@@ -506,7 +509,6 @@ def punto_de_venta():
 
 
 # ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
-
 @app.route('/api/ventas/buscar-productos')
 def api_buscar_productos():
     q = request.args.get('q', '').strip()
@@ -522,6 +524,7 @@ def api_buscar_productos():
                     FROM productos 
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
+                      AND LOWER(tipo::text) = 'venta'
                       AND (nombre ILIKE %s OR codigo_barra ILIKE %s OR codigo_barra = %s)
                     ORDER BY nombre ASC
                     LIMIT 30
@@ -532,6 +535,7 @@ def api_buscar_productos():
                     FROM productos 
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
+                      AND LOWER(tipo::text) = 'venta'
                     ORDER BY nombre ASC
                     LIMIT 50
                 """, (tenant_id,))
