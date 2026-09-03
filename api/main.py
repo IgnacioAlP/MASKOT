@@ -1,12 +1,19 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory
-import logging
-import time
-from datetime import datetime, date
-import hashlib
-import json
 import os
-from werkzeug.utils import secure_filename
+import sys
+import json
+import time
+import logging
+import hashlib
+from datetime import datetime, date
 from functools import wraps
+
+from flask import (
+    Flask, render_template, request, redirect, url_for, 
+    session, flash, jsonify, send_from_directory
+)
+from werkzeug.utils import secure_filename
+
+# Conexión a Base de Datos
 from bd import obtener_conexion, obtener_tenant_id
 
 # Importar todos los controladores
@@ -24,8 +31,9 @@ from controladores import (
 )
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
-# Obtener la ruta de la carpeta raíz del proyecto (MASKOT)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # MASKOT/api
+# ─── CONFIGURACIÓN DE LA APLICACIÓN ──────────────────────────────────────────
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # MASKOT/api
 ROOT_DIR = os.path.dirname(BASE_DIR)                   # MASKOT
 
 app = Flask(
@@ -59,7 +67,7 @@ try:
 except Exception:
     pass
 
-# Almacenamiento temporal en memoria para sincronización de escáner remoto en tiempo real
+# Almacenamiento temporal en memoria para escáner en tiempo real
 RECENT_SCANS = []
 
 
@@ -67,9 +75,11 @@ def _ensure_schema():
     """Migración ligera al arranque adaptada para PostgreSQL / Supabase."""
     column_migrations = [
         ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_barra VARCHAR(100) DEFAULT NULL"),
+        ("productos", "stock_minimo", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5"),
         ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
         ("ventas",    "tenant_id",   "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
         ("ventas",    "vendedor_id", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_id INT DEFAULT NULL"),
+        ("ventas",    "productos",   "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS productos TEXT DEFAULT '[]'"),
     ]
     try:
         conn = obtener_conexion()
@@ -84,7 +94,7 @@ def _ensure_schema():
                     conn.commit()
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
 
-            # Permitir NULL en vendedor_nombre y vendedor_id para evitar errores de constraing
+            # Permitir NULL en vendedor_nombre y vendedor_id
             for col in ['vendedor_nombre', 'vendedor_id']:
                 cursor.execute("""
                     SELECT is_nullable FROM information_schema.columns 
@@ -94,7 +104,6 @@ def _ensure_schema():
                 if v_col and (v_col[0] or '').upper() == 'NO':
                     cursor.execute(f"ALTER TABLE ventas ALTER COLUMN {col} DROP NOT NULL")
                     conn.commit()
-                    logger.info(f"Schema migration: ventas.{col} ahora acepta NULL.")
 
         conn.close()
     except Exception as e:
@@ -112,6 +121,8 @@ def handle_exception(e):
     logger.error(f"Error no controlado: {e}")
     return render_template('error.html'), 500
 
+
+# ─── FILTROS Y CONTEXT PROCESSORS DE TEMPLATES ──────────────────────────────
 
 @app.template_filter('dateformat')
 def dateformat(value, format='%d/%m/%Y'):
@@ -143,8 +154,8 @@ def days_until(value):
         value = value.date()
     
     if hasattr(value, '__sub__'):
-        today = date.today()
-        delta = value - today
+        today_d = date.today()
+        delta = value - today_d
         return delta.days
     return 999
 
@@ -223,6 +234,17 @@ def cart_context():
     return dict(cart_count=total_qty)
 
 
+@app.context_processor
+def inject_global_datetime():
+    ahora = datetime.now()
+    return {
+        'momento_actual': ahora,
+        'today': date.today,
+        'now': ahora,
+        'format_date': lambda d: d.strftime('%d/%m/%Y') if hasattr(d, 'strftime') else str(d)
+    }
+
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -260,14 +282,6 @@ def index():
     return redirect(url_for('login'))
 
 
-def _get_cart():
-    return session.setdefault('cart', {})
-
-
-def _save_cart(cart):
-    session['cart'] = cart
-
-
 # ─── AUTENTICACIÓN Y SESIÓN ──────────────────────────────────────────────────
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -298,6 +312,7 @@ def login():
         user = auth.get('user')
         session.permanent = True
         session['user_id'] = user[0]
+        session['usuario_id'] = user[0]
         session['usuario'] = user[1]
         session['rol'] = user[3]
         session['tenant_id'] = user[5] if len(user) > 5 and user[5] else 1
@@ -381,8 +396,6 @@ def dashboard():
     return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion)
 
 
-# ─── RUTAS PRINCIPALES DEL SISTEMA Y GESTIÓN ──────────────────────────────────
-
 # ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
 
 @app.route('/punto_de_venta', methods=['GET', 'POST'])
@@ -418,13 +431,11 @@ def punto_de_venta():
                 p_id = r[0]
                 p_nom = r[1] or ''
                 
-                # Conversión segura a float
                 try:
                     p_prec = float(r[2])
                 except (ValueError, TypeError):
                     p_prec = 0.0
                 
-                # Conversión segura a int
                 try:
                     p_stk = int(r[3])
                 except (ValueError, TypeError):
@@ -442,7 +453,6 @@ def punto_de_venta():
                     'codigo_barra': p_code,
                     'categoria': p_cat,
                     'imagen': p_img,
-                    # Mapeo posicional para plantillas Jinja2 con tuplas p[0], p[1], p[2], etc.
                     0: p_id,
                     1: p_nom,
                     2: p_prec,
@@ -484,32 +494,421 @@ def punto_de_venta():
         conexion.close()
     except Exception as e:
         logger.error(f"Error consultando productos/servicios para el POS: {e}")
-        
-        # Fallback a los controladores si falla la BD directa
-        raw_prods = []
-        if hasattr(productos_controlador, 'obtener_productos_tienda'):
-            raw_prods = productos_controlador.obtener_productos_tienda()
-        elif hasattr(productos_controlador, 'obtener_productos'):
-            raw_prods = productos_controlador.obtener_productos()
-
-        for p in raw_prods:
-            try:
-                p_id = p[0]
-                p_nom = str(p[1])
-                p_stk = int(p[3]) if len(p) > 3 and p[3] is not None else 0
-                p_prec = float(p[4]) if len(p) > 4 and p[4] is not None else float(p[2] or 0.0)
-                productos_lista.append({
-                    'id': p_id,
-                    'nombre': p_nom,
-                    'precio': p_prec,
-                    'stock': p_stk,
-                    0: p_id, 1: p_nom, 2: p_prec, 3: p_stk, 4: p_prec
-                })
-            except Exception:
-                continue
 
     return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
 
+
+# ─── API POS & BUSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
+
+@app.route('/api/ventas/buscar-productos')
+def api_buscar_productos():
+    q = request.args.get('q', '').strip()
+    tenant_id = session.get('tenant_id', 1)
+    
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            if q:
+                query_like = f"%{q}%"
+                cursor.execute("""
+                    SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, '')
+                    FROM productos 
+                    WHERE (tenant_id = %s OR tenant_id IS NULL)
+                      AND COALESCE(activo, true) = true
+                      AND (nombre ILIKE %s OR codigo_barra ILIKE %s OR codigo_barra = %s)
+                    ORDER BY nombre ASC
+                    LIMIT 30
+                """, (tenant_id, query_like, query_like, q))
+            else:
+                cursor.execute("""
+                    SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, '')
+                    FROM productos 
+                    WHERE (tenant_id = %s OR tenant_id IS NULL)
+                      AND COALESCE(activo, true) = true
+                    ORDER BY nombre ASC
+                    LIMIT 50
+                """, (tenant_id,))
+            
+            rows = cursor.fetchall()
+            productos = [{
+                'id': r[0],
+                'nombre': r[1],
+                'precio': float(r[2]) if r[2] is not None else 0.0,
+                'stock': int(r[3]) if r[3] is not None else 0,
+                'codigo_barra': r[4] or '',
+                'categoria': r[5] or ''
+            } for r in rows]
+
+        conexion.close()
+        return jsonify({'success': True, 'productos': productos})
+    except Exception as e:
+        logger.error(f"Error buscando productos POS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/ventas/validar-stock', methods=['POST'])
+def api_validar_stock():
+    data = request.get_json(silent=True) or {}
+    items = data.get('items', [])
+    errores = []
+    
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            for item in items:
+                pid = item.get('id')
+                cant = int(item.get('cantidad', 1))
+                if pid and str(pid).isdigit():
+                    cursor.execute("SELECT nombre, stock FROM productos WHERE id = %s", (int(pid),))
+                    row = cursor.fetchone()
+                    if not row:
+                        errores.append(f"Producto ID {pid} no encontrado.")
+                    elif (row[1] or 0) < cant:
+                        errores.append(f"Stock insuficiente para '{row[0]}'. Disponible: {row[1]}, Solicitado: {cant}")
+        conexion.close()
+        
+        if errores:
+            return jsonify({'success': False, 'message': 'Validación fallida', 'errors': errores}), 400
+        return jsonify({'success': True, 'message': 'Stock verificado correctamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ─── PROCESAMIENTO DE VENTAS POS ─────────────────────────────────────────────
+
+@app.route('/ventas/procesar', methods=['POST'])
+def procesar_venta_pos():
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    
+    try:
+        data = request.get_json(silent=True) or {}
+        
+        items = data.get('items') or data.get('productos') or data.get('cart')
+        if not items and request.form.get('items'):
+            try:
+                items = json.loads(request.form.get('items'))
+            except Exception:
+                items = []
+                
+        if not items and request.form.get('cart'):
+            try:
+                items = json.loads(request.form.get('cart'))
+            except Exception:
+                items = []
+
+        if not items:
+            cart = session.get('cart', {})
+            items = [{'id': k, 'cantidad': v.get('qty', 1), 'precio': 0.0} for k, v in cart.items()]
+        
+        if not items:
+            return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
+
+        cliente_nombre = data.get('cliente_nombre') or request.form.get('cliente_nombre', 'Cliente General')
+        cliente_doc = data.get('cliente_documento') or request.form.get('cliente_documento', '')
+        metodo_pago = data.get('metodo_pago') or request.form.get('metodo_pago', 'efectivo')
+        
+        monto_recibido = float(data.get('monto_recibido') or request.form.get('monto_recibido', 0.0))
+        subtotal = float(data.get('subtotal') or request.form.get('subtotal', 0.0))
+        igv = float(data.get('igv') or request.form.get('igv', 0.0))
+        total = float(data.get('total') or request.form.get('total', 0.0))
+        cambio = float(data.get('cambio') or request.form.get('cambio', 0.0))
+
+        vendedor_id = session.get('usuario_id') or session.get('user_id')
+        vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
+        tenant_id = session.get('tenant_id', 1)
+        num_venta = f"VNT-{int(time.time())}"
+        
+        productos_json = json.dumps(items, ensure_ascii=False)
+        
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO ventas (
+                    numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
+                    vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
+                    monto_recibido, cambio_entregado, productos, estado, tenant_id
+                ) VALUES (
+                    %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                ) RETURNING id
+            """, (
+                num_venta, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
+                subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
+            ))
+            
+            venta_id = cursor.fetchone()[0]
+            
+            for item in items:
+                pid = item.get('id')
+                cant = int(item.get('cantidad', item.get('qty', 1)))
+                precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
+                subtotal_item = cant * precio
+                
+                if pid and str(pid).isdigit():
+                    product_id = int(pid)
+                    try:
+                        cursor.execute("""
+                            INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
+                            VALUES (%s, %s, %s, %s, %s)
+                        """, (venta_id, product_id, cant, precio, subtotal_item))
+                    except Exception as ex_dt:
+                        logger.warning(f"No se insertó en detalle_ventas (continuando): {ex_dt}")
+                    
+                    cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (cant, product_id))
+                
+        conexion.commit()
+        conexion.close()
+        
+        session.pop('cart', None)
+        ticket_url = url_for('ticket_venta', venta_id=venta_id) if 'ticket_venta' in app.view_functions else f"/venta/ticket/{venta_id}"
+        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
+    except Exception as e:
+        logger.error(f"Error procesando venta POS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/ventas/scan-push', methods=['POST'])
+def scan_push():
+    data = request.get_json(silent=True) or {}
+    code = data.get('code')
+    if code:
+        RECENT_SCANS.append({'code': code, 'timestamp': time.time()})
+        if len(RECENT_SCANS) > 20:
+            RECENT_SCANS.pop(0)
+        return jsonify({'success': True, 'code': code})
+    return jsonify({'success': False, 'error': 'Código no enviado'}), 400
+
+
+@app.route('/ventas/scan-poll')
+def scan_poll():
+    last_time = float(request.args.get('since', 0))
+    scans = [s for s in RECENT_SCANS if s['timestamp'] > last_time]
+    return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
+
+
+# ─── HISTORIAL DE VENTAS ──────────────────────────────────────────────────────
+
+@app.route('/historial_ventas', endpoint='historial_ventas')
+@app.route('/historial-ventas')
+@app.route('/ventas/historial')
+def historial_ventas():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    tenant_id = session.get('tenant_id', 1)
+    
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
+    busqueda = request.args.get('busqueda', '').strip()
+    
+    filtros = {
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin,
+        'busqueda': busqueda
+    }
+    
+    ventas_lista = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            condiciones = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
+            params = [tenant_id]
+
+            if fecha_inicio:
+                condiciones.append("v.fecha_venta >= %s")
+                params.append(f"{fecha_inicio} 00:00:00")
+
+            if fecha_fin:
+                condiciones.append("v.fecha_venta <= %s")
+                params.append(f"{fecha_fin} 23:59:59")
+
+            if busqueda:
+                condiciones.append("(v.numero_venta ILIKE %s OR v.cliente_nombre ILIKE %s OR v.cliente_documento ILIKE %s)")
+                param_like = f"%{busqueda}%"
+                params.extend([param_like, param_like, param_like])
+
+            where_clause = " AND ".join(condiciones)
+
+            query = f"""
+                SELECT 
+                    v.id,                                                 -- 0
+                    v.numero_venta,                                       -- 1
+                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,-- 2
+                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente, -- 3
+                    COALESCE(v.cliente_documento, '') AS doc,             -- 4
+                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,    -- 5
+                    COALESCE(v.metodo_pago, 'efectivo') AS pago,          -- 6
+                    COALESCE(v.subtotal, 0.00) AS subtotal,               -- 7
+                    COALESCE(v.igv, 0.00) AS igv,                         -- 8
+                    COALESCE(v.total, 0.00) AS total,                     -- 9
+                    COALESCE(v.estado::text, 'completada') AS estado      -- 10
+                FROM ventas v
+                WHERE {where_clause}
+                ORDER BY v.fecha_venta DESC
+                LIMIT 200
+            """
+            
+            cursor.execute(query, tuple(params))
+            
+            for r in cursor.fetchall():
+                v_id = r[0]
+                v_num = r[1] or ''
+                v_fecha = r[2] or ''
+                v_cliente = r[3]
+                v_doc = r[4]
+                v_vendedor = r[5]
+                v_pago = r[6]
+                v_subtotal = float(r[7]) if r[7] is not None else 0.0
+                v_igv = float(r[8]) if r[8] is not None else 0.0
+                v_total = float(r[9]) if r[9] is not None else 0.0
+                v_estado = str(r[10]).lower()
+
+                ventas_lista.append({
+                    'id': v_id,
+                    'numero_venta': v_num,
+                    'fecha_venta': v_fecha,
+                    'cliente_nombre': v_cliente,
+                    'cliente_documento': v_doc,
+                    'vendedor_nombre': v_vendedor,
+                    'metodo_pago': v_pago,
+                    'subtotal': v_subtotal,
+                    'igv': v_igv,
+                    'total': v_total,
+                    'estado': v_estado,
+                    0: v_id,
+                    1: v_num,
+                    2: v_fecha,
+                    3: v_cliente,
+                    4: v_doc,
+                    5: v_vendedor,
+                    6: v_pago,
+                    7: v_subtotal,
+                    8: v_igv,
+                    9: v_total,
+                    10: v_estado
+                })
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando historial de ventas: {e}")
+
+    return render_template('historial_ventas.html', ventas=ventas_lista, filtros=filtros)
+
+
+# ─── VISTA Y GENERACIÓN DE TICKET DE VENTA ───────────────────────────────────
+
+@app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
+@app.route('/ventas/ticket/<int:venta_id>')
+def ticket_venta(venta_id):
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+
+    tenant_id = session.get('tenant_id', 1)
+    venta = None
+    items = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    v.id,                                                 -- 0
+                    v.numero_venta,                                       -- 1
+                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,-- 2
+                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente, -- 3
+                    COALESCE(v.cliente_documento, '-') AS doc,            -- 4
+                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,    -- 5
+                    COALESCE(v.metodo_pago, 'Efectivo') AS pago,          -- 6
+                    COALESCE(v.subtotal, 0.00) AS subtotal,               -- 7
+                    COALESCE(v.igv, 0.00) AS igv,                         -- 8
+                    COALESCE(v.total, 0.00) AS total,                     -- 9
+                    COALESCE(v.monto_recibido, 0.00) AS recibido,         -- 10
+                    COALESCE(v.cambio_entregado, 0.00) AS cambio,         -- 11
+                    COALESCE(v.estado::text, 'completada') AS estado,     -- 12
+                    v.productos                                           -- 13 (JSON/Text)
+                FROM ventas v
+                WHERE v.id = %s AND (v.tenant_id = %s OR v.tenant_id IS NULL)
+            """, (venta_id, tenant_id))
+            
+            r = cursor.fetchone()
+            if r:
+                subtotal_f = float(r[7]) if r[7] is not None else 0.0
+                igv_f = float(r[8]) if r[8] is not None else 0.0
+                total_f = float(r[9]) if r[9] is not None else 0.0
+                recibido_f = float(r[10]) if r[10] is not None else 0.0
+                cambio_f = float(r[11]) if r[11] is not None else 0.0
+
+                venta = {
+                    'id': r[0],
+                    'numero_venta': r[1],
+                    'fecha_venta': r[2],
+                    'cliente_nombre': r[3],
+                    'cliente_documento': r[4],
+                    'vendedor_nombre': r[5],
+                    'metodo_pago': r[6],
+                    'subtotal': subtotal_f,
+                    'igv': igv_f,
+                    'total': total_f,
+                    'monto_recibido': recibido_f,
+                    'cambio_entregado': cambio_f,
+                    'estado': str(r[12]).lower(),
+                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5],
+                    6: r[6], 7: subtotal_f, 8: igv_f, 9: total_f, 10: recibido_f, 11: cambio_f, 12: str(r[12]).lower()
+                }
+
+                raw_productos = r[13]
+
+            cursor.execute("""
+                SELECT 
+                    p.nombre, 
+                    dv.cantidad, 
+                    dv.precio_unitario, 
+                    dv.subtotal
+                FROM detalle_ventas dv
+                LEFT JOIN productos p ON dv.producto_id = p.id
+                WHERE dv.venta_id = %s
+            """, (venta_id,))
+            
+            dt_rows = cursor.fetchall()
+            if dt_rows:
+                for dt in dt_rows:
+                    pu = float(dt[2]) if dt[2] is not None else 0.0
+                    st = float(dt[3]) if dt[3] is not None else 0.0
+                    items.append({
+                        'nombre': dt[0] or 'Producto',
+                        'cantidad': int(dt[1] or 1),
+                        'precio_unitario': pu,
+                        'subtotal': st
+                    })
+            elif raw_productos:
+                try:
+                    p_list = json.loads(raw_productos) if isinstance(raw_productos, str) else raw_productos
+                    for p in p_list:
+                        cant = int(p.get('cantidad', p.get('qty', 1)))
+                        pu = float(p.get('precio', p.get('precio_unitario', 0.0)))
+                        items.append({
+                            'nombre': p.get('nombre', p.get('title', 'Producto')),
+                            'cantidad': cant,
+                            'precio_unitario': pu,
+                            'subtotal': cant * pu
+                        })
+                except Exception as ex_json:
+                    logger.warning(f"No se pudo decodificar JSON de productos para venta {venta_id}: {ex_json}")
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error generando ticket para venta ID={venta_id}: {e}")
+
+    if not venta:
+        flash('La venta solicitada no existe o fue eliminada.', 'error')
+        return redirect(url_for('historial_ventas'))
+
+    return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now())
+
+
+# ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
 
 @app.route('/productos')
 def productos():
@@ -517,7 +916,7 @@ def productos():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    lista = productos_controlador.obtener_productos()
+    lista = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
     return render_template('productos.html', productos=lista)
 
 
@@ -531,7 +930,6 @@ def almacen():
 
     if request.method == 'POST':
         try:
-            # Captura de ID
             raw_id = (request.form.get('id') or 
                       request.form.get('producto_id') or 
                       request.form.get('edit_id') or 
@@ -549,7 +947,6 @@ def almacen():
             cantidad_raw = request.form.get('stock', request.form.get('cantidad', '')).strip()
             cantidad = int(cantidad_raw) if cantidad_raw else 0
 
-            # Captura dinámica del Stock Mínimo
             stk_min_raw = (request.form.get('stock_minimo') or 
                            request.form.get('cant_min') or 
                            request.form.get('stock_min') or '').strip()
@@ -557,7 +954,6 @@ def almacen():
 
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
-                # Asegurar que la columna existe en la base de datos
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 
                 if producto_id:
@@ -590,7 +986,6 @@ def almacen():
             flash(f'Error al procesar el producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # Lectura de productos incluyendo la columna stock_minimo
     productos_lista = []
     try:
         conexion = obtener_conexion()
@@ -620,7 +1015,6 @@ def almacen():
                     'precio': precio,
                     'stock_minimo': stock_minimo,
                     'codigo_barra': codigo_barra,
-                    # Mapeo posicional para la plantilla HTML
                     0: p_id,
                     1: nombre,
                     2: tipo,
@@ -636,81 +1030,17 @@ def almacen():
 
     return render_template('almacen.html', productos=productos_lista)
 
-    # Lectura directa desde Supabase usando los campos reales
-    productos_lista = []
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("SELECT id, nombre, tipo, NULL as img, cantidad, precio FROM productos ORDER BY id ASC")
-            productos_lista = cursor.fetchall()
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error consultando productos: {e}")
-
-    return render_template('almacen.html', productos=productos_lista)
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-
-    # Procesar registro de nuevo producto
-    if request.method == 'POST':
-        try:
-            nombre = request.form.get('nombre', '').strip()
-            codigo_barra = request.form.get('codigo_barra', '').strip()
-            descripcion = request.form.get('descripcion', '').strip()
-
-            # Conversión segura para evitar float('') o int('')
-            precio_raw = request.form.get('precio', '').strip()
-            precio = float(precio_raw) if precio_raw else 0.0
-
-            stock_raw = request.form.get('stock', '').strip()
-            stock = int(stock_raw) if stock_raw else 0
-
-            if hasattr(productos_controlador, 'insertar_producto'):
-                productos_controlador.insertar_producto(nombre, descripcion, stock, precio, codigo_barra)
-            else:
-                conexion = obtener_conexion()
-                with conexion.cursor() as cursor:
-                    cursor.execute("""
-                        INSERT INTO productos (nombre, descripcion, stock, precio, codigo_barra, activo)
-                        VALUES (%s, %s, %s, %s, %s, true)
-                    """, (nombre, descripcion, stock, precio, codigo_barra))
-                conexion.commit()
-                conexion.close()
-
-            flash('Producto registrado correctamente en el almacén.', 'success')
-        except Exception as e:
-            logger.error(f"Error al registrar producto: {e}")
-            flash(f'Error al registrar producto: {e}', 'error')
-        return redirect(url_for('almacen'))
-        
-    # Renderizar vista GET de Almacén
-    raw_prods = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
-    productos_lista = []
-    
-    for p in raw_prods:
-        if isinstance(p, (tuple, list)):
-            p_list = list(p)
-            while len(p_list) < 8:
-                p_list.append(None)
-            p_list[3] = p_list[3] if p_list[3] is not None else 0
-            p_list[4] = float(p_list[4]) if p_list[4] is not None else 0.0
-            p_list[5] = p_list[5] if p_list[5] is not None else 5
-            productos_lista.append(p_list)
-        else:
-            productos_lista.append(p)
-
-    return render_template('almacen.html', productos=productos_lista)
-
 
 @app.route('/producto/<int:producto_id>')
 def ver_producto(producto_id):
-    producto = productos_controlador.obtener_producto_por_id(producto_id)
+    producto = productos_controlador.obtener_producto_por_id(producto_id) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
     if not producto:
         flash('Producto no encontrado.', 'error')
         return redirect(url_for('productos'))
     return render_template('ver_producto.html', producto=producto)
 
+
+# ─── SERVICIOS ───────────────────────────────────────────────────────────────
 
 @app.route('/servicios', endpoint='servicios')
 @app.route('/gestion_servicios', endpoint='gestion_servicios')
@@ -781,6 +1111,8 @@ def cambiar_estado_servicio():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ─── CLIENTES & MASCOTAS ─────────────────────────────────────────────────────
+
 @app.route('/clientes', endpoint='clientes')
 @app.route('/clientes/lista', endpoint='listar_clientes')
 def clientes():
@@ -850,7 +1182,7 @@ def mascotas():
     return render_template('mascotas.html', mascotas=lista)
 
 
-# ─── MÓDULO DE GESTIÓN DE PERSONAL Y USUARIOS (COMPLETO Y SINCRONIZADO) ─────
+# ─── GESTIÓN DE PERSONAL Y USUARIOS ──────────────────────────────────────────
 
 @app.route('/personal', methods=['GET', 'POST'])
 @app.route('/personal/agregar', methods=['POST'], endpoint='agregar_personal')
@@ -864,7 +1196,6 @@ def personal():
 
     tenant_id = session.get('tenant_id', 1)
 
-    # ─── PROCESAMIENTO DE PETICIONES POST ─────────────────────────────────────
     if request.method == 'POST':
         try:
             req_json = request.get_json(silent=True) or {}
@@ -882,7 +1213,6 @@ def personal():
             raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id')
             target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
 
-            # 1. Interceptar botón "Desactivar" desde el formulario HTML (<button name="eliminar">)
             if 'eliminar' in request.form or get_param('accion') in ['desactivar', 'eliminar']:
                 if target_id:
                     conexion = obtener_conexion()
@@ -896,7 +1226,6 @@ def personal():
                     flash('Empleado desactivado correctamente.', 'success')
                     return redirect(url_for('personal'))
 
-            # 2. Interceptar botón "Reactivar" desde el formulario HTML (<button name="reactivar">)
             if 'reactivar' in request.form or get_param('accion') in ['reactivar']:
                 if target_id:
                     conexion = obtener_conexion()
@@ -910,7 +1239,6 @@ def personal():
                     flash('Empleado reactivado correctamente.', 'success')
                     return redirect(url_for('personal'))
 
-            # 3. Procesar Edición o Registro de Nuevo Empleado
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
             rol = get_param('rol', default='empleado').lower()
@@ -924,7 +1252,6 @@ def personal():
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if target_id:
-                    # CASO A: Modificación de un empleado existente
                     cursor.execute("SELECT id, usuario_id FROM personal WHERE id = %s OR usuario_id = %s", (target_id, target_id))
                     p_row = cursor.fetchone()
                     if p_row:
@@ -941,7 +1268,6 @@ def personal():
 
                     mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
-                    # CASO B: Creación de un nuevo empleado
                     if not username:
                         conexion.close()
                         msg = 'El nombre de usuario es obligatorio para registrar un nuevo empleado.'
@@ -982,7 +1308,6 @@ def personal():
 
         return redirect(url_for('personal'))
 
-    # ─── VISTA GET: CONSULTA CON MAPEO POSICIONAL EXACTO PARA PERSONAL.HTML ──
     empleados_lista = []
     usuarios_lista = []
 
@@ -1028,14 +1353,13 @@ def personal():
                     'activo': activo_int,
                     'estado': estado_str,
                     'usuario_id': usuario_id,
-                    # Mapeo de índices alineado a tu plantilla personal.html
-                    0: p_id,         # empleado[0] -> ID
-                    1: usuario_id,   # empleado[1] -> ID Usuario
-                    2: username,     # empleado[2] -> Nombre de Usuario (Columna Usuario)
-                    3: cargo,        # empleado[3] -> Cargo (Columna Cargo)
-                    4: salario,      # empleado[4] -> Salario (Columna Salario)
-                    5: activo_int,   # empleado[5] -> Activo (1 o 0) (Efectúa el check de badges)
-                    6: rol,          # empleado[6] -> Rol (Columna Rol)
+                    0: p_id,
+                    1: usuario_id,
+                    2: username,
+                    3: cargo,
+                    4: salario,
+                    5: activo_int,
+                    6: rol,
                     7: estado_str
                 }
                 empleados_lista.append(item)
@@ -1163,734 +1487,13 @@ def eliminar_personal_permanente(target_id):
     return redirect(url_for('personal'))
 
 
-@app.route('/compras')
-def compras():
-    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
-    return render_template('compras.html', compras=lista)
-
-
-@app.route('/historial_compras', endpoint='historial_compras')
-@app.route('/historial-compras')
-def historial_compras():
-    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
-    monto_total = 0.0
-    for c in lista:
-        try:
-            monto_total += float(c[3] if isinstance(c, (list, tuple)) and len(c) > 3 else getattr(c, 'total', 0))
-        except Exception:
-            pass
-            
-    estadisticas = {
-        'total_compras': len(lista),
-        'monto_total': monto_total
-    }
-    return render_template('historial_compras.html', compras=lista, estadisticas=estadisticas)
-
-
-# ─── VISTA PRINCIPAL DEL POS ──────────────────────────────────────────────────
-
-@app.route('/pos')
-def pos():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado al punto de venta.', 'error')
-        return redirect(url_for('dashboard'))
-
-    tenant_id = session.get('tenant_id', 1)
-    productos_list = []
-    servicios_list = []
-
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # 1. Cargar productos asegurando tipo numérico flotante en precios
-            cursor.execute("""
-                SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, 'General'), COALESCE(imagen, '')
-                FROM productos
-                WHERE (tenant_id = %s OR tenant_id IS NULL) AND COALESCE(activo, true) = true
-                ORDER BY nombre ASC
-            """, (tenant_id,))
-            for r in cursor.fetchall():
-                precio_val = float(r[2]) if r[2] is not None else 0.0
-                stock_val = int(r[3]) if r[3] is not None else 0
-                productos_list.append({
-                    'id': r[0],
-                    'nombre': r[1] or '',
-                    'precio': precio_val,
-                    'stock': stock_val,
-                    'codigo_barra': r[4],
-                    'categoria': r[5],
-                    'imagen': r[6],
-                    # Compatibilidad con accesos por índice posicional r[0], r[1]...
-                    0: r[0], 1: r[1] or '', 2: precio_val, 3: stock_val, 4: r[4], 5: r[5], 6: r[6]
-                })
-
-            # 2. Cargar servicios asegurando precios flotantes
-            cursor.execute("""
-                SELECT id, nombre, precio, COALESCE(duracion, '')
-                FROM servicios
-                WHERE (tenant_id = %s OR tenant_id IS NULL) AND COALESCE(activo, true) = true
-                ORDER BY nombre ASC
-            """, (tenant_id,))
-            for s in cursor.fetchall():
-                precio_s = float(s[2]) if s[2] is not None else 0.0
-                servicios_list.append({
-                    'id': s[0],
-                    'nombre': s[1] or '',
-                    'precio': precio_s,
-                    'duracion': s[3],
-                    0: s[0], 1: s[1] or '', 2: precio_s, 3: s[3]
-                })
-
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error cargando datos para el POS: {e}")
-
-    return render_template('pos.html', productos=productos_list, servicios=servicios_list)
-
-
-# ─── API POS & BUSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
-
-@app.route('/api/ventas/buscar-productos')
-def api_buscar_productos():
-    q = request.args.get('q', '').strip()
-    tenant_id = session.get('tenant_id', 1)
-    
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            if q:
-                query_like = f"%{q}%"
-                cursor.execute("""
-                    SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, '')
-                    FROM productos 
-                    WHERE (tenant_id = %s OR tenant_id IS NULL)
-                      AND COALESCE(activo, true) = true
-                      AND (nombre ILIKE %s OR codigo_barra ILIKE %s OR codigo_barra = %s)
-                    ORDER BY nombre ASC
-                    LIMIT 30
-                """, (tenant_id, query_like, query_like, q))
-            else:
-                cursor.execute("""
-                    SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, '')
-                    FROM productos 
-                    WHERE (tenant_id = %s OR tenant_id IS NULL)
-                      AND COALESCE(activo, true) = true
-                    ORDER BY nombre ASC
-                    LIMIT 50
-                """, (tenant_id,))
-            
-            rows = cursor.fetchall()
-            productos = [{
-                'id': r[0],
-                'nombre': r[1],
-                'precio': float(r[2]) if r[2] is not None else 0.0,
-                'stock': int(r[3]) if r[3] is not None else 0,
-                'codigo_barra': r[4] or '',
-                'categoria': r[5] or ''
-            } for r in rows]
-
-        conexion.close()
-        return jsonify({'success': True, 'productos': productos})
-    except Exception as e:
-        logger.error(f"Error buscando productos POS: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/ventas/validar-stock', methods=['POST'])
-def api_validar_stock():
-    data = request.get_json(silent=True) or {}
-    items = data.get('items', [])
-    errores = []
-    
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            for item in items:
-                pid = item.get('id')
-                cant = int(item.get('cantidad', 1))
-                if pid and str(pid).isdigit():
-                    cursor.execute("SELECT nombre, stock FROM productos WHERE id = %s", (int(pid),))
-                    row = cursor.fetchone()
-                    if not row:
-                        errores.append(f"Producto ID {pid} no encontrado.")
-                    elif (row[1] or 0) < cant:
-                        errores.append(f"Stock insuficiente para '{row[0]}'. Disponible: {row[1]}, Solicitado: {cant}")
-        conexion.close()
-        
-        if errores:
-            return jsonify({'success': False, 'message': 'Validación fallida', 'errors': errores}), 400
-        return jsonify({'success': True, 'message': 'Stock verificado correctamente'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-# ─── PROCESAMIENTO DE VENTAS POS ─────────────────────────────────────────────
-
-@app.route('/ventas/procesar', methods=['POST'])
-def procesar_venta_pos():
-    if 'rol' not in session:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
-    
-    try:
-        data = request.get_json(silent=True) or {}
-        
-        items = data.get('items') or data.get('productos') or data.get('cart')
-        if not items and request.form.get('items'):
-            try:
-                items = json.loads(request.form.get('items'))
-            except Exception:
-                items = []
-                
-        if not items and request.form.get('cart'):
-            try:
-                items = json.loads(request.form.get('cart'))
-            except Exception:
-                items = []
-
-        if not items:
-            cart = session.get('cart', {})
-            items = [{'id': k, 'cantidad': v.get('qty', 1), 'precio': 0.0} for k, v in cart.items()]
-        
-        if not items:
-            return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
-
-        cliente_nombre = data.get('cliente_nombre') or request.form.get('cliente_nombre', 'Cliente General')
-        cliente_doc = data.get('cliente_documento') or request.form.get('cliente_documento', '')
-        metodo_pago = data.get('metodo_pago') or request.form.get('metodo_pago', 'efectivo')
-        
-        monto_recibido = float(data.get('monto_recibido') or request.form.get('monto_recibido', 0.0))
-        subtotal = float(data.get('subtotal') or request.form.get('subtotal', 0.0))
-        igv = float(data.get('igv') or request.form.get('igv', 0.0))
-        total = float(data.get('total') or request.form.get('total', 0.0))
-        cambio = float(data.get('cambio') or request.form.get('cambio', 0.0))
-
-        vendedor_id = session.get('usuario_id') or session.get('user_id')
-        vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
-        tenant_id = session.get('tenant_id', 1)
-        num_venta = f"VNT-{int(time.time())}"
-        
-        # Formatear items para la columna obligatoria productos (text NON-NULLABLE)
-        productos_json = json.dumps(items, ensure_ascii=False)
-        
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # Insertar venta incluyendo el campo requerido 'productos'
-            cursor.execute("""
-                INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
-                    vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
-                    monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (
-                    %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
-                ) RETURNING id
-            """, (
-                num_venta, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
-                subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
-            ))
-            
-            venta_id = cursor.fetchone()[0]
-            
-            # Registrar detalle de productos y actualizar stock
-            for item in items:
-                pid = item.get('id')
-                cant = int(item.get('cantidad', item.get('qty', 1)))
-                precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
-                subtotal_item = cant * precio
-                
-                if pid and str(pid).isdigit():
-                    product_id = int(pid)
-                    try:
-                        cursor.execute("""
-                            INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (venta_id, product_id, cant, precio, subtotal_item))
-                    except Exception as ex_dt:
-                        logger.warning(f"No se insertó en detalle_ventas (continuando): {ex_dt}")
-                    
-                    cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (cant, product_id))
-                
-        conexion.commit()
-        conexion.close()
-        
-        session.pop('cart', None)
-        ticket_url = url_for('ticket_venta', venta_id=venta_id) if 'ticket_venta' in app.view_functions else f"/venta/ticket/{venta_id}"
-        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
-    except Exception as e:
-        logger.error(f"Error procesando venta POS: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/ventas/scan-push', methods=['POST'])
-def scan_push():
-    data = request.get_json(silent=True) or {}
-    code = data.get('code')
-    if code:
-        RECENT_SCANS.append({'code': code, 'timestamp': time.time()})
-        if len(RECENT_SCANS) > 20:
-            RECENT_SCANS.pop(0)
-        return jsonify({'success': True, 'code': code})
-    return jsonify({'success': False, 'error': 'Código no enviado'}), 400
-
-
-@app.route('/ventas/scan-poll')
-def scan_poll():
-    last_time = float(request.args.get('since', 0))
-    scans = [s for s in RECENT_SCANS if s['timestamp'] > last_time]
-    return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
-
-
-# ─── CARRITO Y PROCESAMIENTO DE PAGO (TIENDA E-COMMERCE) ─────────────────────
-
-def _get_cart():
-    return session.get('cart', {})
-
-def _save_cart(cart):
-    session['cart'] = cart
-    session.modified = True
-
-@app.route('/carrito')
-def ver_carrito():
-    cart = _get_cart()
-    items = []
-    total_qty = 0
-    total_price = 0.0
-    
-    for id_str, data in list(cart.items()):
-        qty = int(data.get('qty', 0))
-        if id_str.startswith('service_'):
-            try:
-                servicio_id = int(id_str.replace('service_', ''))
-                servicio = servicios_controlador.obtener_servicio_por_id(servicio_id) if 'servicios_controlador' in globals() else None
-                if not servicio:
-                    cart.pop(id_str, None)
-                    continue
-                
-                precio_unitario = float(servicio[3] if len(servicio) > 3 and servicio[3] else 0.0)
-                subtotal = precio_unitario * qty
-                
-                items.append({
-                    'id': f'service_{servicio_id}',
-                    'nombre': f"🏥 {servicio[1]} (Servicio)",
-                    'descripcion': servicio[2] if len(servicio) > 2 else 'Servicio veterinario',
-                    'precio_unitario': precio_unitario,
-                    'qty': qty,
-                    'subtotal': subtotal,
-                    'type': 'service',
-                    'imagen': None
-                })
-                total_qty += qty
-                total_price += subtotal
-            except Exception as e:
-                logger.warning(f"Error procesando servicio en carrito {id_str}: {e}")
-                continue
-        else:
-            try:
-                pid = int(id_str)
-                producto = productos_controlador.obtener_producto_por_id(pid) if 'productos_controlador' in globals() else None
-                if not producto:
-                    cart.pop(id_str, None)
-                    continue
-                
-                stock = int(producto[3] or 0)
-                if qty > stock:
-                    qty = stock
-                    cart[id_str]['qty'] = qty
-                
-                precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
-                subtotal = precio_unitario * qty
-                
-                items.append({
-                    'id': pid,
-                    'nombre': producto[1],
-                    'imagen': producto[7] if len(producto) > 7 else None,
-                    'precio_unitario': precio_unitario,
-                    'qty': qty,
-                    'subtotal': subtotal,
-                    'stock': stock,
-                    'type': 'product'
-                })
-                total_qty += qty
-                total_price += subtotal
-            except Exception as e:
-                logger.warning(f"Error procesando producto en carrito {id_str}: {e}")
-                continue
-    
-    _save_cart(cart)
-    return render_template('carrito.html', items=items, total_qty=total_qty, total_price=total_price)
-
-
-@app.route('/checkout')
-def checkout():
-    cart = _get_cart()
-    if not cart:
-        flash('Tu carrito está vacío', 'warning')
-        return redirect(url_for('ver_carrito'))
-    
-    items = []
-    subtotal = 0.0
-    for id_str, data in cart.items():
-        try:
-            pid = int(id_str)
-        except Exception:
-            continue
-        
-        producto = productos_controlador.obtener_producto_por_id(pid) if 'productos_controlador' in globals() else None
-        if not producto:
-            continue
-            
-        qty = int(data.get('qty', 0))
-        precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
-        subtotal_item = precio_unitario * qty
-        items.append({
-            'id': pid,
-            'nombre': producto[1],
-            'imagen': producto[7] if len(producto) > 7 else None,
-            'qty': qty,
-            'precio_unitario': precio_unitario,
-            'subtotal': subtotal_item
-        })
-        subtotal += subtotal_item
-    
-    igv = round(subtotal * 0.18, 2)
-    total_final = subtotal + igv
-    
-    return render_template('checkout.html', items=items, total=subtotal, igv=igv, total_final=total_final)
-
-
-@app.route('/procesar-pago', methods=['POST'])
-def procesar_pago():
-    try:
-        cart = _get_cart()
-        if not cart:
-            flash('Tu carrito está vacío', 'warning')
-            return redirect(url_for('ver_carrito'))
-        
-        nombre = request.form.get('nombre', '').strip()
-        email = request.form.get('email', '').strip()
-        telefono = request.form.get('telefono', '').strip()
-        direccion = request.form.get('direccion', '').strip()
-        documento = request.form.get('documento', '').strip()
-        metodo_pago = request.form.get('metodo_pago', 'efectivo').strip()
-        
-        if not all([nombre, email, telefono, direccion, metodo_pago]):
-            flash('Por favor completa todos los campos obligatorios.', 'error')
-            return redirect(url_for('checkout'))
-        
-        items = []
-        subtotal = 0.0
-        for id_str, data in cart.items():
-            try:
-                pid = int(id_str)
-            except Exception:
-                continue
-            
-            producto = productos_controlador.obtener_producto_por_id(pid) if 'productos_controlador' in globals() else None
-            if not producto:
-                continue
-            qty = int(data.get('qty', 0))
-            precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
-            subtotal_item = precio_unitario * qty
-            items.append({
-                'id': pid,
-                'nombre': producto[1],
-                'cantidad': qty,
-                'precio': precio_unitario,
-                'subtotal': subtotal_item
-            })
-            subtotal += subtotal_item
-        
-        igv = round(subtotal * 0.18, 2)
-        total_final = subtotal + igv
-        tenant_id = session.get('tenant_id', 1)
-        num_venta = f"VNT-{int(time.time())}"
-        productos_json = json.dumps(items, ensure_ascii=False)
-
-        # Registrar venta directa en base de datos
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_nombre, cliente_documento,
-                    vendedor_nombre, metodo_pago, subtotal, igv, total,
-                    monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (
-                    %s, NOW(), %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s
-                ) RETURNING id
-            """, (num_venta, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
-            
-            venta_id = cursor.fetchone()[0]
-
-            # Descontar stock
-            for item in items:
-                cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
-
-        conexion.commit()
-        conexion.close()
-
-        session.pop('cart', None)
-        flash('¡Pago y pedido procesados exitosamente!', 'success')
-        return redirect(url_for('index'))
-        
-    except Exception as e:
-        logger.error(f"Error procesando pago e-commerce: {e}")
-        flash(f'Hubo un error procesando tu pago: {str(e)}', 'error')
-        return redirect(url_for('checkout'))
-
-# ─── HISTORIAL DE VENTAS ──────────────────────────────────────────────────────
-
-@app.route('/historial_ventas', endpoint='historial_ventas')
-@app.route('/historial-ventas')
-@app.route('/ventas/historial')
-def historial_ventas():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    tenant_id = session.get('tenant_id', 1)
-    
-    fecha_inicio = request.args.get('fecha_inicio', '').strip()
-    fecha_fin = request.args.get('fecha_fin', '').strip()
-    busqueda = request.args.get('busqueda', '').strip()
-    
-    filtros = {
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
-        'busqueda': busqueda
-    }
-    
-    ventas_lista = []
-
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # Construcción dinámica de consulta SQL con filtros
-            condiciones = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
-            params = [tenant_id]
-
-            if fecha_inicio:
-                condiciones.append("v.fecha_venta >= %s")
-                params.append(f"{fecha_inicio} 00:00:00")
-
-            if fecha_fin:
-                condiciones.append("v.fecha_venta <= %s")
-                params.append(f"{fecha_fin} 23:59:59")
-
-            if busqueda:
-                condiciones.append("(v.numero_venta ILIKE %s OR v.cliente_nombre ILIKE %s OR v.cliente_documento ILIKE %s)")
-                param_like = f"%{busqueda}%"
-                params.extend([param_like, param_like, param_like])
-
-            where_clause = " AND ".join(condiciones)
-
-            query = f"""
-                SELECT 
-                    v.id,                                                 -- 0
-                    v.numero_venta,                                       -- 1
-                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,-- 2
-                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente, -- 3
-                    COALESCE(v.cliente_documento, '') AS doc,             -- 4
-                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,    -- 5
-                    COALESCE(v.metodo_pago, 'efectivo') AS pago,          -- 6
-                    COALESCE(v.subtotal, 0.00) AS subtotal,               -- 7
-                    COALESCE(v.igv, 0.00) AS igv,                         -- 8
-                    COALESCE(v.total, 0.00) AS total,                     -- 9
-                    COALESCE(v.estado::text, 'completada') AS estado      -- 10
-                FROM ventas v
-                WHERE {where_clause}
-                ORDER BY v.fecha_venta DESC
-                LIMIT 200
-            """
-            
-            cursor.execute(query, tuple(params))
-            
-            for r in cursor.fetchall():
-                v_id = r[0]
-                v_num = r[1] or ''
-                v_fecha = r[2] or ''
-                v_cliente = r[3]
-                v_doc = r[4]
-                v_vendedor = r[5]
-                v_pago = r[6]
-                v_subtotal = float(r[7]) if r[7] is not None else 0.0
-                v_igv = float(r[8]) if r[8] is not None else 0.0
-                v_total = float(r[9]) if r[9] is not None else 0.0
-                v_estado = str(r[10]).lower()
-
-                ventas_lista.append({
-                    'id': v_id,
-                    'numero_venta': v_num,
-                    'fecha_venta': v_fecha,
-                    'cliente_nombre': v_cliente,
-                    'cliente_documento': v_doc,
-                    'vendedor_nombre': v_vendedor,
-                    'metodo_pago': v_pago,
-                    'subtotal': v_subtotal,
-                    'igv': v_igv,
-                    'total': v_total,
-                    'estado': v_estado,
-                    # Mapeo por índices para compatibilidad con plantillas Jinja2 basadas en tuplas
-                    0: v_id,
-                    1: v_num,
-                    2: v_fecha,
-                    3: v_cliente,
-                    4: v_doc,
-                    5: v_vendedor,
-                    6: v_pago,
-                    7: v_subtotal,
-                    8: v_igv,
-                    9: v_total,
-                    10: v_estado
-                })
-
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error consultando historial de ventas: {e}")
-
-    return render_template('historial_ventas.html', ventas=ventas_lista, filtros=filtros)
-
-
-# ─── VISTA Y GENERACIÓN DE TICKET DE VENTA ───────────────────────────────────
-
-@app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
-@app.route('/ventas/ticket/<int:venta_id>')
-def ticket_venta(venta_id):
-    if 'rol' not in session:
-        return redirect(url_for('login'))
-
-    tenant_id = session.get('tenant_id', 1)
-    venta = None
-    items = []
-
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            # 1. Obtener la venta principal
-            cursor.execute("""
-                SELECT 
-                    v.id,                                                 -- 0
-                    v.numero_venta,                                       -- 1
-                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,-- 2
-                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente, -- 3
-                    COALESCE(v.cliente_documento, '-') AS doc,            -- 4
-                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,    -- 5
-                    COALESCE(v.metodo_pago, 'Efectivo') AS pago,          -- 6
-                    COALESCE(v.subtotal, 0.00) AS subtotal,               -- 7
-                    COALESCE(v.igv, 0.00) AS igv,                         -- 8
-                    COALESCE(v.total, 0.00) AS total,                     -- 9
-                    COALESCE(v.monto_recibido, 0.00) AS recibido,         -- 10
-                    COALESCE(v.cambio_entregado, 0.00) AS cambio,         -- 11
-                    COALESCE(v.estado::text, 'completada') AS estado,     -- 12
-                    v.productos                                           -- 13 (JSON/Text)
-                FROM ventas v
-                WHERE v.id = %s AND (v.tenant_id = %s OR v.tenant_id IS NULL)
-            """, (venta_id, tenant_id))
-            
-            r = cursor.fetchone()
-            if r:
-                subtotal_f = float(r[7]) if r[7] is not None else 0.0
-                igv_f = float(r[8]) if r[8] is not None else 0.0
-                total_f = float(r[9]) if r[9] is not None else 0.0
-                recibido_f = float(r[10]) if r[10] is not None else 0.0
-                cambio_f = float(r[11]) if r[11] is not None else 0.0
-
-                venta = {
-                    'id': r[0],
-                    'numero_venta': r[1],
-                    'fecha_venta': r[2],
-                    'cliente_nombre': r[3],
-                    'cliente_documento': r[4],
-                    'vendedor_nombre': r[5],
-                    'metodo_pago': r[6],
-                    'subtotal': subtotal_f,
-                    'igv': igv_f,
-                    'total': total_f,
-                    'monto_recibido': recibido_f,
-                    'cambio_entregado': cambio_f,
-                    'estado': str(r[12]).lower(),
-                    # Mapeo posicional
-                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5],
-                    6: r[6], 7: subtotal_f, 8: igv_f, 9: total_f, 10: recibido_f, 11: cambio_f, 12: str(r[12]).lower()
-                }
-
-                raw_productos = r[13]
-
-            # 2. Intentar cargar detalle_ventas desde tabla relacional
-            cursor.execute("""
-                SELECT 
-                    p.nombre, 
-                    dv.cantidad, 
-                    dv.precio_unitario, 
-                    dv.subtotal
-                FROM detalle_ventas dv
-                LEFT JOIN productos p ON dv.producto_id = p.id
-                WHERE dv.venta_id = %s
-            """, (venta_id,))
-            
-            dt_rows = cursor.fetchall()
-            if dt_rows:
-                for dt in dt_rows:
-                    pu = float(dt[2]) if dt[2] is not None else 0.0
-                    st = float(dt[3]) if dt[3] is not None else 0.0
-                    items.append({
-                        'nombre': dt[0] or 'Producto',
-                        'cantidad': int(dt[1] or 1),
-                        'precio_unitario': pu,
-                        'subtotal': st
-                    })
-            elif raw_productos:
-                # Fallback: Deserializar la columna text/json 'productos' de la tabla ventas
-                try:
-                    p_list = json.loads(raw_productos) if isinstance(raw_productos, str) else raw_productos
-                    for p in p_list:
-                        cant = int(p.get('cantidad', p.get('qty', 1)))
-                        pu = float(p.get('precio', p.get('precio_unitario', 0.0)))
-                        items.append({
-                            'nombre': p.get('nombre', p.get('title', 'Producto')),
-                            'cantidad': cant,
-                            'precio_unitario': pu,
-                            'subtotal': cant * pu
-                        })
-                except Exception as ex_json:
-                    logger.warning(f"No se pudo decodificar JSON de productos para venta {venta_id}: {ex_json}")
-
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error generando ticket para venta ID={venta_id}: {e}")
-
-    if not venta:
-        flash('La venta solicitada no existe o fue eliminada.', 'error')
-        return redirect(url_for('historial_ventas'))
-
-    return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now())
-
-
-@app.route('/fidelizacion')
-def fidelizacion():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    alertas = fidelizacion_ctrl.obtener_alertas_recientes() if hasattr(fidelizacion_ctrl, 'obtener_alertas_recientes') else []
-    return render_template('fidelizacion.html', alertas=alertas)
-
-
-# ─── FUNCIÓN AUXILIAR DE RESOLUCIÓN DE USUARIO ───────────────────────────────
+# ─── ASISTENCIA DEL PERSONAL ──────────────────────────────────────────────────
 
 def obtener_usuario_id_sesion():
-    # Intenta obtener el ID de usuario numérico desde la sesión
     uid = session.get('usuario_id') or session.get('user_id') or session.get('id')
     if uid and str(uid).isdigit():
         return int(uid)
     
-    # Si en la sesión está guardado el nombre de usuario (texto), busca su ID en la BD
     username = session.get('usuario') or session.get('username')
     if username:
         try:
@@ -1908,8 +1511,6 @@ def obtener_usuario_id_sesion():
     return None
 
 
-# ─── MÓDULO DE GESTIÓN Y HISTORIAL DE ASISTENCIA ─────────────────────────────
-
 @app.route('/asistencia', methods=['GET', 'POST'])
 def asistencia():
     if 'rol' not in session:
@@ -1926,18 +1527,15 @@ def asistencia():
         flash('Sesión de usuario no válida.', 'error')
         return redirect(url_for('login'))
 
-    # Procesar marcación si viene por POST a /asistencia
     if request.method == 'POST':
         return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
-    # ─── VISTA GET: CONSULTA DE ESTADO Y REGISTROS ────────────────────────────
     registros = []
     asistencia_actual = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Buscar si existe un turno activo abierto (hora_salida IS NULL)
             cursor.execute("""
                 SELECT 
                     a.id, 
@@ -1945,13 +1543,11 @@ def asistencia():
                     TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida_fmt
                 FROM asistencia a
                 INNER JOIN personal p ON a.personal_id = p.id
-                WHERE p.usuario_id = %s AND a.hora_salida IS NULL
+                WHERE p.usuario_id = %s AND a.fecha = CURRENT_DATE AND a.hora_salida IS NULL
                 ORDER BY a.id DESC LIMIT 1
             """, (usuario_id,))
             a_row = cursor.fetchone()
             
-            # Si hay un turno abierto, cargamos 'asistencia_actual' para mostrar el botón "Marcar Salida".
-            # Si ya se marcó salida (a_row es None), asistencia_actual queda en None y el HTML muestra "Marcar Entrada".
             if a_row:
                 asistencia_actual = {
                     'id': a_row[0],
@@ -1961,7 +1557,6 @@ def asistencia():
                     0: a_row[0], 1: a_row[1], 2: a_row[2], 3: 'presente'
                 }
 
-            # 2. Consultar registros del día de hoy para la tabla de visualización
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
@@ -2049,15 +1644,8 @@ def marcar_asistencia():
 
 def _procesar_marcar_asistencia(usuario_id, tenant_id):
     try:
-        req_json = request.get_json(silent=True) or {}
-        tipo = (
-            req_json.get('tipo') or req_json.get('accion') or 
-            request.form.get('tipo') or request.form.get('accion') or ''
-        ).strip().lower()
-
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener personal_id enlazado al usuario
             cursor.execute("SELECT id FROM personal WHERE usuario_id = %s ORDER BY id DESC LIMIT 1", (usuario_id,))
             p_row = cursor.fetchone()
 
@@ -2071,18 +1659,25 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            # 2. Consultar si hay un turno abierto (hora_salida IS NULL)
             cursor.execute("""
-                SELECT id 
+                SELECT id, hora_salida 
                 FROM asistencia 
-                WHERE personal_id = %s AND hora_salida IS NULL 
-                ORDER BY id DESC LIMIT 1
+                WHERE personal_id = %s AND fecha = CURRENT_DATE 
+                LIMIT 1
             """, (personal_id,))
-            reg_abierto = cursor.fetchone()
+            reg_hoy = cursor.fetchone()
 
-            if reg_abierto or tipo == 'salida':
-                if reg_abierto:
-                    asistencia_id = reg_abierto[0]
+            if not reg_hoy:
+                cursor.execute("""
+                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
+                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
+                """, (personal_id, tenant_id))
+                mensaje = 'Hora de entrada registrada correctamente.'
+            else:
+                asistencia_id = reg_hoy[0]
+                hora_salida_existente = reg_hoy[1]
+
+                if hora_salida_existente is None:
                     cursor.execute("""
                         UPDATE asistencia 
                         SET hora_salida = CURRENT_TIME 
@@ -2090,19 +1685,12 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                     """, (asistencia_id,))
                     mensaje = 'Hora de salida registrada correctamente.'
                 else:
-                    # En caso de solicitar salida sin entrada previa, inserta el turno completo de salida
                     cursor.execute("""
-                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, tenant_id)
-                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, %s)
-                    """, (personal_id, tenant_id))
-                    mensaje = 'Hora de salida registrada correctamente.'
-            else:
-                # Marcación de NUEVA ENTRADA
-                cursor.execute("""
-                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
-                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
-                """, (personal_id, tenant_id))
-                mensaje = 'Hora de entrada registrada correctamente.'
+                        UPDATE asistencia 
+                        SET hora_entrada = CURRENT_TIME, hora_salida = NULL 
+                        WHERE id = %s
+                    """, (asistencia_id,))
+                    mensaje = 'Nueva hora de entrada registrada correctamente.'
 
         conexion.commit()
         conexion.close()
@@ -2193,20 +1781,7 @@ def historial_asistencia():
     return render_template('historial_asistencia.html', historial=registros, registros=registros)
 
 
-# ─── INYECTOR GLOBAL DE FECHA Y HORA EN PLANTILLAS (CONTEXT PROCESSOR) ───────
-
-@app.context_processor
-def inject_global_datetime():
-    ahora = datetime.now()
-    return {
-        'momento_actual': ahora,
-        'today': date.today,
-        'now': ahora,
-        'format_date': lambda d: d.strftime('%d/%m/%Y') if hasattr(d, 'strftime') else str(d)
-    }
-
-
-# ─── MÓDULO DE GESTIÓN DE CITAS (COMPLETO) ───────────────────────────────────
+# ─── MÓDULO DE GESTIÓN DE CITAS ───────────────────────────────────────────────
 
 @app.route('/citas')
 def citas():
@@ -2222,17 +1797,16 @@ def citas():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener Citas con el ordenamiento exacto de posiciones que exige citas.html
             cursor.execute("""
                 SELECT 
                     c.id,                                           -- 0
                     c.cliente_nombre,                               -- 1
-                    COALESCE(c.cliente_email, c.cliente_telefono),  -- 2 (Email o Teléfono)
+                    COALESCE(c.cliente_email, c.cliente_telefono),  -- 2
                     c.cliente_telefono,                             -- 3
-                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt,      -- 4 (Hora formateada)
-                    c.estado,                                       -- 5 (Estado string)
-                    COALESCE(s.nombre, 'Servicio General') AS s_nom, -- 6 (Nombre Servicio)
-                    c.mascota_nombre,                               -- 7 (Nombre Mascota)
+                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt,      -- 4
+                    c.estado,                                       -- 5
+                    COALESCE(s.nombre, 'Servicio General') AS s_nom, -- 6
+                    c.mascota_nombre,                               -- 7
                     c.mascota_especie,                              -- 8
                     COALESCE(c.precio_total, 0.00) AS precio,       -- 9
                     c.fecha,                                        -- 10
@@ -2270,23 +1844,11 @@ def citas():
                     'precio_total': c_precio,
                     'fecha': c_fecha,
                     'observaciones': c_obs,
-                    # Mapeo posicional exacto para citas.html
-                    0: c_id,        # {{ cita[0] }} -> ID
-                    1: c_nombre,    # {{ cita[1] }} -> Nombre del cliente
-                    2: c_contacto,  # {{ cita[2] }} -> Email/Contacto
-                    3: c_tel,       # {{ cita[3] }} -> Teléfono
-                    4: c_hora,      # {{ cita[4] }} -> Hora
-                    5: c_estado,    # {{ cita[5] }} -> Estado ('pendiente', 'confirmada', etc.)
-                    6: s_nombre,    # {{ cita[6] }} -> Nombre Servicio
-                    7: m_nombre,    # {{ cita[7] }} -> Nombre Mascota
-                    8: m_especie,   # {{ cita[8] }} -> Especie
-                    9: c_precio,    # {{ cita[9] }} -> Precio
-                    10: c_fecha,    # {{ cita[10] }} -> Fecha
-                    11: c_obs       # {{ cita[11] }} -> Observaciones
+                    0: c_id, 1: c_nombre, 2: c_contacto, 3: c_tel, 4: c_hora, 5: c_estado,
+                    6: s_nombre, 7: m_nombre, 8: m_especie, 9: c_precio, 10: c_fecha, 11: c_obs
                 }
                 citas_list.append(item)
 
-            # 2. Cargar lista de servicios (para el modal con condicional {% if s[5] %})
             cursor.execute("""
                 SELECT id, nombre, precio, duracion, max_citas_dia, COALESCE(activo, true)
                 FROM servicios
@@ -2306,8 +1868,6 @@ def citas():
 
     return render_template('citas.html', citas=citas_list, fecha_filtro=fecha_filtro, servicios=servicios_lista)
 
-
-# ─── AGENDAR NUEVA CITA ──────────────────────────────────────────────────────
 
 @app.route('/agendar_cita', methods=['POST'])
 def agendar_cita():
@@ -2370,8 +1930,6 @@ def agendar_cita():
     return redirect(request.referrer or url_for('citas'))
 
 
-# ─── ACCIONES DE CAMBIO DE ESTADO ────────────────────────────────────────────
-
 @app.route('/cita/<int:cita_id>/status', methods=['POST'])
 @app.route('/citas/estado/<int:cita_id>', methods=['POST'])
 def cambiar_estado_cita(cita_id):
@@ -2412,8 +1970,6 @@ def cambiar_estado_cita(cita_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ─── REPROGRAMAR CITA ────────────────────────────────────────────────────────
-
 @app.route('/cita/<int:cita_id>/reprogramar', methods=['POST'])
 def reprogramar_cita(cita_id):
     if session.get('rol') not in ['admin', 'empleado', 'dueño']:
@@ -2445,8 +2001,6 @@ def reprogramar_cita(cita_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ─── VISTAS DE DETALLES, RECIBOS Y TICKETS DE CITAS ──────────────────────────
-
 @app.route('/cita/<int:cita_id>', endpoint='ver_detalles_cita')
 @app.route('/cita/<int:cita_id>/recibo', endpoint='ver_recibo_cita')
 @app.route('/cita/recibo/<int:cita_id>')
@@ -2463,19 +2017,10 @@ def ver_recibo_cita(cita_id):
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT 
-                    c.id,                                           -- 0
-                    c.cliente_nombre,                               -- 1
-                    COALESCE(c.cliente_email, '') AS email,         -- 2
-                    COALESCE(c.cliente_telefono, '') AS telefono,   -- 3
-                    TO_CHAR(c.fecha, 'YYYY-MM-DD') AS fecha_str,    -- 4
-                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_str,      -- 5
-                    COALESCE(c.mascota_nombre, '') AS mascota,      -- 6
-                    COALESCE(c.mascota_especie, 'perro') AS especie,-- 7
-                    COALESCE(c.observaciones, '') AS obs,           -- 8
-                    COALESCE(c.precio_total, 0.00) AS precio,       -- 9
-                    COALESCE(c.estado, 'pendiente') AS estado,      -- 10
-                    COALESCE(s.nombre, 'Servicio General') AS servicio_nombre, -- 11
-                    COALESCE(s.precio, 0.00) AS servicio_precio     -- 12
+                    c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
+                    TO_CHAR(c.fecha, 'YYYY-MM-DD'), TO_CHAR(c.hora, 'HH12:MI AM'), COALESCE(c.mascota_nombre, ''),
+                    COALESCE(c.mascota_especie, 'perro'), COALESCE(c.observaciones, ''), COALESCE(c.precio_total, 0.00),
+                    COALESCE(c.estado, 'pendiente'), COALESCE(s.nombre, 'Servicio General'), COALESCE(s.precio, 0.00)
                 FROM citas c
                 LEFT JOIN servicios s ON c.servicio_id = s.id
                 WHERE c.id = %s AND c.tenant_id = %s
@@ -2483,38 +2028,14 @@ def ver_recibo_cita(cita_id):
             
             r = cursor.fetchone()
             if r:
-                c_id = r[0]
-                c_nombre = r[1] or 'Cliente General'
-                c_email = r[2]
-                c_tel = r[3]
-                c_fecha = r[4] or ''
-                c_hora = r[5] or ''
-                m_nombre = r[6]
-                m_especie = r[7]
-                c_obs = r[8]
-                c_precio = float(r[9]) if r[9] is not None else 0.0
-                c_estado = str(r[10]).lower()
-                s_nombre = r[11]
-                s_precio = float(r[12]) if r[12] is not None else 0.0
-
                 cita = {
-                    'id': c_id,
-                    'cliente_nombre': c_nombre,
-                    'cliente_email': c_email,
-                    'cliente_telefono': c_tel,
-                    'fecha': c_fecha,
-                    'hora': c_hora,
-                    'mascota_nombre': m_nombre,
-                    'mascota_especie': m_especie,
-                    'observaciones': c_obs,
-                    'precio_total': c_precio,
-                    'estado': c_estado,
-                    'servicio_nombre': s_nombre,
-                    'servicio_precio': s_precio,
-                    # Mapeo posicional
-                    0: c_id, 1: c_nombre, 2: c_email, 3: c_tel, 4: c_fecha, 5: c_hora,
-                    6: m_nombre, 7: m_especie, 8: c_obs, 9: c_precio, 10: c_estado,
-                    11: s_nombre, 12: s_precio
+                    'id': r[0], 'cliente_nombre': r[1] or 'Cliente General', 'cliente_email': r[2], 'cliente_telefono': r[3],
+                    'fecha': r[4] or '', 'hora': r[5] or '', 'mascota_nombre': r[6], 'mascota_especie': r[7],
+                    'observaciones': r[8], 'precio_total': float(r[9]) if r[9] is not None else 0.0, 'estado': str(r[10]).lower(),
+                    'servicio_nombre': r[11], 'servicio_precio': float(r[12]) if r[12] is not None else 0.0,
+                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5],
+                    6: r[6], 7: r[7], 8: r[8], 9: float(r[9]) if r[9] else 0.0, 10: str(r[10]).lower(),
+                    11: r[11], 12: float(r[12]) if r[12] else 0.0
                 }
         conexion.close()
     except Exception as e:
@@ -2524,11 +2045,7 @@ def ver_recibo_cita(cita_id):
         flash('La cita solicitada no existe o no se encontró en el sistema.', 'error')
         return redirect(url_for('citas'))
 
-    return render_template(
-        'recibo_cita.html', 
-        cita=cita, 
-        momento_actual=datetime.now()
-    )
+    return render_template('recibo_cita.html', cita=cita, momento_actual=datetime.now())
 
 
 @app.route('/cita/ticket/<int:cita_id>', endpoint='ticket_cita')
@@ -2573,11 +2090,7 @@ def ver_ticket_cita(cita_id):
         flash('La cita solicitada no existe.', 'error')
         return redirect(url_for('citas'))
 
-    return render_template(
-        'ticket_cita.html', 
-        cita=cita, 
-        momento_actual=datetime.now()
-    )
+    return render_template('ticket_cita.html', cita=cita, momento_actual=datetime.now())
 
 
 @app.route('/cita/<int:cita_id>/editar', methods=['GET', 'POST'])
@@ -2618,8 +2131,6 @@ def editar_cita(cita_id):
     return redirect(url_for('citas'))
 
 
-# ─── ELIMINAR CITA ───────────────────────────────────────────────────────────
-
 @app.route('/cita/<int:cita_id>/eliminar', methods=['POST', 'DELETE'])
 @app.route('/citas/eliminar/<int:cita_id>', methods=['POST', 'DELETE'])
 def eliminar_cita(cita_id):
@@ -2642,164 +2153,48 @@ def eliminar_cita(cita_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-# ─── API POS & TRANSACCIONES EN TIEMPO REAL ─────────────────────────────────
+# ─── COMPRAS Y PROVEEDORES ───────────────────────────────────────────────────
 
-@app.route('/api/ventas/buscar-productos')
-def api_buscar_productos():
-    q = request.args.get('q', '').strip()
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            if q:
-                cursor.execute("""
-                    SELECT id, nombre, precio, stock, codigo_barra 
-                    FROM productos 
-                    WHERE (nombre ILIKE %s OR codigo_barra = %s) AND activo = true
-                    LIMIT 20
-                """, (f"%{q}%", q))
-            else:
-                cursor.execute("SELECT id, nombre, precio, stock, codigo_barra FROM productos WHERE activo = true LIMIT 30")
-            
-            rows = cursor.fetchall()
-            productos = [{
-                'id': r[0],
-                'nombre': r[1],
-                'precio': float(r[2] or 0),
-                'stock': r[3] or 0,
-                'codigo_barra': r[4] or ''
-            } for r in rows]
-        conexion.close()
-        return jsonify({'success': True, 'productos': productos})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/ventas/validar-stock', methods=['POST'])
-def api_validar_stock():
-    data = request.get_json() or {}
-    items = data.get('items', [])
-    errores = []
+@app.route('/compras')
+def compras():
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
     
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            for item in items:
-                pid = item.get('id')
-                cant = int(item.get('cantidad', 1))
-                cursor.execute("SELECT nombre, stock FROM productos WHERE id = %s", (pid,))
-                row = cursor.fetchone()
-                if not row:
-                    errores.append(f"Producto ID {pid} no encontrado.")
-                elif row[1] < cant:
-                    errores.append(f"Stock insuficiente para {row[0]}. Disponible: {row[1]}, Solicitado: {cant}")
-        conexion.close()
-        
-        if errores:
-            return jsonify({'success': False, 'message': 'Validation failed', 'errors': errores}), 400
-        return jsonify({'success': True, 'message': 'Stock verificado correctamente'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
+    return render_template('compras.html', compras=lista)
 
 
-@app.route('/ventas/procesar', methods=['POST'])
-def procesar_venta_pos():
-    if 'usuario' not in session:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+@app.route('/historial_compras', endpoint='historial_compras')
+@app.route('/historial-compras')
+def historial_compras():
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
     
-    try:
-        data = request.get_json(silent=True) or {}
-        
-        # Obtener items de JSON, Form Data o Sesión
-        items = data.get('items') or data.get('productos') or data.get('cart')
-        
-        if not items and request.form.get('items'):
-            try:
-                items = json.loads(request.form.get('items'))
-            except Exception:
-                items = []
-                
-        if not items and request.form.get('cart'):
-            try:
-                items = json.loads(request.form.get('cart'))
-            except Exception:
-                items = []
-
-        if not items:
-            cart = session.get('cart', {})
-            items = [{'id': k, 'cantidad': v.get('qty', 1), 'precio': 0} for k, v in cart.items()]
-        
-        if not items:
-            return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
-
-        cliente_nombre = data.get('cliente_nombre') or request.form.get('cliente_nombre', 'Cliente General')
-        cliente_doc = data.get('cliente_documento') or request.form.get('cliente_documento', '')
-        metodo_pago = data.get('metodo_pago') or request.form.get('metodo_pago', 'efectivo')
-        monto_recibido = float(data.get('monto_recibido') or request.form.get('monto_recibido', 0.0))
-        subtotal = float(data.get('subtotal') or request.form.get('subtotal', 0.0))
-        igv = float(data.get('igv') or request.form.get('igv', 0.0))
-        total = float(data.get('total') or request.form.get('total', 0.0))
-        cambio = float(data.get('cambio') or request.form.get('cambio', 0.0))
-
-        vendedor_id = session.get('user_id')
-        vendedor_nombre = session.get('usuario', 'Cajero')
-        tenant_id = session.get('tenant_id', 1)
-        num_venta = f"VNT-{int(time.time())}"
-        
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO ventas (numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
-                                    vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
-                                    monto_recibido, cambio_entregado, estado, tenant_id)
-                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada', %s)
-                RETURNING id
-            """, (num_venta, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
-                  subtotal, igv, total, monto_recibido, cambio, tenant_id))
+    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
+    monto_total = 0.0
+    for c in lista:
+        try:
+            monto_total += float(c[3] if isinstance(c, (list, tuple)) and len(c) > 3 else getattr(c, 'total', 0))
+        except Exception:
+            pass
             
-            venta_id = cursor.fetchone()[0]
-            
-            for item in items:
-                pid = item.get('id')
-                cant = int(item.get('cantidad', item.get('qty', 1)))
-                precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
-                cursor.execute("""
-                    INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (venta_id, pid, cant, precio, cant * precio))
-                
-                cursor.execute("UPDATE productos SET stock = stock - %s WHERE id = %s", (cant, pid))
-                
-        conexion.commit()
-        conexion.close()
-        
-        session.pop('cart', None)
-        ticket_url = url_for('ticket_venta', venta_id=venta_id)
-        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
-    except Exception as e:
-        logger.error(f"Error procesando venta POS: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    estadisticas = {
+        'total_compras': len(lista),
+        'monto_total': monto_total
+    }
+    return render_template('historial_compras.html', compras=lista, estadisticas=estadisticas)
 
 
-@app.route('/ventas/scan-push', methods=['POST'])
-def scan_push():
-    data = request.get_json() or {}
-    code = data.get('code')
-    if code:
-        RECENT_SCANS.append({'code': code, 'timestamp': time.time()})
-        if len(RECENT_SCANS) > 20:
-            RECENT_SCANS.pop(0)
-        return jsonify({'success': True, 'code': code})
-    return jsonify({'success': False, 'error': 'Código no enviado'}), 400
+# ─── CARRITO Y PAGO E-COMMERCE ───────────────────────────────────────────────
 
+def _get_cart():
+    return session.get('cart', {})
 
-@app.route('/ventas/scan-poll')
-def scan_poll():
-    last_time = float(request.args.get('since', 0))
-    scans = [s for s in RECENT_SCANS if s['timestamp'] > last_time]
-    return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
-
-
-# ─── CARRITO Y CHECKOUT TIENDA ───────────────────────────────────────────────
+def _save_cart(cart):
+    session['cart'] = cart
+    session.modified = True
 
 @app.route('/carrito')
 def ver_carrito():
@@ -2813,18 +2208,18 @@ def ver_carrito():
         if id_str.startswith('service_'):
             try:
                 servicio_id = int(id_str.replace('service_', ''))
-                servicio = servicios_controlador.obtener_servicio_por_id(servicio_id)
+                servicio = servicios_controlador.obtener_servicio_por_id(servicio_id) if hasattr(servicios_controlador, 'obtener_servicio_por_id') else None
                 if not servicio:
                     cart.pop(id_str, None)
                     continue
                 
-                precio_unitario = float(servicio[3] or 0)
+                precio_unitario = float(servicio[3] if len(servicio) > 3 and servicio[3] else 0.0)
                 subtotal = precio_unitario * qty
                 
                 items.append({
                     'id': f'service_{servicio_id}',
                     'nombre': f"🏥 {servicio[1]} (Servicio)",
-                    'descripcion': servicio[2] or 'Servicio veterinario',
+                    'descripcion': servicio[2] if len(servicio) > 2 else 'Servicio veterinario',
                     'precio_unitario': precio_unitario,
                     'qty': qty,
                     'subtotal': subtotal,
@@ -2839,17 +2234,17 @@ def ver_carrito():
         else:
             try:
                 pid = int(id_str)
-                producto = productos_controlador.obtener_producto_por_id(pid)
+                producto = productos_controlador.obtener_producto_por_id(pid) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
                 if not producto:
                     cart.pop(id_str, None)
                     continue
                 
-                stock = producto[3] or 0
+                stock = int(producto[3] or 0)
                 if qty > stock:
                     qty = stock
                     cart[id_str]['qty'] = qty
                 
-                precio_unitario = float(producto[4] or 0)
+                precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
                 subtotal = precio_unitario * qty
                 
                 items.append({
@@ -2881,12 +2276,12 @@ def agregar_al_carrito():
         flash('Datos inválidos para agregar al carrito.', 'error')
         return redirect(request.referrer or url_for('index'))
 
-    producto = productos_controlador.obtener_producto_por_id(producto_id)
+    producto = productos_controlador.obtener_producto_por_id(producto_id) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
     if not producto:
         flash('Producto no encontrado.', 'error')
         return redirect(url_for('index'))
 
-    stock = producto[3] or 0
+    stock = int(producto[3] or 0)
     if cantidad <= 0 or stock < 1:
         flash('Cantidad inválida o producto agotado.', 'warning')
         return redirect(url_for('index'))
@@ -2937,13 +2332,13 @@ def carrito_actualizar():
     except (ValueError, TypeError):
         return 'Error: Datos inválidos', 400
 
-    producto = productos_controlador.obtener_producto_por_id(producto_id)
+    producto = productos_controlador.obtener_producto_por_id(producto_id) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
     if not producto or cantidad <= 0:
         return 'Error al actualizar', 400
 
     cart = _get_cart()
     key = str(producto_id)
-    stock = producto[3] or 0
+    stock = int(producto[3] or 0)
     if cantidad > stock:
         cantidad = stock
     
@@ -2966,11 +2361,11 @@ def checkout():
             pid = int(id_str)
         except Exception:
             continue
-        producto = productos_controlador.obtener_producto_por_id(pid)
+        producto = productos_controlador.obtener_producto_por_id(pid) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
         if not producto:
             continue
         qty = int(data.get('qty', 0))
-        precio_unitario = float(producto[4] or 0)
+        precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
         subtotal_item = precio_unitario * qty
         items.append({
             'id': pid,
@@ -2996,15 +2391,15 @@ def procesar_pago():
             flash('Tu carrito está vacío', 'warning')
             return redirect(url_for('ver_carrito'))
         
-        nombre = request.form.get('nombre')
-        email = request.form.get('email')
-        telefono = request.form.get('telefono')
-        direccion = request.form.get('direccion')
-        documento = request.form.get('documento')
-        metodo_pago = request.form.get('metodo_pago')
+        nombre = request.form.get('nombre', '').strip()
+        email = request.form.get('email', '').strip()
+        telefono = request.form.get('telefono', '').strip()
+        direccion = request.form.get('direccion', '').strip()
+        documento = request.form.get('documento', '').strip()
+        metodo_pago = request.form.get('metodo_pago', 'efectivo').strip()
         
         if not all([nombre, email, telefono, direccion, metodo_pago]):
-            flash('Por favor completa todos los campos obligatorios', 'error')
+            flash('Por favor completa todos los campos obligatorios.', 'error')
             return redirect(url_for('checkout'))
         
         items = []
@@ -3014,47 +2409,69 @@ def procesar_pago():
                 pid = int(id_str)
             except Exception:
                 continue
-            producto = productos_controlador.obtener_producto_por_id(pid)
+            
+            producto = productos_controlador.obtener_producto_por_id(pid) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
             if not producto:
                 continue
             qty = int(data.get('qty', 0))
-            precio_unitario = float(producto[4] or 0)
+            precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
             subtotal_item = precio_unitario * qty
             items.append({
                 'id': pid,
                 'nombre': producto[1],
-                'qty': qty,
-                'precio_unitario': precio_unitario,
+                'cantidad': qty,
+                'precio': precio_unitario,
                 'subtotal': subtotal_item
             })
             subtotal += subtotal_item
         
         igv = round(subtotal * 0.18, 2)
         total_final = subtotal + igv
-        
-        cliente_id = None
-        if hasattr(clientes_controlador, 'obtener_cliente_por_email'):
-            cliente = clientes_controlador.obtener_cliente_por_email(email)
-            if cliente:
-                cliente_id = cliente[0]
-        
-        if not cliente_id and hasattr(clientes_controlador, 'insertar_cliente'):
-            cliente_id = clientes_controlador.insertar_cliente(nombre, email, telefono, direccion, documento)
-        
-        if hasattr(clientes_controlador, 'insertar_pedido'):
-            clientes_controlador.insertar_pedido(cliente_id, items, total_final, metodo_pago, subtotal, igv)
-        
+        tenant_id = session.get('tenant_id', 1)
+        num_venta = f"VNT-{int(time.time())}"
+        productos_json = json.dumps(items, ensure_ascii=False)
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO ventas (
+                    numero_venta, fecha_venta, cliente_nombre, cliente_documento,
+                    vendedor_nombre, metodo_pago, subtotal, igv, total,
+                    monto_recibido, cambio_entregado, productos, estado, tenant_id
+                ) VALUES (
+                    %s, NOW(), %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s
+                ) RETURNING id
+            """, (num_venta, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+            
+            venta_id = cursor.fetchone()[0]
+
+            for item in items:
+                cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
+
+        conexion.commit()
+        conexion.close()
+
         session.pop('cart', None)
-        flash('¡Pago procesado exitosamente!', 'success')
+        flash('¡Pago y pedido procesados exitosamente!', 'success')
         return redirect(url_for('index'))
         
     except Exception as e:
-        logger.error(f"Error procesando pago: {e}")
-        flash('Hubo un error procesando tu pago.', 'error')
+        logger.error(f"Error procesando pago e-commerce: {e}")
+        flash(f'Hubo un error procesando tu pago: {str(e)}', 'error')
         return redirect(url_for('checkout'))
 
 
-# ─── GESTIÓN DE TENANTS ──────────────────────────────────────────────────────
+# ─── FIDELIZACIÓN Y TENANTS ──────────────────────────────────────────────────
+
+@app.route('/fidelizacion')
+def fidelizacion():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    alertas = fidelizacion_ctrl.obtener_alertas_recientes() if hasattr(fidelizacion_ctrl, 'obtener_alertas_recientes') else []
+    return render_template('fidelizacion.html', alertas=alertas)
+
 
 @app.route('/gestionar_tenants')
 def gestionar_tenants():
