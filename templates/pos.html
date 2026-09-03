@@ -338,19 +338,22 @@
                         </div>
                     </div>
 
-                    <!-- Filtro de búsqueda -->
+                    <!-- Filtro de búsqueda / Escáner Código de Barras -->
                     <div style="padding: 0 25px 25px 25px;">
                         <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px;">
                             <div style="position: relative; flex: 1;">
-                                <input type="text" id="filtro-productos" placeholder="🔍 Buscar productos..."
-                                    onkeyup="filtrarProductos()"
+                                <input type="text" id="filtro-productos"
+                                    placeholder="🔍 Buscar productos o escanear código de barras..."
+                                    onkeyup="if(event.key !== 'Enter') filtrarProductos()"
+                                    onkeydown="if(event.key === 'Enter') { event.preventDefault(); buscarYAgregarPorCodigo(this.value.trim()); }"
                                     style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 50px 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500; transition: all 0.3s ease;"
                                     onfocus="this.style.borderColor='#ffa301'; this.style.boxShadow='0 0 0 4px rgba(255, 163, 1, 0.15)'"
-                                    onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'">
+                                    onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'"
+                                    autofocus>
                                 <i class="fas fa-search"
                                     style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 16px;"></i>
                             </div>
-                            <button onclick="abrirEscanerPOS()" title="Escanear código de barras"
+                            <button onclick="abrirEscanerPOS()" title="Escanear código de barras con cámara"
                                 style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 15px rgba(255,163,1,0.3); transition: all 0.3s ease;"
                                 onmouseover="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'"
                                 onmouseout="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'">
@@ -387,10 +390,10 @@
                             <div id="pos-scan-status"
                                 style="margin-top:16px; min-height:40px; text-align:center; color:#aaa; font-size:14px;">
                             </div>
-                            <!-- También acepta entrada manual desde lector USB -->
+                            <!-- Entrada manual desde lector USB / Teclado -->
                             <div style="margin-top:14px;">
                                 <input type="text" id="pos-manual-barcode"
-                                    placeholder="O ingresa / pega el código aquí…" autofocus
+                                    placeholder="O ingresa / pega el código aquí…"
                                     style="width:100%; border:2px solid #444; border-radius:12px; padding:12px 16px; font-size:15px; background:#2a2a3e; color:white; box-sizing:border-box;"
                                     onkeydown="if(event.key==='Enter') posLookupCode(this.value.trim())">
                             </div>
@@ -401,6 +404,7 @@
                         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
                         {% for producto in productos %}
                         <div class="producto-card" data-nombre="{{ producto[1]|lower }}"
+                            data-codigo="{{ producto[4] if producto[4] is defined else '' }}"
                             data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower or 'vitamina' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower or 'cama' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower or 'pelota' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower or 'jabón' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
                             style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #ffa301;"
                             onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.borderLeftColor='#6ccae2';"
@@ -509,8 +513,8 @@
                             <i class="fas fa-user" style="color: #6ccae2; margin-right: 10px;"></i> Cliente (opcional)
                         </h5>
                         <div style="position: relative;" id="cliente-autocomplete-wrap">
-                            <input type="text" id="cliente_nombre" placeholder="Buscar cliente por nombre o email..."
-                                autocomplete="off"
+                            <input type="text" id="cliente_nombre"
+                                placeholder="Buscar cliente por nombre, DNI o email..." autocomplete="off"
                                 style="border: 2px solid #e9ecef; border-radius: 12px; padding: 12px 16px; font-size: 15px; background: white; width: 100%; color: #2c3e50; box-sizing: border-box;"
                                 onfocus="this.style.borderColor='#6ccae2';posClienteBuscar(this.value)"
                                 onblur="this.style.borderColor='#e9ecef'; setTimeout(posClienteCerrar,200)"
@@ -672,7 +676,7 @@
 
                             <div id="resumen-venta"
                                 style="background: #f8f9fa; border-radius: 15px; padding: 20px; margin-bottom: 25px;">
-                                <!-- Aquí se mostrará el resumen -->
+                                <!-- Resumen de la venta -->
                             </div>
 
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -694,18 +698,12 @@
 </div>
 
 <script>
-    // Inicializador mínimo para usar las funciones globales exportadas por static/js/main.js
+    // Variables globales
     window.carrito = window.carrito || [];
     window.total = window.total || 0;
     window.ultimaVenta = window.ultimaVenta || null;
 
-    // Delegar la lógica a main.js; si las funciones no existen, mostrar un mensaje en consola
-    if (!window.filtrarPorCategoria) console.warn('filtrarPorCategoria no está definida en main.js');
-    if (!window.agregarProducto) console.warn('agregarProducto no está definida en main.js');
-    if (!window.actualizarCarrito) console.warn('actualizarCarrito no está definida en main.js');
-    if (!window.actualizarBotonPagar) console.warn('actualizarBotonPagar no está definida en main.js');
-
-    // Conectar listeners ligeros si los elementos existen
+    // Listeners de los inputs de pago
     document.getElementById('monto_recibido')?.addEventListener('input', () => {
         window.calcularCambio?.();
         window.actualizarBotonPagar?.();
@@ -716,7 +714,6 @@
         window.actualizarBotonPagar?.();
     });
 
-    // Ejecutar setup inicial si está disponible
     window.cambiarMetodoPago?.();
 
     // ─── Tab switcher: Productos / Servicios ───────────────────────────────────
@@ -738,16 +735,68 @@
         }
     }
 
+    // ─── Búsqueda / Lectura de producto por Código de Barras ───────────────────
+    function buscarYAgregarPorCodigo(q) {
+        if (!q) return;
+        const input = document.getElementById('filtro-productos');
+
+        // 1. Intentar buscar en la API de búsqueda amplia de productos
+        fetch('/api/ventas/buscar-productos?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.productos && data.productos.length > 0) {
+                    const exacto = data.productos.find(p => p.codigo_barra && p.codigo_barra.toLowerCase() === q.toLowerCase());
+                    const p = exacto || (data.productos.length === 1 ? data.productos[0] : null);
+
+                    if (p) {
+                        window.agregarProducto(p.id, p.nombre, p.precio);
+                        posToast('✅ ' + p.nombre + ' — S/ ' + parseFloat(p.precio).toFixed(2), '#28a745');
+                        if (input) input.value = '';
+                        if (window.filtrarProductos) window.filtrarProductos();
+                        return;
+                    }
+                }
+                // 2. Si no se halló en la API general, buscar en el endpoint de almacén
+                return fetch('/almacen/buscar-barcode?codigo=' + encodeURIComponent(q))
+                    .then(r2 => r2.json())
+                    .then(data2 => {
+                        if (data2.success && data2.found && data2.producto) {
+                            const prod = data2.producto;
+                            window.agregarProducto(prod.id, prod.nombre, prod.precio);
+                            posToast('✅ ' + prod.nombre + ' — S/ ' + parseFloat(prod.precio).toFixed(2), '#28a745');
+                            if (input) input.value = '';
+                            if (window.filtrarProductos) window.filtrarProductos();
+                        } else {
+                            posToast('❌ Producto no encontrado con código: ' + q, '#dc3545');
+                        }
+                    });
+            })
+            .catch(err => {
+                console.error('Error buscando producto por código:', err);
+                posToast('❌ Error al consultar producto', '#dc3545');
+            });
+    }
+
     // ─── Autocomplete de clientes en POS ──────────────────────────────────────
     let _clienteTimer = null;
     function posClienteBuscar(q) {
         clearTimeout(_clienteTimer);
         _clienteTimer = setTimeout(() => {
-            fetch('/api/clientes-buscar?q=' + encodeURIComponent(q))
+            fetch('/api/ventas/buscar-clientes?q=' + encodeURIComponent(q))
                 .then(r => r.json())
                 .then(data => {
-                    if (!data.success) return;
-                    posClienteRenderDropdown(data.clientes, q);
+                    if (data.success && data.clientes) {
+                        posClienteRenderDropdown(data.clientes, q);
+                    } else {
+                        // Fallback a API secundaria de clientes
+                        fetch('/api/clientes-buscar?q=' + encodeURIComponent(q))
+                            .then(r2 => r2.json())
+                            .then(data2 => {
+                                if (data2.success && data2.clientes) {
+                                    posClienteRenderDropdown(data2.clientes, q);
+                                }
+                            }).catch(() => { });
+                    }
                 })
                 .catch(() => { });
         }, 250);
@@ -756,24 +805,26 @@
     function posClienteRenderDropdown(clientes, q) {
         const dd = document.getElementById('cliente-dropdown');
         if (!dd) return;
-        if (clientes.length === 0 && !q) { dd.style.display = 'none'; return; }
+        if ((!clientes || clientes.length === 0) && !q) { dd.style.display = 'none'; return; }
         let html = '';
-        clientes.forEach(c => {
-            const sub = [c.email, c.telefono].filter(Boolean).join(' · ');
-            html += `<div class="pc-item" onclick="posClienteSeleccionar('${c.nombre.replace(/'/g, "\\'")}','${(c.email || '').replace(/'/g, "\\'")}','${(c.telefono || '').replace(/'/g, "\\'")}','')"`
-                + ` style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">`
-                + `<strong>${c.nombre}</strong>`
-                + (sub ? `<br><span style="color:#888;font-size:12px;">${sub}</span>` : '')
-                + `</div>`;
-        });
+        if (clientes && clientes.length > 0) {
+            clientes.forEach(c => {
+                const sub = [c.documento ? 'Doc: ' + c.documento : '', c.email, c.telefono].filter(Boolean).join(' · ');
+                html += `<div class="pc-item" onclick="posClienteSeleccionar('${(c.nombre || '').replace(/'/g, "\\'")}','${(c.email || '').replace(/'/g, "\\'")}','${(c.telefono || '').replace(/'/g, "\\'")}','${c.id || ''}')"`
+                    + ` style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">`
+                    + `<strong>${c.nombre}</strong>`
+                    + (sub ? `<br><span style="color:#888;font-size:12px;">${sub}</span>` : '')
+                    + `</div>`;
+            });
+        }
         if (q) {
             html += `<div onclick="abrirModalNuevoClienteConNombre('${q.replace(/'/g, "\\'")}')"`
-                + ` style="padding:10px 14px;cursor:pointer;color:#6ccae2;font-size:14px;font-weight:600;">`
+                + ` style="padding:10px 14px;cursor:pointer;color:#6ccae2;font-size:14px;font-weight:600;border-top:1px dashed #cbd5e0;">`
                 + `<i class="fas fa-user-plus"></i> Registrar "${q}" como nuevo cliente</div>`;
         }
         dd.innerHTML = html;
         dd.style.display = 'block';
-        // Hover effect
+
         dd.querySelectorAll('.pc-item').forEach(el => {
             el.addEventListener('mouseenter', () => el.style.background = '#f0f9ff');
             el.addEventListener('mouseleave', () => el.style.background = 'white');
@@ -832,12 +883,11 @@
             .catch(() => alert('Error de red al registrar cliente.'));
     }
 
-    // Cerrar modal al hacer clic fuera
     document.getElementById('modal-nuevo-cliente').addEventListener('click', function (e) {
         if (e.target === this) cerrarModalNuevoCliente();
     });
 
-    // ─── Agrega un servicio al carrito (tipo: 'servicio') ──────────────────────
+    // ─── Agregar servicio al carrito ──────────────────────────────────────────
     window.agregarServicio = function (id, nombre, precio) {
         const item = window.carrito.find(p => p.tipo === 'servicio' && p.id === id);
         if (item) {
@@ -850,7 +900,7 @@
         posToast?.('✅ ' + nombre + ' agregado', '#28a745');
     };
 
-    // ─── Filtro de búsqueda de servicios ──────────────────────────────────────
+    // ─── Filtro de servicios ──────────────────────────────────────────────────
     function filtrarServicios() {
         const q = (document.getElementById('filtro-servicios')?.value || '').toLowerCase();
         document.querySelectorAll('.servicio-card').forEach(card => {
@@ -859,31 +909,10 @@
     }
 </script>
 
-<!-- Diagnostic helper: fetch main.js and log first chars to detect if server returns HTML -->
-<script>
-    fetch('/static/js/main.js', { cache: 'no-store' })
-        .then(resp => resp.text().then(text => ({ ok: resp.ok, status: resp.status, type: resp.headers.get('content-type'), text })))
-        .then(info => {
-            console.info('[diag] /static/js/main.js status=', info.status, 'content-type=', info.type);
-            const prefix = info.text.slice(0, 200);
-            console.info('[diag] /static/js/main.js prefix:', prefix.replace(/\n/g, '\\n'));
-            if (prefix.trim().startsWith('<')) {
-                console.error('[diag] Parece que /static/js/main.js devolvió HTML (por eso Unexpected token "<"). Revisa la ruta estática o autenticación.');
-            }
-        })
-        .catch(err => console.error('[diag] Error al fetch /static/js/main.js:', err));
-</script>
-
 <script>
     /* =====================================================================
-       ESCÁNER DE CÓDIGO DE BARRAS — POS
-       - Abre cámara del dispositivo actual (BarcodeDetector API)
-       - Acepta lector USB / manual
-       - Sincronización en tiempo real vía polling /ventas/scan-poll
+       ESCÁNER DE CÓDIGO DE BARRAS — CÁMARA & POLLING POS
        ===================================================================== */
-
-    // ID único por pestaña/dispositivo para evitar que el dispositivo que escanó
-    // reciba de vuelta su propio escaneo desde la cola del servidor.
     const POS_DEVICE_ID = (function () {
         let id = sessionStorage.getItem('pos_device_id');
         if (!id) {
@@ -898,7 +927,6 @@
     let posDetector = null;
     let posPollTimer = null;
 
-    // Toast notification
     function posToast(msg, color) {
         let t = document.getElementById('pos-toast');
         if (!t) {
@@ -921,7 +949,7 @@
         setTimeout(() => document.getElementById('pos-manual-barcode').focus(), 150);
 
         if (!('BarcodeDetector' in window)) {
-            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ Tu navegador no soporta detección de cámara. Usa el campo manual o un lector USB.</span>';
+            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ Tu navegador no soporta cámara directa. Usa el campo manual o la pistola lectora.</span>';
             return;
         }
         try {
@@ -947,7 +975,7 @@
                         cerrarEscanerPOS();
                         posLookupCode(code);
                     }
-                } catch { /* ignore frame errors */ }
+                } catch { }
             }, 150);
         } catch (e) {
             document.getElementById('pos-scan-status').innerHTML = '<span style="color:#dc3545">❌ No se pudo acceder a la cámara. Usa el campo manual.</span>';
@@ -965,36 +993,13 @@
     function posLookupCode(codigo) {
         if (!codigo) return;
         document.getElementById('pos-manual-barcode').value = '';
-        fetch('/almacen/buscar-barcode?codigo=' + encodeURIComponent(codigo))
-            .then(r => r.json())
-            .then(data => {
-                if (!data.success || !data.found) {
-                    posToast('❌ Producto no encontrado: ' + codigo, '#dc3545');
-                    return;
-                }
-                const p = data.producto;
-                window.agregarProducto(p.id, p.nombre, p.precio);
-                posToast('✅ ' + p.nombre + ' — S/ ' + parseFloat(p.precio).toFixed(2), '#28a745');            // Notificar a otros dispositivos (laptop ↔ celular sync)
-                fetch('/ventas/scan-push', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ codigo: codigo, device_id: POS_DEVICE_ID })
-                }).catch(() => { });
-            })
-            .catch(() => posToast('❌ Error al buscar producto', '#dc3545'));
+        buscarYAgregarPorCodigo(codigo);
     }
 
-    // Cerrar modal al hacer clic fuera
     document.getElementById('pos-scanner-modal').addEventListener('click', function (e) {
         if (e.target === this) cerrarEscanerPOS();
     });
 
-    /* =====================================================================
-       POLLING: SINCRONIZACIÓN EN TIEMPO REAL (celular → laptop)
-       El celular llama a /ventas/scan-push con el código escaneado.
-       Este POS hace polling a /ventas/scan-poll cada 1.5 s para recibir
-       los productos encolados desde otro dispositivo.
-       ===================================================================== */
     function iniciarPollingRemoto() {
         posPollTimer = setInterval(() => {
             fetch('/ventas/scan-poll?device_id=' + encodeURIComponent(POS_DEVICE_ID))
@@ -1003,17 +1008,15 @@
                     if (data.items && data.items.length > 0) {
                         data.items.forEach(item => {
                             window.agregarProducto(item.id, item.nombre, item.precio);
-                            posToast('\ud83d\udcf1 ' + item.nombre + ' escaneado desde otro dispositivo', '#6ccae2');
+                            posToast('📱 ' + item.nombre + ' escaneado desde otro dispositivo', '#6ccae2');
                         });
                     }
                 })
-                .catch(() => { /* ignore network errors silently */ });
+                .catch(() => { });
         }, 1500);
     }
 
-    // Iniciar polling cuando la página carga
     document.addEventListener('DOMContentLoaded', iniciarPollingRemoto);
-    // Fallback si DOMContentLoaded ya pasó
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(iniciarPollingRemoto, 0);
     }
