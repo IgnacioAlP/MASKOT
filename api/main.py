@@ -1196,27 +1196,47 @@ def personal():
             raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id')
             target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
 
+            # Desactivar empleado respetando el tenant
             if 'eliminar' in request.form or get_param('accion') in ['desactivar', 'eliminar']:
                 if target_id:
                     conexion = obtener_conexion()
                     with conexion.cursor() as cursor:
-                        cursor.execute("UPDATE personal SET activo = false WHERE id = %s OR usuario_id = %s RETURNING usuario_id", (target_id, target_id))
+                        cursor.execute("""
+                            UPDATE personal 
+                            SET activo = false 
+                            WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                            RETURNING usuario_id
+                        """, (target_id, target_id, tenant_id))
                         res = cursor.fetchone()
                         if res and res[0]:
-                            cursor.execute("UPDATE usuarios SET activo = false WHERE id = %s", (res[0],))
+                            cursor.execute("""
+                                UPDATE usuarios 
+                                SET activo = false 
+                                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                            """, (res[0], tenant_id))
                     conexion.commit()
                     conexion.close()
                     flash('Empleado desactivado correctamente.', 'success')
                     return redirect(url_for('personal'))
 
+            # Reactivar empleado respetando el tenant
             if 'reactivar' in request.form or get_param('accion') in ['reactivar']:
                 if target_id:
                     conexion = obtener_conexion()
                     with conexion.cursor() as cursor:
-                        cursor.execute("UPDATE personal SET activo = true WHERE id = %s OR usuario_id = %s RETURNING usuario_id", (target_id, target_id))
+                        cursor.execute("""
+                            UPDATE personal 
+                            SET activo = true 
+                            WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                            RETURNING usuario_id
+                        """, (target_id, target_id, tenant_id))
                         res = cursor.fetchone()
                         if res and res[0]:
-                            cursor.execute("UPDATE usuarios SET activo = true WHERE id = %s", (res[0],))
+                            cursor.execute("""
+                                UPDATE usuarios 
+                                SET activo = true 
+                                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                            """, (res[0], tenant_id))
                     conexion.commit()
                     conexion.close()
                     flash('Empleado reactivado correctamente.', 'success')
@@ -1235,19 +1255,39 @@ def personal():
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if target_id:
-                    cursor.execute("SELECT id, usuario_id FROM personal WHERE id = %s OR usuario_id = %s", (target_id, target_id))
+                    cursor.execute("""
+                        SELECT id, usuario_id 
+                        FROM personal 
+                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                    """, (target_id, target_id, tenant_id))
                     p_row = cursor.fetchone()
+                    
                     if p_row:
                         p_id, usuario_id = p_row[0], p_row[1]
-                        cursor.execute("UPDATE personal SET cargo = %s, salario = %s WHERE id = %s", (cargo, salario, p_id))
+                        cursor.execute("""
+                            UPDATE personal 
+                            SET cargo = %s, salario = %s 
+                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                        """, (cargo, salario, p_id, tenant_id))
                     else:
                         usuario_id = target_id
-                        cursor.execute("INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id) VALUES (%s, %s, %s, true, %s)", (usuario_id, cargo, salario, tenant_id))
+                        cursor.execute("""
+                            INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id) 
+                            VALUES (%s, %s, %s, true, %s)
+                        """, (usuario_id, cargo, salario, tenant_id))
 
                     if usuario_id and username:
-                        cursor.execute("UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum WHERE id = %s", (username, rol_final, usuario_id))
+                        cursor.execute("""
+                            UPDATE usuarios 
+                            SET username = %s, rol = %s::rol_usuario_enum 
+                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                        """, (username, rol_final, usuario_id, tenant_id))
                     elif usuario_id and rol:
-                        cursor.execute("UPDATE usuarios SET rol = %s::rol_usuario_enum WHERE id = %s", (rol_final, usuario_id))
+                        cursor.execute("""
+                            UPDATE usuarios 
+                            SET rol = %s::rol_usuario_enum 
+                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                        """, (rol_final, usuario_id, tenant_id))
 
                     mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
@@ -1297,6 +1337,7 @@ def personal():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # Filtrado estricto de personal por tenant_id
             cursor.execute("""
                 SELECT 
                     p.id AS personal_id,
@@ -1308,8 +1349,10 @@ def personal():
                     u.id AS usuario_id
                 FROM personal p
                 INNER JOIN usuarios u ON p.usuario_id = u.id
+                WHERE (p.tenant_id = %s OR p.tenant_id IS NULL)
+                  AND (u.tenant_id = %s OR u.tenant_id IS NULL)
                 ORDER BY p.id ASC
-            """)
+            """, (tenant_id, tenant_id))
             
             rows = cursor.fetchall()
             for r in rows:
@@ -1347,7 +1390,14 @@ def personal():
                 }
                 empleados_lista.append(item)
 
-            cursor.execute("SELECT id, username, rol, COALESCE(activo, true) FROM usuarios ORDER BY id ASC")
+            # Filtrado estricto de usuarios por tenant_id
+            cursor.execute("""
+                SELECT id, username, rol, COALESCE(activo, true) 
+                FROM usuarios 
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                ORDER BY id ASC
+            """, (tenant_id,))
+            
             for u in cursor.fetchall():
                 usuarios_lista.append({
                     'id': u[0],
@@ -1378,29 +1428,35 @@ def toggle_estado_personal(target_id):
     if session.get('rol') not in ['admin', 'dueño']:
         return jsonify({'success': False, 'error': 'Sin permisos'}), 403
 
+    tenant_id = session.get('tenant_id', 1)
+
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE personal
                 SET activo = NOT COALESCE(activo, true)
-                WHERE id = %s OR usuario_id = %s
+                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
                 RETURNING usuario_id, activo
-            """, (target_id, target_id))
+            """, (target_id, target_id, tenant_id))
             
             res = cursor.fetchone()
             
             if res:
                 usuario_id, nuevo_estado = res[0], res[1]
                 if usuario_id:
-                    cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (nuevo_estado, usuario_id))
+                    cursor.execute("""
+                        UPDATE usuarios 
+                        SET activo = %s 
+                        WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                    """, (nuevo_estado, usuario_id, tenant_id))
             else:
                 cursor.execute("""
                     UPDATE usuarios
                     SET activo = NOT COALESCE(activo, true)
-                    WHERE id = %s
+                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
                     RETURNING activo
-                """, (target_id,))
+                """, (target_id, tenant_id))
                 res_u = cursor.fetchone()
                 if not res_u:
                     conexion.close()
@@ -1432,10 +1488,16 @@ def eliminar_personal_permanente(target_id):
         flash('Sin permisos para eliminar personal.', 'error')
         return redirect(url_for('personal'))
 
+    tenant_id = session.get('tenant_id', 1)
+
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT id, usuario_id FROM personal WHERE id = %s OR usuario_id = %s", (target_id, target_id))
+            cursor.execute("""
+                SELECT id, usuario_id 
+                FROM personal 
+                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (target_id, target_id, tenant_id))
             p_row = cursor.fetchone()
             
             if p_row:
@@ -1444,15 +1506,15 @@ def eliminar_personal_permanente(target_id):
                 personal_id, usuario_id = None, target_id
 
             if personal_id:
-                cursor.execute("DELETE FROM asistencia WHERE personal_id = %s", (personal_id,))
-                cursor.execute("DELETE FROM personal WHERE id = %s", (personal_id,))
+                cursor.execute("DELETE FROM asistencia WHERE personal_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (personal_id, tenant_id))
+                cursor.execute("DELETE FROM personal WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (personal_id, tenant_id))
 
             if usuario_id:
-                cursor.execute("DELETE FROM asistencia WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s)", (usuario_id,))
-                cursor.execute("DELETE FROM personal WHERE usuario_id = %s", (usuario_id,))
-                cursor.execute("UPDATE ventas SET vendedor_id = NULL WHERE vendedor_id = %s", (usuario_id,))
-                cursor.execute("UPDATE compras SET vendedor_id = NULL WHERE vendedor_id = %s", (usuario_id,))
-                cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
+                cursor.execute("DELETE FROM asistencia WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
+                cursor.execute("DELETE FROM personal WHERE usuario_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
+                cursor.execute("UPDATE ventas SET vendedor_id = NULL WHERE vendedor_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
+                cursor.execute("UPDATE compras SET vendedor_id = NULL WHERE vendedor_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
+                cursor.execute("DELETE FROM usuarios WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
 
         conexion.commit()
         conexion.close()
