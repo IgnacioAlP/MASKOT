@@ -1482,47 +1482,56 @@ def toggle_estado_personal(target_id):
 @app.route('/personal/eliminar/<int:target_id>', methods=['POST', 'DELETE'])
 @app.route('/usuario/eliminar/<int:target_id>', methods=['POST', 'DELETE'])
 def eliminar_personal_permanente(target_id):
-    if session.get('rol') not in ['admin', 'dueño']:
+    if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': 'Sin permisos'}), 403
         flash('Sin permisos para eliminar personal.', 'error')
         return redirect(url_for('personal'))
 
-    tenant_id = session.get('tenant_id', 1)
-
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # 1. Obtener IDs asociados
             cursor.execute("""
-                SELECT id, usuario_id 
-                FROM personal 
-                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
-            """, (target_id, target_id, tenant_id))
-            p_row = cursor.fetchone()
+                SELECT p.id AS personal_id, u.id AS usuario_id 
+                FROM usuarios u
+                LEFT JOIN personal p ON p.usuario_id = u.id
+                WHERE u.id = %s OR p.id = %s
+            """, (target_id, target_id))
             
-            if p_row:
-                personal_id, usuario_id = p_row[0], p_row[1]
-            else:
-                personal_id, usuario_id = None, target_id
+            row = cursor.fetchone()
+            personal_id = row[0] if row else None
+            usuario_id = row[1] if row else target_id
 
+            # 2. Borrar asistencias
             if personal_id:
-                cursor.execute("DELETE FROM asistencia WHERE personal_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (personal_id, tenant_id))
-                cursor.execute("DELETE FROM personal WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (personal_id, tenant_id))
+                cursor.execute("DELETE FROM asistencia WHERE personal_id = %s", (personal_id,))
 
             if usuario_id:
-                cursor.execute("DELETE FROM asistencia WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
-                cursor.execute("DELETE FROM personal WHERE usuario_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
-                cursor.execute("UPDATE ventas SET vendedor_id = NULL WHERE vendedor_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
-                cursor.execute("UPDATE compras SET vendedor_id = NULL WHERE vendedor_id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
-                cursor.execute("DELETE FROM usuarios WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (usuario_id, tenant_id))
+                cursor.execute("""
+                    DELETE FROM asistencia 
+                    WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s)
+                """, (usuario_id,))
+
+                # 3. Borrar ventas y compras asociadas al vendedor
+                cursor.execute("DELETE FROM ventas WHERE vendedor_id = %s", (usuario_id,))
+                
+                try:
+                    cursor.execute("DELETE FROM compras WHERE vendedor_id = %s", (usuario_id,))
+                except Exception:
+                    pass
+
+                # 4. Borrar personal y usuario
+                cursor.execute("DELETE FROM personal WHERE usuario_id = %s", (usuario_id,))
+                cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
 
         conexion.commit()
         conexion.close()
 
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': 'Usuario y ficha eliminados permanentemente.'})
+            return jsonify({'success': True, 'message': 'Usuario y todo su historial eliminados permanentemente.'})
 
-        flash('Usuario eliminado permanentemente de la base de datos.', 'success')
+        flash('Usuario y todos sus registros asociados fueron eliminados permanentemente.', 'success')
     except Exception as e:
         logger.error(f"Error eliminando usuario/personal: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1530,7 +1539,6 @@ def eliminar_personal_permanente(target_id):
         flash(f'Error al eliminar permanentemente: {e}', 'error')
 
     return redirect(url_for('personal'))
-
 
 # ─── ASISTENCIA DEL PERSONAL ──────────────────────────────────────────────────
 
