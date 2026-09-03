@@ -512,26 +512,26 @@
 
                 <div style="padding: 0 25px 25px 25px;">
                     <div id="carrito-vacio"
-                        style="display: block; text-align: center; padding: 50px 25px; color: #6c757d; background: #f5f5f5; border-radius: 15px; border: 2px dashed #adb5bd; margin: 0 0 25px 0;">
+                        style="display: block; text-align: center; padding: 30px 15px; color: #6c757d; background: #f5f5f5; border-radius: 12px; border: 2px dashed #adb5bd; margin: 0 0 15px 0;">
                         <i class="fas fa-shopping-cart"
                             style="font-size: 64px; margin-bottom: 20px; color: #adb5bd; display: block;"></i>
                         <p style="color: #6c757d; font-weight: 600;">Tu carrito está vacío</p>
                         <p style="color: #adb5bd;">Agrega productos haciendo clic en "Agregar"</p>
                     </div>
 
-                    <div id="carrito-items" style="display: none; max-height: 350px; overflow-y: auto; padding-right: 5px; margin-bottom: 25px;"></div>
+                    <div id="carrito-items" style="display: none; max-height: 250px; overflow-y: auto; padding-right: 5px; margin-bottom: 15px;"></div>
 
                     <!-- Campo nombre del cliente con autocomplete -->
                     <div
-                        style="background: #f5f5f5; border-radius: 15px; padding: 20px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        style="background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
                         <h5
-                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center;">
-                            <i class="fas fa-user" style="color: #6ccae2; margin-right: 10px;"></i> Cliente (opcional)
+                            style="color: #2c3e50; font-size: 15px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center;">
+                            <i class="fas fa-user" style="color: #6ccae2; margin-right: 8px;"></i> Cliente (opcional)
                         </h5>
                         <div style="position: relative;" id="cliente-autocomplete-wrap">
                             <input type="text" id="cliente_nombre"
                                 placeholder="Buscar cliente por nombre, DNI o email..." autocomplete="off"
-                                style="border: 2px solid #e9ecef; border-radius: 12px; padding: 12px 16px; font-size: 15px; background: white; width: 100%; color: #2c3e50; box-sizing: border-box;"
+                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; color: #2c3e50; box-sizing: border-box;"
                                 onfocus="this.style.borderColor='#6ccae2';posClienteBuscar(this.value)"
                                 onblur="this.style.borderColor='#e9ecef'; setTimeout(posClienteCerrar,200)"
                                 oninput="posClienteBuscar(this.value)">
@@ -542,7 +542,7 @@
                             </div>
                         </div>
                         <button type="button" onclick="abrirModalNuevoCliente()"
-                            style="margin-top:10px; background:none; border:1px solid #6ccae2; color:#6ccae2; border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer;">
+                            style="margin-top:8px; background:none; border:1px solid #6ccae2; color:#6ccae2; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer;">
                             <i class="fas fa-user-plus"></i> Registrar nuevo cliente
                         </button>
                     </div>
@@ -577,18 +577,18 @@
                     </div>
 
                     <div
-                        style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        style="background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
                         <h5
-                            style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center;">
                             <i class="fas fa-credit-card"
-                                style="color: #ffa301; margin-right: 12px; background: rgba(255, 163, 1, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i>
+                                style="color: #ffa301; margin-right: 10px; background: rgba(255, 163, 1, 0.1); padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;"></i>
                             Método de Pago
                         </h5>
                         <label
-                            style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Método
+                            style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Método
                             de Pago:</label>
                         <select id="metodo_pago" onchange="cambiarMetodoPago()"
-                            style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500;">
+                            style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; margin-bottom: 5px; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500;">
                             <option value="efectivo">💵 Efectivo</option>
                             <option value="tarjeta">💳 Tarjeta</option>
                             <option value="yape">📱 Yape</option>
@@ -598,69 +598,69 @@
 
                     <!-- Sección de dinero (solo para efectivo y multipago) -->
                     <div id="dinero-section"
-                        style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        style="background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
                         <h5
-                            style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center;">
                             <i class="fas fa-money-bill-wave"
-                                style="color: #28a745; margin-right: 12px; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i>
+                                style="color: #28a745; margin-right: 10px; background: rgba(40, 167, 69, 0.1); padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;"></i>
                             Dinero en Efectivo
                         </h5>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div>
                                 <label
-                                    style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Monto
+                                    style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Monto
                                     Recibido:</label>
                                 <input type="number" id="monto_recibido" step="0.01" value="0.00"
                                     onchange="calcularCambio()"
-                                    style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 600;">
+                                    style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 600;">
                             </div>
                             <div>
                                 <label
-                                    style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Cambio:
+                                    style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Cambio:
                                     S/</label>
                                 <input type="number" id="cambio" step="0.01" value="0.00" readonly
-                                    style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #6c757d; font-weight: 600;">
+                                    style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #6c757d; font-weight: 600;">
                             </div>
                         </div>
                     </div>
 
                     <!-- Sección de multipago -->
                     <div id="multipago-section"
-                        style="display: none; background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        style="display: none; background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
                         <h5
-                            style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center;">
                             <i class="fas fa-layer-group"
-                                style="color: #6ccae2; margin-right: 12px; background: rgba(108, 202, 226, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i>
+                                style="color: #6ccae2; margin-right: 10px; background: rgba(108, 202, 226, 0.1); padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;"></i>
                             Configurar Multipago
                         </h5>
 
                         <div style="margin-bottom: 20px;">
                             <label
-                                style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Primer
+                                style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Primer
                                 Método:</label>
                             <select id="metodo1" onchange="calcularMultipago()"
-                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; margin-bottom: 8px; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50;">
                                 <option value="efectivo">💵 Efectivo</option>
                                 <option value="tarjeta">💳 Tarjeta</option>
                                 <option value="yape">📱 Yape</option>
                             </select>
                             <input type="number" id="monto1" step="0.01" placeholder="Monto método 1"
                                 onchange="calcularMultipago()"
-                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50;">
                         </div>
 
                         <div style="margin-bottom: 20px;">
                             <label
-                                style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Segundo
+                                style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Segundo
                                 Método:</label>
                             <select id="metodo2" onchange="calcularMultipago()"
-                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; margin-bottom: 8px; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50;">
                                 <option value="tarjeta">💳 Tarjeta</option>
                                 <option value="yape">📱 Yape</option>
                                 <option value="efectivo">💵 Efectivo</option>
                             </select>
                             <input type="number" id="monto2" step="0.01" placeholder="Monto método 2" readonly
-                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #6c757d;">
+                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #6c757d;">
                         </div>
                     </div>
 
