@@ -1216,7 +1216,7 @@ def historial_asistencia():
     return render_template('historial_asistencia.html', historial=registros, registros=registros)
 
 
-# ─── MÓDULO DE GESTIÓN DE CITAS (COMPLETO Y CORREGIDO) ───────────────────────
+# ─── MÓDULO DE GESTIÓN DE CITAS (CON ENDPOINTS EXPLÍCITOS) ───────────────────
 
 @app.route('/citas')
 def citas():
@@ -1237,12 +1237,12 @@ def citas():
                 SELECT 
                     c.id,                                           -- 0
                     c.cliente_nombre,                               -- 1
-                    COALESCE(c.cliente_email, c.cliente_telefono),  -- 2 (Email o Teléfono para el subtítulo)
+                    COALESCE(c.cliente_email, c.cliente_telefono),  -- 2 (Email o Teléfono)
                     c.cliente_telefono,                             -- 3
-                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt,      -- 4 (Hora formateada para cita[4])
-                    c.estado,                                       -- 5 (Estado string para status-cita[5])
-                    COALESCE(s.nombre, 'Servicio General') AS s_nom, -- 6 (Nombre Servicio para cita[6])
-                    c.mascota_nombre,                               -- 7 (Nombre Mascota para cita[7])
+                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt,      -- 4 (Hora formateada)
+                    c.estado,                                       -- 5 (Estado string)
+                    COALESCE(s.nombre, 'Servicio General') AS s_nom, -- 6 (Nombre Servicio)
+                    c.mascota_nombre,                               -- 7 (Nombre Mascota)
                     c.mascota_especie,                              -- 8
                     COALESCE(c.precio_total, 0.00) AS precio,       -- 9
                     c.fecha,                                        -- 10
@@ -1286,7 +1286,7 @@ def citas():
                     2: c_contacto,  # {{ cita[2] }} -> Email/Contacto
                     3: c_tel,       # {{ cita[3] }} -> Teléfono
                     4: c_hora,      # {{ cita[4] }} -> Hora
-                    5: c_estado,    # {{ cita[5] }} -> Estado ('pendiente', 'confirmada', etc.)
+                    5: c_estado,    # {{ cita[5] }} -> Estado
                     6: s_nombre,    # {{ cita[6] }} -> Nombre Servicio
                     7: m_nombre,    # {{ cita[7] }} -> Nombre Mascota
                     8: m_especie,   # {{ cita[8] }} -> Especie
@@ -1457,10 +1457,10 @@ def reprogramar_cita(cita_id):
 
 # ─── VISTAS DE DETALLES, RECIBOS Y TICKETS DE CITAS ──────────────────────────
 
-@app.route('/cita/<int:cita_id>/recibo')
+@app.route('/cita/<int:cita_id>', endpoint='ver_detalles_cita')
+@app.route('/cita/<int:cita_id>/recibo', endpoint='ver_recibo_cita')
 @app.route('/cita/recibo/<int:cita_id>')
 @app.route('/cita/<int:cita_id>/detalles')
-@app.route('/cita/<int:cita_id>')
 def ver_recibo_cita(cita_id):
     if 'rol' not in session:
         return redirect(url_for('login'))
@@ -1537,8 +1537,8 @@ def ver_recibo_cita(cita_id):
     return render_template('recibo_cita.html', cita=cita)
 
 
+@app.route('/cita/ticket/<int:cita_id>', endpoint='ticket_cita')
 @app.route('/cita/<int:cita_id>/ticket')
-@app.route('/cita/ticket/<int:cita_id>')
 def ver_ticket_cita(cita_id):
     if 'rol' not in session:
         return redirect(url_for('login'))
