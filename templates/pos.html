@@ -740,41 +740,40 @@
         if (!q) return;
         const input = document.getElementById('filtro-productos');
 
-        // 1. Intentar buscar en la API de búsqueda amplia de productos
         fetch('/api/ventas/buscar-productos?q=' + encodeURIComponent(q))
             .then(r => r.json())
             .then(data => {
-                if (data.success && data.productos && data.productos.length > 0) {
-                    const exacto = data.productos.find(p => p.codigo_barra && p.codigo_barra.toLowerCase() === q.toLowerCase());
+                if (data.productos && data.productos.length > 0) {
+                    // 1. Buscar coincidencia exacta de código de barras
+                    const exacto = data.productos.find(p => p.codigo_barra && p.codigo_barra.toString().toLowerCase() === q.toLowerCase());
                     const p = exacto || (data.productos.length === 1 ? data.productos[0] : null);
 
                     if (p) {
+                        if (Number(p.stock) <= 0) {
+                            posToast('⚠️ Producto sin stock disponible', '#e6920e');
+                            return;
+                        }
                         window.agregarProducto(p.id, p.nombre, p.precio);
                         posToast('✅ ' + p.nombre + ' — S/ ' + parseFloat(p.precio).toFixed(2), '#28a745');
                         if (input) input.value = '';
                         if (window.filtrarProductos) window.filtrarProductos();
-                        return;
+                    } else {
+                        posToast('⚠️ Múltiples coincidencias. Revisa la lista.', '#e6920e');
                     }
+                } else {
+                    posToast('❌ Producto no encontrado con código: ' + q, '#dc3545');
                 }
-                // 2. Si no se halló en la API general, buscar en el endpoint de almacén
-                return fetch('/almacen/buscar-barcode?codigo=' + encodeURIComponent(q))
-                    .then(r2 => r2.json())
-                    .then(data2 => {
-                        if (data2.success && data2.found && data2.producto) {
-                            const prod = data2.producto;
-                            window.agregarProducto(prod.id, prod.nombre, prod.precio);
-                            posToast('✅ ' + prod.nombre + ' — S/ ' + parseFloat(prod.precio).toFixed(2), '#28a745');
-                            if (input) input.value = '';
-                            if (window.filtrarProductos) window.filtrarProductos();
-                        } else {
-                            posToast('❌ Producto no encontrado con código: ' + q, '#dc3545');
-                        }
-                    });
             })
             .catch(err => {
                 console.error('Error buscando producto por código:', err);
-                posToast('❌ Error al consultar producto', '#dc3545');
+                posToast('❌ Error al consultar el servidor', '#dc3545');
             });
+    }
+
+    function posLookupCode(codigo) {
+        if (!codigo) return;
+        document.getElementById('pos-manual-barcode').value = '';
+        buscarYAgregarPorCodigo(codigo);
     }
 
     // ─── Autocomplete de clientes en POS ──────────────────────────────────────
