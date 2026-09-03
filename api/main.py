@@ -972,7 +972,6 @@ def almacen():
             nombre = request.form.get('nombre', '').strip()
             codigo_barra = request.form.get('codigo_barra', '').strip() or None
             
-            # Buscar el tipo probando diferentes nombres de campos posibles
             tipo = (request.form.get('tipo') or 
                     request.form.get('tipo_producto') or 
                     request.form.get('tipo_item') or 
@@ -993,7 +992,7 @@ def almacen():
             with conexion.cursor() as cursor:
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 
-                # ─── VALIDACIÓN DE CÓDIGO DE BARRAS ÚNICO ───────────────────
+                # Validación de código de barras único
                 if codigo_barra:
                     if producto_id:
                         cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s AND id != %s", (codigo_barra, producto_id))
@@ -1006,17 +1005,14 @@ def almacen():
                         flash(f'No se puede guardar: El código de barras "{codigo_barra}" ya pertenece al producto "{nombre_duplicado}".', 'error')
                         conexion.close()
                         return redirect(url_for('almacen'))
-                # ────────────────────────────────────────────────────────────
 
                 if producto_id:
-                    # Si no llegó el tipo en el formulario al editar, conservar el tipo actual de la BD
                     if not tipo:
                         cursor.execute("SELECT tipo FROM productos WHERE id = %s", (producto_id,))
                         res_tipo = cursor.fetchone()
                         if res_tipo and res_tipo[0]:
                             tipo = str(res_tipo[0]).strip().lower()
                     
-                    # Si aún así sigue vacío, asignamos 'stock' por defecto
                     if not tipo:
                         tipo = 'stock'
 
@@ -1052,17 +1048,31 @@ def almacen():
             flash(f'Error al procesar el producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
+    # ─── LÓGICA DE FILTRADO Y CONSULTA ────────────────────────────────────────
+    tipo_filtro = request.args.get('tipo', '').strip().lower()
     productos_lista = []
+
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
-            cursor.execute("""
+            
+            sql_query = """
                 SELECT id, nombre, tipo, cantidad, precio, COALESCE(stock_minimo, 5), codigo_barra 
                 FROM productos 
-                ORDER BY id ASC
-            """)
+            """
+            params = []
+
+            # Aplicar filtro solo si es 'stock' o 'venta'
+            if tipo_filtro in ['stock', 'venta']:
+                sql_query += " WHERE LOWER(tipo) = %s "
+                params.append(tipo_filtro)
+
+            sql_query += " ORDER BY id ASC "
+
+            cursor.execute(sql_query, tuple(params))
             rows = cursor.fetchall()
+            
             for r in rows:
                 p_id = r[0]
                 nombre = r[1] or ''
@@ -1094,7 +1104,7 @@ def almacen():
     except Exception as e:
         logger.error(f"Error consultando productos en almacén: {e}")
 
-    return render_template('almacen.html', productos=productos_lista)
+    return render_template('almacen.html', productos=productos_lista, tipo_filtro=tipo_filtro)
 
 
 @app.route('/producto/<int:producto_id>')
