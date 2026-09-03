@@ -1,440 +1,691 @@
 {% extends "base.html" %}
 
-{% block title %}Punto de Venta - Sistema Veterinaria{% endblock %}
+{% block title %}Punto de Venta - POS{% endblock %}
 
-{% block extra_css %}
+{% block head %}
 <style>
-    .pos-container {
-        min-height: 100vh;
-        background: #f8f9fa;
+    /* ESTILOS CRÍTICOS CON MÁXIMA PRIORIDAD */
+    body,
+    html {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
 
-    .product-card {
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        transition: all 0.3s;
-        cursor: pointer;
-        height: 100%;
+    .container-fluid {
+        background: rgba(255, 255, 255, 0.15) !important;
+        backdrop-filter: blur(15px) !important;
+        border-radius: 20px !important;
+        margin: 20px !important;
+        padding: 30px !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
     }
 
-    .product-card:hover {
-        border-color: #007bff;
-        box-shadow: 0 4px 8px rgba(0, 123, 255, 0.15);
-        transform: translateY(-2px);
+    .col-md-8,
+    .col-md-4 {
+        background: rgba(255, 255, 255, 0.95) !important;
+        border-radius: 20px !important;
+        padding: 0 !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+        margin-bottom: 20px !important;
+        overflow: hidden !important;
     }
 
-    .product-card.selected {
-        border-color: #28a745;
-        background-color: #f8fff9;
+    /* Títulos con gradiente */
+    h3 {
+        color: white !important;
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        padding: 25px !important;
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        display: flex !important;
+        align-items: center !important;
+        margin-bottom: 25px !important;
     }
 
-    .product-price {
-        font-size: 1.2rem;
-        font-weight: bold;
-        color: #28a745;
+    h3 i {
+        color: white !important;
+        margin-right: 15px !important;
+        font-size: 1.3em !important;
     }
 
-    .product-stock {
-        font-size: 0.9rem;
-        color: #6c757d;
+    /* Grid de productos moderno */
+    .productos-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+        gap: 20px !important;
+        padding: 25px !important;
     }
 
-    .cart-panel {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        min-height: 600px;
+    /* Tarjetas de productos */
+    .producto-item {
+        background: linear-gradient(145deg, #ffffff, #f8fafc) !important;
+        border: none !important;
+        border-radius: 16px !important;
+        padding: 25px !important;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12) !important;
+        transition: all 0.4s ease !important;
+        position: relative !important;
+        border-left: 5px solid #667eea !important;
+        transform: translateZ(0) !important;
     }
 
-    .cart-header {
-        background: linear-gradient(135deg, #007bff, #0056b3);
-        color: white;
-        padding: 1rem;
-        border-radius: 12px 12px 0 0;
-        margin: -1px -1px 0 -1px;
+    .producto-item:hover {
+        transform: translateY(-8px) scale(1.02) !important;
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.2) !important;
     }
 
-    .cart-item {
-        border-bottom: 1px solid #e9ecef;
-        padding: 0.75rem 0;
+    .producto-item strong {
+        display: block !important;
+        color: #2d3748 !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        margin-bottom: 12px !important;
     }
 
-    .cart-item:last-child {
-        border-bottom: none;
+    .producto-item .precio {
+        display: block !important;
+        color: #667eea !important;
+        font-size: 22px !important;
+        font-weight: 800 !important;
+        margin-bottom: 8px !important;
     }
 
-    .quantity-controls {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+    .producto-item .stock {
+        color: #48bb78 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        background: rgba(72, 187, 120, 0.1) !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        display: inline-block !important;
     }
 
-    .quantity-btn {
-        width: 30px;
-        height: 30px;
-        padding: 0;
-        border-radius: 50%;
-        border: none;
-        background: #007bff;
-        color: white;
-        font-size: 0.9rem;
-        cursor: pointer;
+    /* Botones modernos */
+    .btn-agregar {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        border: none !important;
+        border-radius: 12px !important;
+        color: white !important;
+        padding: 14px 24px !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        cursor: pointer !important;
+        width: 100% !important;
+        margin-top: 15px !important;
+        text-transform: uppercase !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
     }
 
-    .quantity-btn:hover {
-        background: #0056b3;
+    .btn-agregar:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6) !important;
     }
 
-    .quantity-btn:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
+    /* Carrito moderno */
+    .col-md-4 h2 {
+        color: white !important;
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        padding: 25px !important;
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-bottom: 25px !important;
     }
 
-    .quantity-input {
-        width: 60px;
-        text-align: center;
-        border: 1px solid #ced4da;
-        border-radius: 4px;
-        padding: 0.25rem;
+    .col-md-4 h2 i {
+        color: white !important;
+        margin-right: 15px !important;
     }
 
-    .totals-section {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
+    /* Contenido del carrito con padding */
+    .col-md-4>*:not(h2) {
+        padding: 0 25px 25px 25px !important;
     }
 
-    .total-line {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.5rem;
+    /* Carrito vacío */
+    #carrito-vacio {
+        text-align: center !important;
+        padding: 50px 25px !important;
+        color: #a0aec0 !important;
+        background: linear-gradient(145deg, #f7fafc, #edf2f7) !important;
+        border-radius: 15px !important;
+        border: 2px dashed #cbd5e0 !important;
+        margin: 0 25px 25px 25px !important;
     }
 
-    .total-line.final {
-        font-size: 1.3rem;
-        font-weight: bold;
-        color: #28a745;
-        border-top: 2px solid #28a745;
-        padding-top: 0.5rem;
-        margin-top: 0.5rem;
+    #carrito-vacio i {
+        font-size: 64px !important;
+        margin-bottom: 20px !important;
+        color: #cbd5e0 !important;
+        display: block !important;
     }
 
-    .payment-section {
-        margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 2px solid #e9ecef;
+    /* Secciones de pago */
+    .metodo-pago,
+    .dinero-section {
+        background: linear-gradient(145deg, #f7fafc, #ffffff) !important;
+        border-radius: 15px !important;
+        padding: 25px !important;
+        margin: 0 25px 25px 25px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
     }
 
-    .payment-method-btn {
-        width: 100%;
-        margin-bottom: 0.5rem;
-        padding: 0.75rem;
-        border: 2px solid #dee2e6;
-        background: white;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s;
+    .metodo-pago h5,
+    .dinero-section h5 {
+        color: #2d3748 !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        margin-bottom: 20px !important;
+        display: flex !important;
+        align-items: center !important;
     }
 
-    .payment-method-btn.active {
-        border-color: #007bff;
-        background: #e3f2fd;
-        color: #0056b3;
+    .metodo-pago h5 i {
+        color: #667eea !important;
+        margin-right: 12px !important;
+        background: rgba(102, 126, 234, 0.1) !important;
+        padding: 8px !important;
+        border-radius: 50% !important;
+        width: 40px !important;
+        height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
-    .payment-method-btn:hover {
-        border-color: #007bff;
+    .dinero-section h5 i {
+        color: #48bb78 !important;
+        margin-right: 12px !important;
+        background: rgba(72, 187, 120, 0.1) !important;
+        padding: 8px !important;
+        border-radius: 50% !important;
+        width: 40px !important;
+        height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
-    .payment-details {
-        margin-top: 1rem;
-        padding: 1rem;
-        background: #f8f9fa;
-        border-radius: 8px;
-        display: none;
+    /* Inputs modernos */
+    select,
+    input[type="number"] {
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 15px 18px !important;
+        font-size: 16px !important;
+        background: white !important;
+        width: 100% !important;
+        margin-bottom: 15px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+        transition: all 0.3s ease !important;
     }
 
-    .payment-details.active {
-        display: block;
+    select:focus,
+    input[type="number"]:focus {
+        outline: none !important;
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15) !important;
+        transform: translateY(-2px) !important;
     }
 
-    .search-section {
-        background: white;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    .dinero-inputs {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 20px !important;
     }
 
-    .category-filters {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        margin-top: 1rem;
+    /* Labels */
+    label {
+        color: #4a5568 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+        display: block !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
     }
 
-    .category-btn {
-        padding: 0.5rem 1rem;
-        border: 1px solid #dee2e6;
-        background: white;
-        border-radius: 20px;
-        cursor: pointer;
-        transition: all 0.3s;
-        font-size: 0.9rem;
-    }
+    /* Responsive */
+    @media (max-width: 768px) {
+        .container-fluid {
+            margin: 10px !important;
+            padding: 15px !important;
+        }
 
-    .category-btn.active,
-    .category-btn:hover {
-        background: #007bff;
-        color: white;
-        border-color: #007bff;
-    }
+        .productos-grid {
+            grid-template-columns: 1fr !important;
+            padding: 15px !important;
+        }
 
-    .btn-process-sale {
-        background: linear-gradient(135deg, #28a745, #20c997);
-        border: none;
-        padding: 1rem;
-        font-size: 1.1rem;
-        font-weight: bold;
-        border-radius: 8px;
-        width: 100%;
-        margin-top: 1rem;
-    }
-
-    .btn-process-sale:hover {
-        background: linear-gradient(135deg, #218838, #1ea085);
-    }
-
-    .btn-process-sale:disabled {
-        background: #6c757d;
-        cursor: not-allowed;
-    }
-
-    .empty-cart {
-        text-align: center;
-        color: #6c757d;
-        padding: 2rem;
-    }
-
-    .loading-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        display: none;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-    }
-
-    .loading-spinner {
-        background: white;
-        padding: 2rem;
-        border-radius: 8px;
-        text-align: center;
-    }
-
-    /* Autocompletado de Clientes */
-    .client-dropdown-item {
-        padding: 8px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #f1f1f1;
-    }
-
-    .client-dropdown-item:hover {
-        background-color: #e3f2fd;
+        .dinero-inputs {
+            grid-template-columns: 1fr !important;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="pos-container">
-    <div class="container-fluid">
+<div style="background: #f5f5f5; min-height: 100vh; padding: 20px; margin: 0;">
+    <div
+        style="background: rgba(255, 255, 255, 0.95); border-radius: 25px; padding: 30px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);">
         <div class="row">
-            <!-- Panel de productos -->
-            <div class="col-lg-8 col-md-7">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2><i class="fas fa-cash-register"></i> Punto de Venta</h2>
-                    <div>
-                        <a href="{{ url_for('historial_ventas') }}" class="btn btn-outline-primary">
-                            <i class="fas fa-history"></i> Historial
-                        </a>
-                    </div>
+            <div class="col-md-8"
+                style="background: #ffffff; border-radius: 15px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
+                <!-- Tabs productos / servicios -->
+                <div style="display: flex; margin: 0;">
+                    <button id="tab-productos" onclick="cambiarTab('productos')"
+                        style="flex:1; padding: 20px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; background: linear-gradient(135deg, #ffa301, #6ccae2); color: white; transition: all 0.3s ease;">
+                        <i class="fas fa-box-open"></i> Productos
+                    </button>
+                    <button id="tab-servicios" onclick="cambiarTab('servicios')"
+                        style="flex:1; padding: 20px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; background: #e9ecef; color: #6c757d; transition: all 0.3s ease;">
+                        <i class="fas fa-concierge-bell"></i> Servicios
+                    </button>
                 </div>
 
-                <!-- Buscador y filtros -->
-                <div class="search-section">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="fas fa-barcode"></i>
-                                </span>
-                                <input type="text" id="buscar-producto" class="form-control"
-                                    placeholder="Buscar por nombre o escanear código de barras..." autocomplete="off"
-                                    autofocus>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <button class="btn btn-outline-secondary w-100" onclick="limpiarBusqueda()">
-                                <i class="fas fa-times"></i> Limpiar
+                <!-- Panel Productos -->
+                <div id="panel-productos">
+                    <div style="padding: 0 25px; margin-bottom: 20px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                            <button onclick="filtrarPorCategoria('todos')" class="filtro-btn" data-categoria="todos"
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.3);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.4)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.3)';">
+                                <i class="fas fa-th-large"></i> Todos
+                            </button>
+                            <button onclick="filtrarPorCategoria('alimento')" class="filtro-btn"
+                                data-categoria="alimento"
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                <i class="fas fa-bone"></i> Alimentos
+                            </button>
+                            <button onclick="filtrarPorCategoria('medicina')" class="filtro-btn"
+                                data-categoria="medicina"
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                <i class="fas fa-pills"></i> Medicinas
+                            </button>
+                            <button onclick="filtrarPorCategoria('accesorio')" class="filtro-btn"
+                                data-categoria="accesorio"
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                <i class="fas fa-tags"></i> Accesorios
+                            </button>
+                            <button onclick="filtrarPorCategoria('juguete')" class="filtro-btn" data-categoria="juguete"
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                <i class="fas fa-baseball-ball"></i> Juguetes
+                            </button>
+                            <button onclick="filtrarPorCategoria('higiene')" class="filtro-btn" data-categoria="higiene"
+                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                <i class="fas fa-bath"></i> Higiene
                             </button>
                         </div>
                     </div>
 
-                    <!-- Filtros por categoría -->
-                    <div class="category-filters">
-                        <button class="category-btn active" data-categoria="">
-                            <i class="fas fa-th"></i> Todos
-                        </button>
-                        {% for categoria in categorias %}
-                        <button class="category-btn" data-categoria="{{ categoria.id }}">
-                            {{ categoria.nombre }} ({{ categoria.total_productos }})
-                        </button>
+                    <!-- Filtro de búsqueda -->
+                    <div style="padding: 0 25px 25px 25px;">
+                        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px;">
+                            <div style="position: relative; flex: 1;">
+                                <input type="text" id="filtro-productos" placeholder="🔍 Buscar productos..."
+                                    onkeyup="filtrarProductos()"
+                                    style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 50px 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='#ffa301'; this.style.boxShadow='0 0 0 4px rgba(255, 163, 1, 0.15)'"
+                                    onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'">
+                                <i class="fas fa-search"
+                                    style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 16px;"></i>
+                            </div>
+                            <button onclick="abrirEscanerPOS()" title="Escanear código de barras"
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 15px rgba(255,163,1,0.3); transition: all 0.3s ease;"
+                                onmouseover="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'"
+                                onmouseout="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'">
+                                <i class="fas fa-barcode"></i> Escanear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Modal escáner POS -->
+                    <div id="pos-scanner-modal"
+                        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:9999; backdrop-filter:blur(5px);">
+                        <div
+                            style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#1a1a2e; border-radius:24px; padding:30px; max-width:420px; width:92%; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                            <div
+                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                                <h3 style="color:white; margin:0; font-size:20px; font-weight:700;"><i
+                                        class="fas fa-barcode" style="color:#ffa301; margin-right:10px;"></i> Escanear
+                                    Producto</h3>
+                                <button onclick="cerrarEscanerPOS()"
+                                    style="background:rgba(255,255,255,0.15); border:none; color:white; width:36px; height:36px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+                            </div>
+                            <div
+                                style="position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:4/3;">
+                                <video id="pos-scanner-video" autoplay playsinline muted
+                                    style="width:100%; height:100%; object-fit:cover;"></video>
+                                <!-- Guía de encuadre -->
+                                <div
+                                    style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:75%; height:30%; border:3px solid #ffa301; border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,0.5);">
+                                </div>
+                                <div
+                                    style="position:absolute; bottom:14px; left:0; right:0; text-align:center; color:#ffa301; font-size:13px; font-weight:600;">
+                                    Apunta el código al recuadro</div>
+                            </div>
+                            <div id="pos-scan-status"
+                                style="margin-top:16px; min-height:40px; text-align:center; color:#aaa; font-size:14px;">
+                            </div>
+                            <!-- También acepta entrada manual desde lector USB -->
+                            <div style="margin-top:14px;">
+                                <input type="text" id="pos-manual-barcode"
+                                    placeholder="O ingresa / pega el código aquí…" autofocus
+                                    style="width:100%; border:2px solid #444; border-radius:12px; padding:12px 16px; font-size:15px; background:#2a2a3e; color:white; box-sizing:border-box;"
+                                    onkeydown="if(event.key==='Enter') posLookupCode(this.value.trim())">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="productos-container"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
+                        {% for producto in productos %}
+                        <div class="producto-card" data-nombre="{{ producto[1]|lower }}"
+                            data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower or 'vitamina' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower or 'cama' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower or 'pelota' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower or 'jabón' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
+                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #ffa301;"
+                            onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.borderLeftColor='#6ccae2';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.borderLeftColor='#ffa301';">
+                            <div style="margin-bottom: 15px;">
+                                <strong
+                                    style="display: block; color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{
+                                    producto[1] }}</strong>
+                                <span
+                                    style="display: block; color: #ffa301; font-size: 22px; font-weight: 800; margin-bottom: 8px;">S/
+                                    {{ "%.2f"|format(producto[2]) }}</span>
+                                <span
+                                    style="color: #28a745; font-size: 14px; font-weight: 600; background: rgba(40, 167, 69, 0.1); padding: 4px 12px; border-radius: 8px; display: inline-block;">Stock:
+                                    {{ producto[3] }}</span>
+                            </div>
+                            <button
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 14px 24px; font-weight: 700; font-size: 16px; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.background='linear-gradient(135deg, #6ccae2, #5ab8d9)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.background='linear-gradient(135deg, #ffa301, #e6920e)';"
+                                {% if producto[1] and producto[2] is not none %}
+                                onclick='agregarProducto({{ producto[0] }}, "{{ producto[1].replace("\"", "\\\"") }}", {{ producto[2] }})'
+                                {% else %} disabled {% endif %}>
+                                <i class="fas fa-plus"></i> Agregar
+                            </button>
+                        </div>
                         {% endfor %}
                     </div>
-                </div>
+                </div><!-- /panel-productos -->
 
-                <!-- Grid de productos -->
-                <div id="productos-grid" class="row">
-                    {% for producto in productos %}
-                    <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6 mb-3">
-                        <div class="card product-card" data-id="{{ producto.id }}" data-nombre="{{ producto.nombre }}"
-                            data-precio="{{ producto.precio }}" data-stock="{{ producto.stock }}" {% if producto.stock
-                            <=0 %} data-outofstock="1" {% endif %}>
-                            <div class="card-body p-3">
-                                <h6 class="card-title mb-2">{{ producto.nombre }}</h6>
-                                <p class="card-text product-price">S/ {{ "%.2f"|format(producto.precio) }}</p>
-                                <p class="product-stock">
-                                    <i class="fas fa-boxes"></i> Stock: {{ producto.stock }}
-                                </p>
-                                {% if producto.stock <= 0 %} <span class="badge bg-danger">Agotado</span>
-                                    {% endif %}
+                <!-- Panel Servicios -->
+                <div id="panel-servicios" style="display:none;">
+                    <div style="padding: 25px 25px 0 25px;">
+                        <input type="text" id="filtro-servicios" placeholder="🔍 Buscar servicios..."
+                            onkeyup="filtrarServicios()"
+                            style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.1); color: #2c3e50; font-weight: 500; margin-bottom: 20px;">
+                    </div>
+                    <div id="servicios-container"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; padding: 0 25px 25px 25px;">
+                        {% for servicio in servicios %}
+                        {% if servicio[5] %}
+                        <div class="servicio-card" data-nombre="{{ servicio[1]|lower }}"
+                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 15px; padding: 25px; box-shadow: 0 8px 25px rgba(108, 202, 226, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #6ccae2;"
+                            onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(108, 202, 226, 0.25)'; this.style.borderLeftColor='#ffa301';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(108, 202, 226, 0.15)'; this.style.borderLeftColor='#6ccae2';">
+                            <div style="margin-bottom: 15px;">
+                                <strong
+                                    style="display: block; color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{
+                                    servicio[1] }}</strong>
+                                <span
+                                    style="display: block; color: #6ccae2; font-size: 22px; font-weight: 800; margin-bottom: 8px;">S/
+                                    {{ "%.2f"|format(servicio[2]) }}</span>
+                                {% if servicio[3] %}<span style="color: #6c757d; font-size: 13px;">⏱ {{ servicio[3] }}
+                                    min</span>{% endif %}
+                                <span
+                                    style="color: #6ccae2; font-size: 13px; font-weight: 600; background: rgba(108, 202, 226, 0.1); padding: 4px 12px; border-radius: 8px; display: inline-block; margin-left: 8px;">Servicio</span>
                             </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                <div id="no-productos" class="text-center py-4" style="display: none;">
-                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted">No se encontraron productos</h5>
-                </div>
-            </div>
-
-            <!-- Panel del carrito -->
-            <div class="col-lg-4 col-md-5">
-                <div class="cart-panel p-3">
-                    <div class="cart-header">
-                        <h4 class="mb-0">
-                            <i class="fas fa-shopping-cart"></i> Carrito de Venta
-                        </h4>
-                        <small>Vendedor: {{ session.usuario }}</small>
-                    </div>
-
-                    <!-- Búsqueda interactiva de cliente en el Carrito -->
-                    <div class="mt-3 position-relative">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label mb-0 fw-bold"><i class="fas fa-user me-1"></i> Cliente:</label>
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
-                                onclick="seleccionarClienteGeneral()">
-                                <i class="fas fa-undo me-1"></i> Cliente General
+                            {% if servicio[4] %}
+                            <p style="color: #6c757d; font-size: 14px; margin-bottom: 15px;">{{ servicio[4][:80] }}{% if
+                                servicio[4]|length > 80 %}…{% endif %}</p>
+                            {% endif %}
+                            <button
+                                style="background: linear-gradient(135deg, #6ccae2, #5ab8d9); border: none; border-radius: 15px; color: white; padding: 14px 24px; font-weight: 700; font-size: 16px; cursor: pointer; width: 100%; margin-top: 10px; text-transform: uppercase; transition: all 0.4s ease; box-shadow: 0 8px 25px rgba(108, 202, 226, 0.3);"
+                                onmouseover="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'; this.style.transform='translateY(-2px)';"
+                                onmouseout="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'; this.style.transform='translateY(0)';"
+                                onclick='agregarServicio({{ servicio[0] }}, "{{ servicio[1].replace("\"", "\\\"") }}", {{ servicio[2] }})'>
+                                <i class="fas fa-plus"></i> Agregar
                             </button>
                         </div>
-                        <div class="row g-2">
-                            <div class="col-8 position-relative">
-                                <input type="text" id="cliente-nombre" class="form-control"
-                                    placeholder="Escribe nombre para buscar..." value="Cliente General"
-                                    autocomplete="off">
-                                <div id="lista-clientes-dropdown" class="dropdown-menu w-100 shadow"
-                                    style="display: none; max-height: 200px; overflow-y: auto; position: absolute; z-index: 1050;">
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                <input type="text" id="cliente-documento" class="form-control" placeholder="DNI/RUC">
-                            </div>
+                        {% endif %}
+                        {% else %}
+                        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #adb5bd;">
+                            <i class="fas fa-concierge-bell"
+                                style="font-size: 48px; margin-bottom: 15px; display: block;"></i>
+                            <p style="font-size: 16px;">No hay servicios disponibles</p>
                         </div>
+                        {% endfor %}
+                    </div>
+                </div><!-- /panel-servicios -->
+
+            </div><!-- /col-md-8 -->
+
+            <div class="col-md-4"
+                style="background: #ffffff; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
+                <h2
+                    style="color: white; font-size: 24px; font-weight: 700; margin: 0; padding: 25px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; justify-content: center; margin-bottom: 25px;">
+                    <i class="fas fa-shopping-cart" style="color: white; margin-right: 15px;"></i>
+                    Carrito de Compras
+                </h2>
+
+                <div style="padding: 0 25px 25px 25px;">
+                    <div id="carrito-vacio"
+                        style="display: block; text-align: center; padding: 50px 25px; color: #6c757d; background: #f5f5f5; border-radius: 15px; border: 2px dashed #adb5bd; margin: 0 0 25px 0;">
+                        <i class="fas fa-shopping-cart"
+                            style="font-size: 64px; margin-bottom: 20px; color: #adb5bd; display: block;"></i>
+                        <p style="color: #6c757d; font-weight: 600;">Tu carrito está vacío</p>
+                        <p style="color: #adb5bd;">Agrega productos haciendo clic en "Agregar"</p>
                     </div>
 
-                    <!-- Lista de productos en el carrito -->
-                    <div id="cart-items" class="mt-3">
-                        <div class="empty-cart">
-                            <i class="fas fa-cart-plus fa-3x mb-3"></i>
-                            <p>Selecciona productos para agregar al carrito</p>
-                        </div>
-                    </div>
+                    <div id="carrito-items" style="display: none;"></div>
 
-                    <div id="cart-errors"
-                        style="margin-top:10px; display:none; background:#fff3f3; border:1px solid #f5c2c2; padding:10px; border-radius:6px; color:#842029;">
-                        <ul id="cart-errors-list" style="margin:0; padding-left:18px;"></ul>
-                    </div>
-
-                    <!-- Totales -->
-                    <div id="totals-section" class="totals-section" style="display: none;">
-                        <div class="total-line">
-                            <span>Subtotal:</span>
-                            <span id="subtotal">S/ 0.00</span>
-                        </div>
-                        <div class="total-line">
-                            <span>IGV (18%):</span>
-                            <span id="igv">S/ 0.00</span>
-                        </div>
-                        <div class="total-line final">
-                            <span>Total:</span>
-                            <span id="total">S/ 0.00</span>
-                        </div>
-                    </div>
-
-                    <!-- Métodos de pago -->
-                    <div id="payment-section" class="payment-section" style="display: none;">
-                        <h6>Método de Pago:</h6>
-
-                        <button class="payment-method-btn" data-metodo="efectivo">
-                            <i class="fas fa-money-bill-wave"></i> Efectivo
-                        </button>
-
-                        <button class="payment-method-btn" data-metodo="tarjeta">
-                            <i class="fas fa-credit-card"></i> Tarjeta
-                        </button>
-
-                        <button class="payment-method-btn" data-metodo="yape">
-                            <i class="fas fa-mobile-alt"></i> Yape
-                        </button>
-
-                        <div id="pago-efectivo" class="payment-details">
-                            <label class="form-label">Monto recibido:</label>
-                            <input type="number" id="monto-recibido" class="form-control" placeholder="0.00" step="0.01"
-                                min="0">
-                            <div id="cambio-info" class="mt-2" style="display: none;">
-                                <strong>Cambio: <span id="cambio">S/ 0.00</span></strong>
+                    <!-- Campo nombre del cliente con autocomplete -->
+                    <div
+                        style="background: #f5f5f5; border-radius: 15px; padding: 20px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5
+                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center;">
+                            <i class="fas fa-user" style="color: #6ccae2; margin-right: 10px;"></i> Cliente (opcional)
+                        </h5>
+                        <div style="position: relative;" id="cliente-autocomplete-wrap">
+                            <input type="text" id="cliente_nombre" placeholder="Buscar cliente por nombre o email..."
+                                autocomplete="off"
+                                style="border: 2px solid #e9ecef; border-radius: 12px; padding: 12px 16px; font-size: 15px; background: white; width: 100%; color: #2c3e50; box-sizing: border-box;"
+                                onfocus="this.style.borderColor='#6ccae2';posClienteBuscar(this.value)"
+                                onblur="this.style.borderColor='#e9ecef'; setTimeout(posClienteCerrar,200)"
+                                oninput="posClienteBuscar(this.value)">
+                            <input type="hidden" id="cliente_id" value="">
+                            <!-- Dropdown de resultados -->
+                            <div id="cliente-dropdown"
+                                style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #ddd; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.12); z-index:1000; max-height:220px; overflow-y:auto; margin-top:4px;">
                             </div>
                         </div>
+                        <button type="button" onclick="abrirModalNuevoCliente()"
+                            style="margin-top:10px; background:none; border:1px solid #6ccae2; color:#6ccae2; border-radius:8px; padding:6px 14px; font-size:13px; cursor:pointer;">
+                            <i class="fas fa-user-plus"></i> Registrar nuevo cliente
+                        </button>
+                    </div>
 
-                        <div id="pago-tarjeta" class="payment-details">
-                            <label class="form-label">Referencia de tarjeta:</label>
-                            <input type="text" id="referencia-tarjeta" class="form-control"
-                                placeholder="Ej: VISA ***1234">
-                        </div>
-
-                        <div id="pago-yape" class="payment-details">
-                            <label class="form-label">Número de operación Yape:</label>
-                            <input type="text" id="referencia-yape" class="form-control" placeholder="Ej: 987654321">
+                    <!-- Modal registro de nuevo cliente -->
+                    <div id="modal-nuevo-cliente"
+                        style="display:none; position:fixed; top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:3000;align-items:center;justify-content:center;">
+                        <div
+                            style="background:white;border-radius:18px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                            <h5 style="margin:0 0 20px;color:#2c3e50;font-size:1.2rem;"><i class="fas fa-user-plus"
+                                    style="color:#6ccae2;margin-right:8px;"></i>Nuevo Cliente</h5>
+                            <label
+                                style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Nombre
+                                *</label>
+                            <input type="text" id="nc-nombre" placeholder="Nombre completo"
+                                style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px;box-sizing:border-box;">
+                            <label
+                                style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Email</label>
+                            <input type="email" id="nc-email" placeholder="correo@ejemplo.com"
+                                style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px;box-sizing:border-box;">
+                            <label
+                                style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Teléfono</label>
+                            <input type="text" id="nc-telefono" placeholder="999 999 999"
+                                style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:20px;box-sizing:border-box;">
+                            <div style="display:flex;gap:12px;">
+                                <button type="button" onclick="cerrarModalNuevoCliente()"
+                                    style="flex:1;padding:12px;border:1px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:14px;">Cancelar</button>
+                                <button type="button" onclick="guardarNuevoCliente()"
+                                    style="flex:1;padding:12px;border:none;border-radius:10px;background:#6ccae2;color:white;cursor:pointer;font-size:14px;font-weight:600;">Guardar</button>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mt-3">
-                        <button id="btn-procesar-venta" class="btn btn-success btn-process-sale" disabled
-                            onclick="procesarVenta()">
-                            <i class="fas fa-check"></i> Procesar Venta
-                        </button>
+                    <div
+                        style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5
+                            style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            <i class="fas fa-credit-card"
+                                style="color: #ffa301; margin-right: 12px; background: rgba(255, 163, 1, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i>
+                            Método de Pago
+                        </h5>
+                        <label
+                            style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Método
+                            de Pago:</label>
+                        <select id="metodo_pago" onchange="cambiarMetodoPago()"
+                            style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 15px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500;">
+                            <option value="efectivo">💵 Efectivo</option>
+                            <option value="tarjeta">💳 Tarjeta</option>
+                            <option value="yape">📱 Yape</option>
+                            <option value="multipago">🔄 Multipago</option>
+                        </select>
+                    </div>
 
-                        <button class="btn btn-outline-danger w-100 mt-2" onclick="limpiarCarrito()">
-                            <i class="fas fa-trash"></i> Limpiar Carrito
+                    <!-- Sección de dinero (solo para efectivo y multipago) -->
+                    <div id="dinero-section"
+                        style="background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5
+                            style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            <i class="fas fa-money-bill-wave"
+                                style="color: #28a745; margin-right: 12px; background: rgba(40, 167, 69, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i>
+                            Dinero en Efectivo
+                        </h5>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <label
+                                    style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Monto
+                                    Recibido:</label>
+                                <input type="number" id="monto_recibido" step="0.01" value="0.00"
+                                    onchange="calcularCambio()"
+                                    style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 600;">
+                            </div>
+                            <div>
+                                <label
+                                    style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Cambio:
+                                    S/</label>
+                                <input type="number" id="cambio" step="0.01" value="0.00" readonly
+                                    style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #6c757d; font-weight: 600;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sección de multipago -->
+                    <div id="multipago-section"
+                        style="display: none; background: #f5f5f5; border-radius: 15px; padding: 25px; margin: 0 0 25px 0; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
+                        <h5
+                            style="color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center;">
+                            <i class="fas fa-layer-group"
+                                style="color: #6ccae2; margin-right: 12px; background: rgba(108, 202, 226, 0.1); padding: 8px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></i>
+                            Configurar Multipago
+                        </h5>
+
+                        <div style="margin-bottom: 20px;">
+                            <label
+                                style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Primer
+                                Método:</label>
+                            <select id="metodo1" onchange="calcularMultipago()"
+                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                <option value="efectivo">💵 Efectivo</option>
+                                <option value="tarjeta">💳 Tarjeta</option>
+                                <option value="yape">📱 Yape</option>
+                            </select>
+                            <input type="number" id="monto1" step="0.01" placeholder="Monto método 1"
+                                onchange="calcularMultipago()"
+                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                        </div>
+
+                        <div style="margin-bottom: 20px;">
+                            <label
+                                style="color: #2c3e50; font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block;">Segundo
+                                Método:</label>
+                            <select id="metodo2" onchange="calcularMultipago()"
+                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: white; width: 100%; margin-bottom: 10px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                <option value="tarjeta">💳 Tarjeta</option>
+                                <option value="yape">📱 Yape</option>
+                                <option value="efectivo">💵 Efectivo</option>
+                            </select>
+                            <input type="number" id="monto2" step="0.01" placeholder="Monto método 2" readonly
+                                style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 18px; font-size: 16px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #6c757d;">
+                        </div>
+                    </div>
+
+                    <!-- Botones de acción -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 0 25px 25px 25px;">
+                        <button onclick="limpiarPedido()"
+                            style="background: #6c757d; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
+                            onmouseover="this.style.background='#5a6268'; this.style.transform='translateY(-2px)'"
+                            onmouseout="this.style.background='#6c757d'; this.style.transform='translateY(0)'">
+                            <i class="fas fa-trash"></i> Limpiar
                         </button>
+                        <button id="btn-pagar" onclick="procesarPago()" disabled
+                            style="background: #adb5bd; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: not-allowed; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(173, 181, 189, 0.3);">
+                            <i class="fas fa-credit-card"></i> Pagar
+                        </button>
+                    </div>
+
+                    <!-- Modal de confirmación de pago -->
+                    <div id="modal-confirmacion"
+                        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; backdrop-filter: blur(5px);">
+                        <div
+                            style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 20px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                            <div style="text-align: center; margin-bottom: 25px;">
+                                <i class="fas fa-check-circle"
+                                    style="font-size: 64px; color: #28a745; margin-bottom: 15px;"></i>
+                                <h3 style="color: #2c3e50; margin-bottom: 10px;">¡Pago Procesado!</h3>
+                                <p style="color: #6c757d;">La venta se ha registrado exitosamente</p>
+                            </div>
+
+                            <div id="resumen-venta"
+                                style="background: #f8f9fa; border-radius: 15px; padding: 20px; margin-bottom: 25px;">
+                                <!-- Aquí se mostrará el resumen -->
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <button onclick="imprimirTicket()"
+                                    style="background: linear-gradient(135deg, #ffa301, #6ccae2); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
+                                    <i class="fas fa-print"></i> Imprimir Ticket
+                                </button>
+                                <button onclick="cerrarModal()"
+                                    style="background: #6c757d; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
+                                    <i class="fas fa-times"></i> Cerrar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -442,431 +693,330 @@
     </div>
 </div>
 
-<div class="loading-overlay" id="loading-overlay">
-    <div class="loading-spinner">
-        <div class="spinner-border text-primary mb-3" role="status">
-            <span class="visually-hidden">Cargando...</span>
-        </div>
-        <p>Procesando venta...</p>
-    </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
 <script>
-    let carrito = [];
-    let metodo_pago = '';
-    let categoria_actual = '';
+    // Inicializador mínimo para usar las funciones globales exportadas por static/js/main.js
+    window.carrito = window.carrito || [];
+    window.total = window.total || 0;
+    window.ultimaVenta = window.ultimaVenta || null;
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // Evento de clic para seleccionar productos en las tarjetas
-        document.addEventListener('click', function (e) {
-            if (e.target.closest('.product-card')) {
-                const card = e.target.closest('.product-card');
-                agregarAlCarrito(card);
-            }
-            // Cerrar lista desplegable de clientes al hacer clic fuera de ella
-            if (!e.target.closest('#cliente-nombre') && !e.target.closest('#lista-clientes-dropdown')) {
-                document.getElementById('lista-clientes-dropdown').style.display = 'none';
-            }
-        });
+    // Delegar la lógica a main.js; si las funciones no existen, mostrar un mensaje en consola
+    if (!window.filtrarPorCategoria) console.warn('filtrarPorCategoria no está definida en main.js');
+    if (!window.agregarProducto) console.warn('agregarProducto no está definida en main.js');
+    if (!window.actualizarCarrito) console.warn('actualizarCarrito no está definida en main.js');
+    if (!window.actualizarBotonPagar) console.warn('actualizarBotonPagar no está definida en main.js');
 
-        // Evento de filtros por categoría
-        document.querySelectorAll('.category-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                categoria_actual = this.dataset.categoria;
-                buscarProductos();
-            });
-        });
-
-        // Evento de selección de método de pago
-        document.querySelectorAll('.payment-method-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                metodo_pago = this.dataset.metodo;
-                mostrarDetallesPago(metodo_pago);
-                actualizarBotonProcesar();
-            });
-        });
-
-        // Búsqueda de productos en tiempo real (mientras escribe)
-        const busquedaInput = document.getElementById('buscar-producto');
-        busquedaInput.addEventListener('input', function () {
-            clearTimeout(this.searchTimeout);
-            this.searchTimeout = setTimeout(buscarProductos, 300);
-        });
-
-        // CAPTURA DE ESCÁNER DE CÓDIGO DE BARRAS (Tecla Enter enviada por la lectora)
-        busquedaInput.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const q = this.value.trim();
-                if (!q) return;
-
-                fetch(`/api/ventas/buscar-productos?q=${encodeURIComponent(q)}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.productos && data.productos.length > 0) {
-                            const exacto = data.productos.find(p => p.codigo_barra && p.codigo_barra.toLowerCase() === q.toLowerCase());
-                            const producto = exacto || (data.productos.length === 1 ? data.productos[0] : null);
-
-                            if (producto) {
-                                if (producto.stock <= 0) {
-                                    mostrarAlertaUI('Producto sin stock.', 'warning');
-                                } else {
-                                    agregarProductoDirecto(producto);
-                                    busquedaInput.value = '';
-                                    buscarProductos();
-                                }
-                            } else {
-                                mostrarProductos(data.productos);
-                            }
-                        } else {
-                            mostrarAlertaUI('No se encontró ningún producto con ese código.', 'warning');
-                        }
-                    })
-                    .catch(err => console.error('Error al escanear producto:', err));
-            }
-        });
-
-        // AUTOCOMPLETADO INTERACTIVO DE CLIENTES EN EL CARRITO
-        const clienteInput = document.getElementById('cliente-nombre');
-        clienteInput.addEventListener('input', function () {
-            const q = this.value.trim();
-            const dropdown = document.getElementById('lista-clientes-dropdown');
-            if (q.length < 2) {
-                dropdown.style.display = 'none';
-                return;
-            }
-
-            fetch(`/api/ventas/buscar-clientes?q=${encodeURIComponent(q)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.clientes && data.clientes.length > 0) {
-                        let html = '';
-                        data.clientes.forEach(c => {
-                            html += `
-                            <div class="client-dropdown-item" onclick="seleccionarCliente('${c.nombre.replace(/'/g, "\\'")}', '${c.documento}')">
-                                <strong>${c.nombre}</strong> <br>
-                                <small class="text-muted">Doc: ${c.documento || 'S/D'}</small>
-                            </div>
-                        `;
-                        });
-                        dropdown.innerHTML = html;
-                        dropdown.style.display = 'block';
-                    } else {
-                        dropdown.style.display = 'none';
-                    }
-                })
-                .catch(err => console.error('Error buscando clientes:', err));
-        });
-
-        document.getElementById('monto-recibido').addEventListener('input', calcularCambio);
+    // Conectar listeners ligeros si los elementos existen
+    document.getElementById('monto_recibido')?.addEventListener('input', () => {
+        window.calcularCambio?.();
+        window.actualizarBotonPagar?.();
     });
 
-    function seleccionarCliente(nombre, documento) {
-        document.getElementById('cliente-nombre').value = nombre;
-        document.getElementById('cliente-documento').value = documento;
-        document.getElementById('lista-clientes-dropdown').style.display = 'none';
-    }
+    document.getElementById('monto1')?.addEventListener('input', () => {
+        window.calcularMultipago?.();
+        window.actualizarBotonPagar?.();
+    });
 
-    function seleccionarClienteGeneral() {
-        document.getElementById('cliente-nombre').value = 'Cliente General';
-        document.getElementById('cliente-documento').value = '';
-        document.getElementById('lista-clientes-dropdown').style.display = 'none';
-    }
+    // Ejecutar setup inicial si está disponible
+    window.cambiarMetodoPago?.();
 
-    function agregarAlCarrito(card) {
-        const producto = {
-            id: parseInt(card.dataset.id),
-            nombre: card.dataset.nombre,
-            precio: parseFloat(card.dataset.precio),
-            stock: parseInt(card.dataset.stock),
-            cantidad: 1
-        };
-        agregarProductoDirecto(producto);
-        card.classList.add('selected');
-        setTimeout(() => card.classList.remove('selected'), 300);
-    }
-
-    function agregarProductoDirecto(producto) {
-        if (Number(producto.stock) <= 0) {
-            mostrarAlertaUI('No se puede agregar. Producto sin stock.', 'warning');
-            return;
-        }
-        const existente = carrito.find(item => item.id === producto.id);
-        if (existente) {
-            if (existente.cantidad < producto.stock) {
-                existente.cantidad++;
-            } else {
-                mostrarAlertaUI('Stock insuficiente', 'warning');
-                return;
-            }
+    // ─── Tab switcher: Productos / Servicios ───────────────────────────────────
+    function cambiarTab(tab) {
+        const panelProd = document.getElementById('panel-productos');
+        const panelServ = document.getElementById('panel-servicios');
+        const btnProd = document.getElementById('tab-productos');
+        const btnServ = document.getElementById('tab-servicios');
+        if (tab === 'servicios') {
+            panelProd.style.display = 'none';
+            panelServ.style.display = 'block';
+            btnProd.style.background = '#e9ecef'; btnProd.style.color = '#6c757d';
+            btnServ.style.background = 'linear-gradient(135deg,#6ccae2,#5ab8d9)'; btnServ.style.color = 'white';
         } else {
-            carrito.push({
-                id: producto.id,
-                nombre: producto.nombre,
-                precio: producto.precio,
-                stock: producto.stock,
-                cantidad: 1
-            });
+            panelServ.style.display = 'none';
+            panelProd.style.display = 'block';
+            btnServ.style.background = '#e9ecef'; btnServ.style.color = '#6c757d';
+            btnProd.style.background = 'linear-gradient(135deg,#ffa301,#6ccae2)'; btnProd.style.color = 'white';
         }
-        actualizarCarrito();
     }
 
-    function actualizarCarrito() {
-        const cartItems = document.getElementById('cart-items');
+    // ─── Autocomplete de clientes en POS ──────────────────────────────────────
+    let _clienteTimer = null;
+    function posClienteBuscar(q) {
+        clearTimeout(_clienteTimer);
+        _clienteTimer = setTimeout(() => {
+            fetch('/api/clientes-buscar?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    posClienteRenderDropdown(data.clientes, q);
+                })
+                .catch(() => { });
+        }, 250);
+    }
 
-        if (carrito.length === 0) {
-            cartItems.innerHTML = `
-            <div class="empty-cart">
-                <i class="fas fa-cart-plus fa-3x mb-3"></i>
-                <p>Selecciona productos para agregar al carrito</p>
-            </div>
-        `;
-            document.getElementById('totals-section').style.display = 'none';
-            document.getElementById('payment-section').style.display = 'none';
-            return;
-        }
-
+    function posClienteRenderDropdown(clientes, q) {
+        const dd = document.getElementById('cliente-dropdown');
+        if (!dd) return;
+        if (clientes.length === 0 && !q) { dd.style.display = 'none'; return; }
         let html = '';
-        carrito.forEach((item, index) => {
-            html += `
-            <div class="cart-item">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <h6 class="mb-1">${item.nombre}</h6>
-                        <small class="text-muted">S/ ${item.precio.toFixed(2)} c/u</small>
-                    </div>
-                    <div class="quantity-controls">
-                        <button class="quantity-btn" onclick="cambiarCantidad(${index}, -1)" ${item.cantidad <= 1 ? 'disabled' : ''}>-</button>
-                        <input type="number" class="quantity-input" value="${item.cantidad}" onchange="actualizarCantidad(${index}, this.value)" min="1" max="${item.stock}">
-                        <button class="quantity-btn" onclick="cambiarCantidad(${index}, 1)" ${item.cantidad >= item.stock ? 'disabled' : ''}>+</button>
-                        <button class="btn btn-outline-danger btn-sm ms-2" onclick="eliminarDelCarrito(${index})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between mt-2">
-                    <small>Cantidad: ${item.cantidad}</small>
-                    <strong>S/ ${(item.precio * item.cantidad).toFixed(2)}</strong>
-                </div>
-            </div>
-        `;
+        clientes.forEach(c => {
+            const sub = [c.email, c.telefono].filter(Boolean).join(' · ');
+            html += `<div class="pc-item" onclick="posClienteSeleccionar('${c.nombre.replace(/'/g, "\\'")}','${(c.email || '').replace(/'/g, "\\'")}','${(c.telefono || '').replace(/'/g, "\\'")}','')"`
+                + ` style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">`
+                + `<strong>${c.nombre}</strong>`
+                + (sub ? `<br><span style="color:#888;font-size:12px;">${sub}</span>` : '')
+                + `</div>`;
         });
-
-        cartItems.innerHTML = html;
-        actualizarTotales();
-        document.getElementById('totals-section').style.display = 'block';
-        document.getElementById('payment-section').style.display = 'block';
-    }
-
-    function cambiarCantidad(index, cambio) {
-        const item = carrito[index];
-        const nuevaCantidad = item.cantidad + cambio;
-        if (nuevaCantidad >= 1 && nuevaCantidad <= item.stock) {
-            item.cantidad = nuevaCantidad;
-            actualizarCarrito();
+        if (q) {
+            html += `<div onclick="abrirModalNuevoClienteConNombre('${q.replace(/'/g, "\\'")}')"`
+                + ` style="padding:10px 14px;cursor:pointer;color:#6ccae2;font-size:14px;font-weight:600;">`
+                + `<i class="fas fa-user-plus"></i> Registrar "${q}" como nuevo cliente</div>`;
         }
-    }
-
-    function actualizarCantidad(index, nuevaCantidad) {
-        const cantidad = parseInt(nuevaCantidad);
-        const item = carrito[index];
-        if (cantidad >= 1 && cantidad <= item.stock) {
-            item.cantidad = cantidad;
-            actualizarCarrito();
-        } else {
-            actualizarCarrito();
-        }
-    }
-
-    function eliminarDelCarrito(index) {
-        carrito.splice(index, 1);
-        actualizarCarrito();
-    }
-
-    function limpiarCarrito() {
-        carrito = [];
-        metodo_pago = '';
-        document.querySelectorAll('.payment-method-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.payment-details').forEach(detail => detail.classList.remove('active'));
-        actualizarCarrito();
-    }
-
-    function actualizarTotales() {
-        const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-        const igv = subtotal * 0.18;
-        const total = subtotal + igv;
-
-        document.getElementById('subtotal').textContent = `S/ ${subtotal.toFixed(2)}`;
-        document.getElementById('igv').textContent = `S/ ${igv.toFixed(2)}`;
-        document.getElementById('total').textContent = `S/ ${total.toFixed(2)}`;
-
-        if (metodo_pago === 'efectivo') {
-            calcularCambio();
-        }
-        actualizarBotonProcesar();
-    }
-
-    function mostrarDetallesPago(metodo) {
-        document.querySelectorAll('.payment-details').forEach(detail => detail.classList.remove('active'));
-        if (metodo) {
-            document.getElementById(`pago-${metodo}`).classList.add('active');
-        }
-    }
-
-    function calcularCambio() {
-        const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-        const total = subtotal * 1.18;
-        const montoRecibido = parseFloat(document.getElementById('monto-recibido').value) || 0;
-        const cambio = montoRecibido - total;
-
-        const cambioInfo = document.getElementById('cambio-info');
-        const cambioSpan = document.getElementById('cambio');
-
-        if (montoRecibido > 0) {
-            cambioInfo.style.display = 'block';
-            cambioSpan.textContent = `S/ ${cambio.toFixed(2)}`;
-            cambioSpan.className = cambio >= 0 ? 'text-success' : 'text-danger';
-        } else {
-            cambioInfo.style.display = 'none';
-        }
-    }
-
-    function actualizarBotonProcesar() {
-        const btnProcesar = document.getElementById('btn-procesar-venta');
-        const tieneProductos = carrito.length > 0;
-        const tieneMetodoPago = metodo_pago !== '';
-        let puedeVender = tieneProductos && tieneMetodoPago;
-
-        if (metodo_pago === 'efectivo') {
-            const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-            const total = subtotal * 1.18;
-            const montoRecibido = parseFloat(document.getElementById('monto-recibido').value) || 0;
-            puedeVender = puedeVender && montoRecibido >= total;
-        } else if (metodo_pago === 'tarjeta') {
-            puedeVender = puedeVender && document.getElementById('referencia-tarjeta').value.trim() !== '';
-        } else if (metodo_pago === 'yape') {
-            puedeVender = puedeVender && document.getElementById('referencia-yape').value.trim() !== '';
-        }
-
-        btnProcesar.disabled = !puedeVender;
-    }
-
-    function buscarProductos() {
-        const termino = document.getElementById('buscar-producto').value;
-        const url = `/api/ventas/buscar-productos?q=${encodeURIComponent(termino)}&categoria_id=${categoria_actual}`;
-
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                if (data.productos) {
-                    mostrarProductos(data.productos);
-                }
-            });
-    }
-
-    function mostrarProductos(productos) {
-        const grid = document.getElementById('productos-grid');
-        const noProductos = document.getElementById('no-productos');
-
-        if (productos.length === 0) {
-            grid.innerHTML = '';
-            noProductos.style.display = 'block';
-            return;
-        }
-
-        noProductos.style.display = 'none';
-        let html = '';
-        productos.forEach(producto => {
-            const out = Number(producto.stock) <= 0;
-            html += `
-            <div class="col-xl-3 col-lg-4 col-md-6 col-sm-6 mb-3">
-                <div class="card product-card ${out ? 'out-of-stock' : ''}" 
-                     data-id="${producto.id}"
-                     data-nombre="${producto.nombre}"
-                     data-precio="${producto.precio}"
-                     data-stock="${producto.stock}"
-                     ${out ? 'data-outofstock="1"' : ''}>
-                    <div class="card-body p-3">
-                        <h6 class="card-title mb-2">${producto.nombre}</h6>
-                        <p class="card-text product-price">S/ ${producto.precio.toFixed(2)}</p>
-                        <p class="product-stock">
-                            <i class="fas fa-boxes"></i> Stock: ${producto.stock}
-                        </p>
-                        ${out ? `<span class="badge bg-danger">Agotado</span>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
+        dd.innerHTML = html;
+        dd.style.display = 'block';
+        // Hover effect
+        dd.querySelectorAll('.pc-item').forEach(el => {
+            el.addEventListener('mouseenter', () => el.style.background = '#f0f9ff');
+            el.addEventListener('mouseleave', () => el.style.background = 'white');
         });
-        grid.innerHTML = html;
     }
 
-    function limpiarBusqueda() {
-        document.getElementById('buscar-producto').value = '';
-        document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelector('[data-categoria=""]').classList.add('active');
-        categoria_actual = '';
-        buscarProductos();
+    function posClienteSeleccionar(nombre, email, telefono, id) {
+        document.getElementById('cliente_nombre').value = nombre;
+        document.getElementById('cliente_id').value = id || '';
+        document.getElementById('cliente-dropdown').style.display = 'none';
     }
 
-    async function procesarVenta() {
-        if (carrito.length === 0 || !metodo_pago) return;
+    function posClienteCerrar() {
+        const dd = document.getElementById('cliente-dropdown');
+        if (dd) dd.style.display = 'none';
+    }
 
-        const datosVenta = {
-            items: carrito,
-            metodo_pago: metodo_pago,
-            cliente_nombre: document.getElementById('cliente-nombre').value || 'Cliente General',
-            cliente_documento: document.getElementById('cliente-documento').value || ''
-        };
+    function abrirModalNuevoCliente() {
+        document.getElementById('modal-nuevo-cliente').style.display = 'flex';
+        document.getElementById('nc-nombre').focus();
+    }
 
-        if (metodo_pago === 'efectivo') {
-            datosVenta.monto_recibido = parseFloat(document.getElementById('monto-recibido').value);
-        } else if (metodo_pago === 'tarjeta') {
-            datosVenta.referencia_pago = document.getElementById('referencia-tarjeta').value;
-        } else if (metodo_pago === 'yape') {
-            datosVenta.referencia_pago = `Yape - Op: ${document.getElementById('referencia-yape').value}`;
-        }
+    function abrirModalNuevoClienteConNombre(nombre) {
+        posClienteCerrar();
+        document.getElementById('nc-nombre').value = nombre;
+        document.getElementById('modal-nuevo-cliente').style.display = 'flex';
+    }
 
-        document.getElementById('loading-overlay').style.display = 'flex';
+    function cerrarModalNuevoCliente() {
+        document.getElementById('modal-nuevo-cliente').style.display = 'none';
+    }
 
-        fetch('/ventas/procesar', {
+    function guardarNuevoCliente() {
+        const nombre = (document.getElementById('nc-nombre').value || '').trim();
+        const email = (document.getElementById('nc-email').value || '').trim();
+        const telefono = (document.getElementById('nc-telefono').value || '').trim();
+        if (!nombre) { alert('El nombre es requerido.'); return; }
+        fetch('/api/clientes-registrar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(datosVenta)
+            body: JSON.stringify({ nombre, email, telefono })
         })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
-                document.getElementById('loading-overlay').style.display = 'none';
                 if (data.success) {
-                    mostrarAlertaUI('Venta registrada exitosamente.', 'success');
-                    limpiarCarrito();
-                    buscarProductos();
-                    if (data.ticket_url) {
-                        window.open(data.ticket_url, '_blank');
-                    }
+                    posClienteSeleccionar(data.nombre, data.email, data.telefono, data.cliente_id);
+                    cerrarModalNuevoCliente();
+                    document.getElementById('nc-nombre').value = '';
+                    document.getElementById('nc-email').value = '';
+                    document.getElementById('nc-telefono').value = '';
+                    posToast?.('✅ Cliente "' + data.nombre + '" registrado', '#28a745');
                 } else {
-                    mostrarAlertaUI(data.error || 'Error al procesar venta.', 'error');
+                    alert(data.error || 'Error al registrar cliente.');
                 }
             })
-            .catch(error => {
-                document.getElementById('loading-overlay').style.display = 'none';
-                mostrarAlertaUI('Error procesando la venta', 'error');
-            });
+            .catch(() => alert('Error de red al registrar cliente.'));
     }
 
-    function mostrarAlertaUI(mensaje, tipo) {
-        const alerta = document.createElement('div');
-        alerta.className = `alert alert-${tipo === 'error' ? 'danger' : tipo} alert-dismissible fade show position-fixed`;
-        alerta.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
-        alerta.innerHTML = `${mensaje}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-        document.body.appendChild(alerta);
-        setTimeout(() => alerta.remove(), 4000);
+    // Cerrar modal al hacer clic fuera
+    document.getElementById('modal-nuevo-cliente').addEventListener('click', function (e) {
+        if (e.target === this) cerrarModalNuevoCliente();
+    });
+
+    // ─── Agrega un servicio al carrito (tipo: 'servicio') ──────────────────────
+    window.agregarServicio = function (id, nombre, precio) {
+        const item = window.carrito.find(p => p.tipo === 'servicio' && p.id === id);
+        if (item) {
+            item.cantidad += 1;
+        } else {
+            window.carrito.push({ id: id, nombre: nombre, precio: precio, cantidad: 1, tipo: 'servicio' });
+        }
+        window.actualizarCarrito?.();
+        window.actualizarBotonPagar?.();
+        posToast?.('✅ ' + nombre + ' agregado', '#28a745');
+    };
+
+    // ─── Filtro de búsqueda de servicios ──────────────────────────────────────
+    function filtrarServicios() {
+        const q = (document.getElementById('filtro-servicios')?.value || '').toLowerCase();
+        document.querySelectorAll('.servicio-card').forEach(card => {
+            card.style.display = card.dataset.nombre.includes(q) ? '' : 'none';
+        });
     }
 </script>
+
+<!-- Diagnostic helper: fetch main.js and log first chars to detect if server returns HTML -->
+<script>
+    fetch('/static/js/main.js', { cache: 'no-store' })
+        .then(resp => resp.text().then(text => ({ ok: resp.ok, status: resp.status, type: resp.headers.get('content-type'), text })))
+        .then(info => {
+            console.info('[diag] /static/js/main.js status=', info.status, 'content-type=', info.type);
+            const prefix = info.text.slice(0, 200);
+            console.info('[diag] /static/js/main.js prefix:', prefix.replace(/\n/g, '\\n'));
+            if (prefix.trim().startsWith('<')) {
+                console.error('[diag] Parece que /static/js/main.js devolvió HTML (por eso Unexpected token "<"). Revisa la ruta estática o autenticación.');
+            }
+        })
+        .catch(err => console.error('[diag] Error al fetch /static/js/main.js:', err));
+</script>
+
+<script>
+    /* =====================================================================
+       ESCÁNER DE CÓDIGO DE BARRAS — POS
+       - Abre cámara del dispositivo actual (BarcodeDetector API)
+       - Acepta lector USB / manual
+       - Sincronización en tiempo real vía polling /ventas/scan-poll
+       ===================================================================== */
+
+    // ID único por pestaña/dispositivo para evitar que el dispositivo que escanó
+    // reciba de vuelta su propio escaneo desde la cola del servidor.
+    const POS_DEVICE_ID = (function () {
+        let id = sessionStorage.getItem('pos_device_id');
+        if (!id) {
+            id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+            sessionStorage.setItem('pos_device_id', id);
+        }
+        return id;
+    })();
+
+    let posStream = null;
+    let posScanInterval = null;
+    let posDetector = null;
+    let posPollTimer = null;
+
+    // Toast notification
+    function posToast(msg, color) {
+        let t = document.getElementById('pos-toast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'pos-toast';
+            t.style.cssText = 'position:fixed;bottom:30px;right:30px;z-index:99999;padding:14px 22px;border-radius:14px;font-size:15px;font-weight:700;color:white;box-shadow:0 8px 25px rgba(0,0,0,0.25);transition:opacity .4s;opacity:0;pointer-events:none;';
+            document.body.appendChild(t);
+        }
+        t.textContent = msg;
+        t.style.background = color || '#ffa301';
+        t.style.opacity = '1';
+        clearTimeout(t._timer);
+        t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+    }
+
+    async function abrirEscanerPOS() {
+        document.getElementById('pos-scanner-modal').style.display = 'block';
+        document.getElementById('pos-manual-barcode').value = '';
+        document.getElementById('pos-scan-status').textContent = '';
+        setTimeout(() => document.getElementById('pos-manual-barcode').focus(), 150);
+
+        if (!('BarcodeDetector' in window)) {
+            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ Tu navegador no soporta detección de cámara. Usa el campo manual o un lector USB.</span>';
+            return;
+        }
+        try {
+            posDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'codabar', 'itf', 'qr_code', 'data_matrix'] });
+        } catch {
+            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ BarcodeDetector no disponible. Usa el campo manual.</span>';
+            return;
+        }
+        try {
+            posStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+            const video = document.getElementById('pos-scanner-video');
+            video.srcObject = posStream;
+            await video.play();
+            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#6ccae2">📷 Cámara activa — apunta al código de barras</span>';
+            posScanInterval = setInterval(async () => {
+                if (!posStream) return;
+                try {
+                    const barcodes = await posDetector.detect(video);
+                    if (barcodes && barcodes.length > 0) {
+                        const code = barcodes[0].rawValue;
+                        clearInterval(posScanInterval);
+                        posScanInterval = null;
+                        cerrarEscanerPOS();
+                        posLookupCode(code);
+                    }
+                } catch { /* ignore frame errors */ }
+            }, 150);
+        } catch (e) {
+            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#dc3545">❌ No se pudo acceder a la cámara. Usa el campo manual.</span>';
+        }
+    }
+
+    function cerrarEscanerPOS() {
+        document.getElementById('pos-scanner-modal').style.display = 'none';
+        if (posScanInterval) { clearInterval(posScanInterval); posScanInterval = null; }
+        if (posStream) { posStream.getTracks().forEach(t => t.stop()); posStream = null; }
+        const v = document.getElementById('pos-scanner-video');
+        if (v) { v.srcObject = null; }
+    }
+
+    function posLookupCode(codigo) {
+        if (!codigo) return;
+        document.getElementById('pos-manual-barcode').value = '';
+        fetch('/almacen/buscar-barcode?codigo=' + encodeURIComponent(codigo))
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || !data.found) {
+                    posToast('❌ Producto no encontrado: ' + codigo, '#dc3545');
+                    return;
+                }
+                const p = data.producto;
+                window.agregarProducto(p.id, p.nombre, p.precio);
+                posToast('✅ ' + p.nombre + ' — S/ ' + parseFloat(p.precio).toFixed(2), '#28a745');            // Notificar a otros dispositivos (laptop ↔ celular sync)
+                fetch('/ventas/scan-push', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codigo: codigo, device_id: POS_DEVICE_ID })
+                }).catch(() => { });
+            })
+            .catch(() => posToast('❌ Error al buscar producto', '#dc3545'));
+    }
+
+    // Cerrar modal al hacer clic fuera
+    document.getElementById('pos-scanner-modal').addEventListener('click', function (e) {
+        if (e.target === this) cerrarEscanerPOS();
+    });
+
+    /* =====================================================================
+       POLLING: SINCRONIZACIÓN EN TIEMPO REAL (celular → laptop)
+       El celular llama a /ventas/scan-push con el código escaneado.
+       Este POS hace polling a /ventas/scan-poll cada 1.5 s para recibir
+       los productos encolados desde otro dispositivo.
+       ===================================================================== */
+    function iniciarPollingRemoto() {
+        posPollTimer = setInterval(() => {
+            fetch('/ventas/scan-poll?device_id=' + encodeURIComponent(POS_DEVICE_ID))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            window.agregarProducto(item.id, item.nombre, item.precio);
+                            posToast('\ud83d\udcf1 ' + item.nombre + ' escaneado desde otro dispositivo', '#6ccae2');
+                        });
+                    }
+                })
+                .catch(() => { /* ignore network errors silently */ });
+        }, 1500);
+    }
+
+    // Iniciar polling cuando la página carga
+    document.addEventListener('DOMContentLoaded', iniciarPollingRemoto);
+    // Fallback si DOMContentLoaded ya pasó
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(iniciarPollingRemoto, 0);
+    }
+</script>
+
 {% endblock %}
