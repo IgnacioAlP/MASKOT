@@ -1146,40 +1146,50 @@ def asistencia():
     usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
     rol = session.get('rol', 'empleado')
 
-    # Si se recibe una petición POST en /asistencia, procesamos la marcación
+    # Si es una petición POST en /asistencia, procesamos la marcación
     if request.method == 'POST':
         return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
-    # Vista GET: Renderizado de plantilla HTML
+    # Vista GET: Consulta de estado actual y registros
     registros = []
     asistencia_actual = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener estado actual del usuario hoy (calculando estado dinámicamente)
+            # 1. Obtener la última marcación del usuario para saber su estado actual
             cursor.execute("""
                 SELECT 
                     a.id, 
                     TO_CHAR(a.hora_entrada, 'HH12:MI AM'), 
                     TO_CHAR(a.hora_salida, 'HH12:MI AM'),
-                    CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
+                    CASE 
+                        WHEN a.hora_salida IS NULL THEN 'presente' 
+                        ELSE 'completado' 
+                    END AS estado,
+                    a.fecha
                 FROM asistencia a
                 INNER JOIN personal p ON a.personal_id = p.id
-                WHERE p.usuario_id = %s AND a.fecha = CURRENT_DATE AND a.tenant_id = %s
+                WHERE p.usuario_id = %s AND (a.tenant_id = %s OR a.tenant_id IS NULL)
                 ORDER BY a.id DESC LIMIT 1
             """, (usuario_id, tenant_id))
             a_row = cursor.fetchone()
+            
             if a_row:
-                asistencia_actual = {
-                    'id': a_row[0],
-                    'hora_entrada': a_row[1],
-                    'hora_salida': a_row[2],
-                    'estado': a_row[3],
-                    0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
-                }
+                # Solo marcamos como 'presente' o 'completado' hoy; si es de otro día, el usuario puede marcar entrada
+                fecha_reg = str(a_row[4])
+                fecha_hoy = date.today().strftime('%Y-%m-%d')
+                
+                if a_row[3] == 'presente' or fecha_reg == fecha_hoy:
+                    asistencia_actual = {
+                        'id': a_row[0],
+                        'hora_entrada': a_row[1],
+                        'hora_salida': a_row[2],
+                        'estado': a_row[3],
+                        0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
+                    }
 
-            # 2. Obtener lista de marcas del día (Admin/Dueño ven todos, Empleados ven lo suyo)
+            # 2. Consultar registros del día de hoy para la tabla
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
@@ -1193,7 +1203,7 @@ def asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE a.tenant_id = %s AND a.fecha = CURRENT_DATE
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND a.fecha = CURRENT_DATE
                     ORDER BY a.hora_entrada DESC
                 """, (tenant_id,))
             else:
@@ -1209,7 +1219,7 @@ def asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE a.tenant_id = %s AND p.usuario_id = %s AND a.fecha = CURRENT_DATE
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s AND a.fecha = CURRENT_DATE
                     ORDER BY a.hora_entrada DESC
                 """, (tenant_id, usuario_id))
 
@@ -1262,23 +1272,15 @@ def marcar_asistencia():
 def _procesar_marcar_asistencia(usuario_id, tenant_id):
     try:
         req_json = request.get_json(silent=True) or {}
-        
-        # Extraer intención/tipo desde cualquier parámetro posible del formulario o JSON
         tipo = (
-            req_json.get('tipo') or req_json.get('accion') or req_json.get('action') or
-            request.form.get('tipo') or request.form.get('accion') or request.form.get('action') or ''
+            req_json.get('tipo') or req_json.get('accion') or 
+            request.form.get('tipo') or request.form.get('accion') or ''
         ).strip().lower()
-        
-        if not tipo:
-            if any(k in request.form for k in ['salida', 'marcar_salida', 'btn_salida']):
-                tipo = 'salida'
-            elif any(k in request.form for k in ['entrada', 'marcar_entrada', 'btn_entrada']):
-                tipo = 'entrada'
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener o enlazar personal_id correspondiente al usuario
-            cursor.execute("SELECT id FROM personal WHERE usuario_id = %s AND tenant_id = %s", (usuario_id, tenant_id))
+            # 1. Obtener personal_id enlazado al usuario
+            cursor.execute("SELECT id FROM personal WHERE usuario_id = %s ORDER BY id DESC LIMIT 1", (usuario_id,))
             p_row = cursor.fetchone()
 
             if p_row:
@@ -1291,51 +1293,47 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            # 2. Consultar el último registro del día de este empleado
+            # 2. Buscar si existe un registro abierto de asistencia (donde hora_salida sea NULL)
             cursor.execute("""
-                SELECT id, hora_salida 
+                SELECT id 
                 FROM asistencia 
-                WHERE personal_id = %s AND fecha = CURRENT_DATE AND tenant_id = %s
+                WHERE personal_id = %s AND hora_salida IS NULL 
                 ORDER BY id DESC LIMIT 1
-            """, (personal_id, tenant_id))
-            reg_hoy = cursor.fetchone()
+            """, (personal_id,))
+            reg_abierto = cursor.fetchone()
 
-            # 3. Lógica para determinar si marcamos SALIDA o ENTRADA:
-            # Si el usuario ya marcó entrada hoy y su hora_salida está vacía (NULL),
-            # O si explícitamente se solicita la 'salida' -> Se actualiza hora_salida.
-            es_marcar_salida = (tipo == 'salida') or (reg_hoy is not None and reg_hoy[1] is None)
+            if reg_abierto:
+                # CASO A: Existe turno abierto -> REGISTRAR HORA DE SALIDA
+                asistencia_id = reg_abierto[0]
+                cursor.execute("""
+                    UPDATE asistencia 
+                    SET hora_salida = CURRENT_TIME 
+                    WHERE id = %s
+                """, (asistencia_id,))
+                mensaje = 'Hora de salida registrada correctamente.'
+            else:
+                # CASO B: No hay turno abierto -> Verificar si solicitó salida explícita sobre un registro de hoy
+                cursor.execute("""
+                    SELECT id FROM asistencia 
+                    WHERE personal_id = %s AND fecha = CURRENT_DATE 
+                    ORDER BY id DESC LIMIT 1
+                """, (personal_id,))
+                reg_hoy = cursor.fetchone()
 
-            if es_marcar_salida:
-                if reg_hoy and reg_hoy[1] is None:
-                    # Actualización de la marca de entrada abierta con la hora de salida
+                if tipo == 'salida' and reg_hoy:
                     cursor.execute("""
                         UPDATE asistencia 
                         SET hora_salida = CURRENT_TIME 
-                        WHERE id = %s AND tenant_id = %s
-                    """, (reg_hoy[0], tenant_id))
-                    mensaje = 'Hora de salida registrada correctamente.'
-                elif reg_hoy:
-                    # En caso de re-actualizar la hora de salida del registro del día
-                    cursor.execute("""
-                        UPDATE asistencia 
-                        SET hora_salida = CURRENT_TIME 
-                        WHERE id = %s AND tenant_id = %s
-                    """, (reg_hoy[0], tenant_id))
+                        WHERE id = %s
+                    """, (reg_hoy[0],))
                     mensaje = 'Hora de salida actualizada correctamente.'
                 else:
-                    # Marca de salida sin entrada previa: inserta entrada y salida simultáneas
+                    # CASO C: Registrar NUEVA ENTRADA
                     cursor.execute("""
-                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, tenant_id)
-                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, %s)
+                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
+                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
                     """, (personal_id, tenant_id))
-                    mensaje = 'Hora de salida registrada correctamente.'
-            else:
-                # Marcación normal de ENTRADA (nuevo registro)
-                cursor.execute("""
-                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
-                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
-                """, (personal_id, tenant_id))
-                mensaje = 'Hora de entrada registrada correctamente.'
+                    mensaje = 'Hora de entrada registrada correctamente.'
 
         conexion.commit()
         conexion.close()
@@ -1380,7 +1378,7 @@ def historial_asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE a.tenant_id = %s
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL)
                     ORDER BY a.fecha DESC, a.hora_entrada DESC
                     LIMIT 200
                 """, (tenant_id,))
@@ -1397,7 +1395,7 @@ def historial_asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE a.tenant_id = %s AND p.usuario_id = %s
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s
                     ORDER BY a.fecha DESC, a.hora_entrada DESC
                     LIMIT 100
                 """, (tenant_id, usuario_id))
