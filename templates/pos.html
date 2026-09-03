@@ -254,6 +254,22 @@
         letter-spacing: 0.5px !important;
     }
 
+    /* Scrollbar personalizado para carrito */
+    #carrito-items::-webkit-scrollbar {
+        width: 8px;
+    }
+    #carrito-items::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 4px;
+    }
+    #carrito-items::-webkit-scrollbar-thumb {
+        background: rgba(102, 126, 234, 0.5);
+        border-radius: 4px;
+    }
+    #carrito-items::-webkit-scrollbar-thumb:hover {
+        background: rgba(102, 126, 234, 0.8);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
         .container-fluid {
@@ -503,7 +519,7 @@
                         <p style="color: #adb5bd;">Agrega productos haciendo clic en "Agregar"</p>
                     </div>
 
-                    <div id="carrito-items" style="display: none;"></div>
+                    <div id="carrito-items" style="display: none; max-height: 350px; overflow-y: auto; padding-right: 5px; margin-bottom: 25px;"></div>
 
                     <!-- Campo nombre del cliente con autocomplete -->
                     <div
