@@ -43,78 +43,63 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th scope="col">
-                                    <i class="fas fa-user me-2"></i>Nombre
-                                </th>
-                                <th scope="col">
-                                    <i class="fas fa-envelope me-2"></i>Email
-                                </th>
-                                <th scope="col">
-                                    <i class="fas fa-phone me-2"></i>Teléfono
-                                </th>
-                                <th scope="col">
-                                    <i class="fas fa-map-marker-alt me-2"></i>Dirección
-                                </th>
-                                <th scope="col">
-                                    <i class="fas fa-calendar me-2"></i>Registro
-                                </th>
-                                <th scope="col">
-                                    <i class="fas fa-calendar-check me-2"></i>Citas
-                                </th>
-                                <th scope="col" class="text-center">
-                                    <i class="fas fa-cogs me-2"></i>Acciones
-                                </th>
+                                <th scope="col"><i class="fas fa-user me-2"></i>Nombre</th>
+                                <th scope="col"><i class="fas fa-envelope me-2"></i>Email</th>
+                                <th scope="col"><i class="fas fa-phone me-2"></i>Teléfono</th>
+                                <th scope="col"><i class="fas fa-map-marker-alt me-2"></i>Dirección</th>
+                                <th scope="col"><i class="fas fa-id-card me-2"></i>Documento</th>
+                                <th scope="col" class="text-center"><i class="fas fa-cogs me-2"></i>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for cliente in clientes %}
+                            {% set c_id = cliente.id if cliente.id is defined else cliente[0] %}
+                            {% set c_nom = cliente.nombre if cliente.nombre is defined else cliente[1] %}
+                            {% set c_email = cliente.email if cliente.email is defined else cliente[2] %}
+                            {% set c_tel = cliente.telefono if cliente.telefono is defined else cliente[3] %}
+                            {% set c_dir = cliente.direccion if cliente.direccion is defined else cliente[4] %}
+                            {% set c_doc = cliente.documento if cliente.documento is defined else cliente[5] %}
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <div class="avatar-circle me-3">
                                             <i class="fas fa-user"></i>
                                         </div>
-                                        <strong>{{ cliente[0] }}</strong>
+                                        <strong>{{ c_nom }}</strong>
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="text-primary">{{ cliente[1] }}</span>
+                                    <span class="text-primary">{{ c_email or 'Sin email' }}</span>
                                 </td>
                                 <td>
-                                    {% if cliente[2] %}
-                                    <i class="fas fa-phone text-success me-1"></i>
-                                    {{ cliente[2] }}
+                                    {% if c_tel %}
+                                    <i class="fas fa-phone text-success me-1"></i> {{ c_tel }}
                                     {% else %}
                                     <span class="text-muted">No registrado</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if cliente[3] %}
-                                    <i class="fas fa-home text-info me-1"></i>
-                                    {{ cliente[3] }}
+                                    {% if c_dir %}
+                                    <i class="fas fa-home text-info me-1"></i> {{ c_dir }}
                                     {% else %}
                                     <span class="text-muted">No registrada</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if cliente[4] %}
-                                    <span class="badge bg-info">{% if cliente[4].__class__.__name__ in ['date',
-                                        'datetime'] %}{{ cliente[4].strftime('%d/%m/%Y') }}{% else %}{{ cliente[4] }}{%
-                                        endif %}</span>
+                                    {% if c_doc %}
+                                    <span class="badge bg-secondary">{{ c_doc }}</span>
                                     {% else %}
-                                    <span class="badge bg-secondary">Desde citas</span>
+                                    <span class="text-muted">-</span>
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-primary">{{ cliente[5] or 0 }}</span>
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
-                                        <a href="{{ url_for('editar_cliente', cliente_email=cliente[1]) }}"
-                                            class="btn btn-outline-primary btn-sm" title="Editar cliente">
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                            title="Editar cliente"
+                                            onclick="editarCliente({{ c_id }}, '{{ c_nom|e }}', '{{ c_email|e }}', '{{ c_tel|e }}', '{{ c_dir|e }}', '{{ c_doc|e }}')">
                                             <i class="fas fa-edit"></i>
-                                        </a>
-                                        <a href="{{ url_for('detalle_cliente', cliente_id=cliente.id if cliente.id is defined else cliente[0]) }}"
+                                        </button>
+                                        <a href="{{ url_for('detalle_cliente', cliente_id=c_id) }}"
                                             class="btn btn-sm btn-outline-info" title="Ver Detalle">
                                             <i class="fas fa-eye"></i>
                                         </a>
@@ -136,144 +121,52 @@
             <p class="text-muted mb-4">
                 Los clientes aparecerán aquí cuando realicen citas o se registren en el sistema.
             </p>
-            <a href="{{ url_for('citas') }}" class="btn btn-primary">
-                <i class="fas fa-calendar-plus me-2"></i>
-                Ver Citas
-            </a>
+            <button type="button" class="btn btn-primary"
+                onclick="document.getElementById('openCrearClienteBtn').click()">
+                <i class="fas fa-user-plus me-2"></i>Agregar Primer Cliente
+            </button>
         </div>
         {% endif %}
     </div>
 </section>
 
-<style>
-    .avatar-circle {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 1rem;
-    }
-
-    .stat-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    }
-
-    .stat-number {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: var(--primary-color);
-        line-height: 1;
-    }
-
-    .stat-label {
-        font-size: 0.9rem;
-        color: var(--gray-dark);
-        text-transform: uppercase;
-        font-weight: 500;
-        letter-spacing: 0.5px;
-    }
-
-    .text-gradient {
-        background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-
-    .table thead th {
-        border-bottom: 2px solid var(--primary-color);
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.85rem;
-        letter-spacing: 0.5px;
-    }
-
-    .table tbody tr:hover {
-        background-color: rgba(255, 163, 1, 0.05);
-    }
-
-    .btn-group .btn {
-        margin: 0 2px;
-    }
-
-    @media (max-width: 768px) {
-        .section-header .d-flex {
-            flex-direction: column;
-            align-items: flex-start !important;
-        }
-
-        .section-stats {
-            margin-top: 1rem;
-            align-self: center;
-        }
-
-        .table-responsive {
-            font-size: 0.875rem;
-        }
-
-        .btn-group {
-            flex-direction: column;
-        }
-
-        .btn-group .btn {
-            margin: 1px 0;
-        }
-    }
-</style>
-{% endblock %}
-
-{% block scripts %}
-<!-- Modal para crear cliente -->
-<div class="modal fade" id="crearClienteModal" tabindex="-1" aria-labelledby="crearClienteModalLabel"
-    aria-hidden="true">
+<!-- Modal Crear Cliente -->
+<div class="modal fade" id="crearClienteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="crearClienteModalLabel">
+                <h5 class="modal-title">
                     <i class="fas fa-user-plus me-2"></i>Agregar Cliente
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="formCrearClienteModal" method="POST" action="{{ url_for('crear_cliente') }}"
-                    class="needs-validation no-animation" novalidate>
+                    class="no-animation">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modal_nombre" class="form-label">Nombre Completo *</label>
                             <input type="text" id="modal_nombre" name="nombre" class="form-control" required>
-                            <div class="invalid-feedback">Por favor ingrese el nombre completo.</div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="modal_email" class="form-label">Correo Electrónico *</label>
                             <input type="email" id="modal_email" name="email" class="form-control" required>
-                            <div class="invalid-feedback">Por favor ingrese un email válido.</div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="modal_telefono" class="form-label">Teléfono</label>
-                            <input type="tel" id="modal_telefono" name="telefono" class="form-control"
-                                placeholder="Ej: +51 999 999 999">
+                            <input type="tel" id="modal_telefono" name="telefono" class="form-control">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="modal_documento" class="form-label">Documento</label>
                             <input type="text" id="modal_documento" name="documento" class="form-control"
-                                placeholder="DNI, CE, etc.">
+                                placeholder="DNI / RUC">
                         </div>
                     </div>
                     <div class="mb-3">
                         <label for="modal_direccion" class="form-label">Dirección</label>
-                        <textarea id="modal_direccion" name="direccion" class="form-control" rows="2"
-                            placeholder="Dirección completa"></textarea>
+                        <textarea id="modal_direccion" name="direccion" class="form-control" rows="2"></textarea>
                     </div>
                     <div class="d-flex justify-content-end">
                         <button type="button" class="btn btn-outline-secondary me-2"
@@ -288,49 +181,81 @@
     </div>
 </div>
 
+<!-- Modal Editar Cliente -->
+<div class="modal fade" id="editarClienteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>Editar Cliente
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarClienteModal" method="POST" action="{{ url_for('editar_cliente') }}"
+                    class="no-animation">
+                    <input type="hidden" id="edit_cliente_id" name="cliente_id">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_nombre" class="form-label">Nombre Completo *</label>
+                            <input type="text" id="edit_nombre" name="nombre" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_email" class="form-label">Correo Electrónico *</label>
+                            <input type="email" id="edit_email" name="email" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_telefono" class="form-label">Teléfono</label>
+                            <input type="tel" id="edit_telefono" name="telefono" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_documento" class="form-label">Documento</label>
+                            <input type="text" id="edit_documento" name="documento" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_direccion" class="form-label">Dirección</label>
+                        <textarea id="edit_direccion" name="direccion" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary me-2"
+                            data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-save me-2"></i>Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    // Código ultra-simplificado para crear cliente
     document.addEventListener('DOMContentLoaded', function () {
         const openBtn = document.getElementById('openCrearClienteBtn');
         const modalEl = document.getElementById('crearClienteModal');
 
-        // Abrir modal
         if (openBtn && modalEl) {
             openBtn.addEventListener('click', function () {
                 const modal = new bootstrap.Modal(modalEl);
                 modal.show();
-                // Limpiar formulario
                 const form = document.getElementById('formCrearClienteModal');
-                if (form) {
-                    form.reset();
-                    form.classList.remove('was-validated');
-                }
-            });
-        }
-
-        // Validación mínima - el resto lo maneja el servidor
-        const form = document.getElementById('formCrearClienteModal');
-        if (form) {
-            form.addEventListener('submit', function (e) {
-                const nombre = form.querySelector('#modal_nombre').value.trim();
-                const email = form.querySelector('#modal_email').value.trim();
-
-                if (!nombre || !email) {
-                    e.preventDefault();
-                    alert('Por favor completa el nombre y email');
-                    return false;
-                }
-
-                // Cambiar texto del botón para indicar envío
-                const submitBtn = document.getElementById('submitCrearCliente');
-                if (submitBtn) {
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
-                    submitBtn.disabled = true;
-                }
-
-                // El formulario se envía normalmente al servidor
+                if (form) form.reset();
             });
         }
     });
+
+    function editarCliente(id, nombre, email, telefono, direccion, documento) {
+        document.getElementById('edit_cliente_id').value = id;
+        document.getElementById('edit_nombre').value = nombre;
+        document.getElementById('edit_email').value = email;
+        document.getElementById('edit_telefono').value = telefono;
+        document.getElementById('edit_direccion').value = direccion;
+        document.getElementById('edit_documento').value = documento;
+
+        new bootstrap.Modal(document.getElementById('editarClienteModal')).show();
+    }
 </script>
 {% endblock %}
