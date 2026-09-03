@@ -412,18 +412,19 @@ def punto_de_venta():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener productos con casteo obligatorio de tipos a float / int
+            # 1. Obtener productos usando la columna 'cantidad' de Supabase
             cursor.execute("""
                 SELECT 
                     id,                                           -- 0
                     nombre,                                       -- 1
                     COALESCE(precio, 0.00) AS precio,             -- 2
-                    COALESCE(stock, 0) AS stock,                  -- 3
+                    COALESCE(cantidad, 0) AS cantidad,            -- 3 (Existencias)
                     COALESCE(codigo_barra, '') AS codigo_barra,   -- 4
-                    COALESCE(categoria, 'General') AS categoria,  -- 5
+                    'General' AS categoria,                       -- 5
                     COALESCE(imagen, '') AS imagen                -- 6
                 FROM productos
-                WHERE (tenant_id = %s OR tenant_id IS NULL) AND COALESCE(activo, true) = true
+                WHERE (tenant_id = %s OR tenant_id IS NULL) 
+                  AND COALESCE(activo, true) = true
                 ORDER BY nombre ASC
             """, (tenant_id,))
             
@@ -442,7 +443,7 @@ def punto_de_venta():
                     p_stk = 0
                 
                 p_code = str(r[4]) if r[4] else ''
-                p_cat = str(r[5]) if r[5] else 'General'
+                p_cat = str(r[5])
                 p_img = str(r[6]) if r[6] else ''
 
                 productos_lista.append({
@@ -450,6 +451,7 @@ def punto_de_venta():
                     'nombre': p_nom,
                     'precio': p_prec,
                     'stock': p_stk,
+                    'cantidad': p_stk,
                     'codigo_barra': p_code,
                     'categoria': p_cat,
                     'imagen': p_img,
@@ -462,11 +464,16 @@ def punto_de_venta():
                     6: p_img
                 })
 
-            # 2. Obtener servicios con precio casteado a float
+            # 2. Obtener servicios según la estructura de Supabase
             cursor.execute("""
-                SELECT id, nombre, COALESCE(precio, 0.00), COALESCE(duracion, '')
+                SELECT 
+                    id, 
+                    nombre, 
+                    COALESCE(precio, 0.00) AS precio, 
+                    COALESCE(duracion, 0) AS duracion
                 FROM servicios
-                WHERE (tenant_id = %s OR tenant_id IS NULL) AND COALESCE(activo, true) = true
+                WHERE (tenant_id = %s OR tenant_id IS NULL) 
+                  AND COALESCE(activo, true) = true
                 ORDER BY nombre ASC
             """, (tenant_id,))
             
@@ -477,7 +484,7 @@ def punto_de_venta():
                     s_prec = float(s[2])
                 except (ValueError, TypeError):
                     s_prec = 0.0
-                s_dur = str(s[3]) if s[3] else ''
+                s_dur = f"{s[3]} min" if s[3] else ''
 
                 servicios_lista.append({
                     'id': s_id,
@@ -498,7 +505,7 @@ def punto_de_venta():
     return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
 
 
-# ─── API POS & BUSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
+# ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
 
 @app.route('/api/ventas/buscar-productos')
 def api_buscar_productos():
@@ -511,7 +518,7 @@ def api_buscar_productos():
             if q:
                 query_like = f"%{q}%"
                 cursor.execute("""
-                    SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, '')
+                    SELECT id, nombre, precio, cantidad, COALESCE(codigo_barra, ''), 'General' AS categoria
                     FROM productos 
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
@@ -521,7 +528,7 @@ def api_buscar_productos():
                 """, (tenant_id, query_like, query_like, q))
             else:
                 cursor.execute("""
-                    SELECT id, nombre, precio, stock, COALESCE(codigo_barra, ''), COALESCE(categoria, '')
+                    SELECT id, nombre, precio, cantidad, COALESCE(codigo_barra, ''), 'General' AS categoria
                     FROM productos 
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
@@ -536,7 +543,7 @@ def api_buscar_productos():
                 'precio': float(r[2]) if r[2] is not None else 0.0,
                 'stock': int(r[3]) if r[3] is not None else 0,
                 'codigo_barra': r[4] or '',
-                'categoria': r[5] or ''
+                'categoria': r[5]
             } for r in rows]
 
         conexion.close()
@@ -559,7 +566,7 @@ def api_validar_stock():
                 pid = item.get('id')
                 cant = int(item.get('cantidad', 1))
                 if pid and str(pid).isdigit():
-                    cursor.execute("SELECT nombre, stock FROM productos WHERE id = %s", (int(pid),))
+                    cursor.execute("SELECT nombre, cantidad FROM productos WHERE id = %s", (int(pid),))
                     row = cursor.fetchone()
                     if not row:
                         errores.append(f"Producto ID {pid} no encontrado.")
@@ -638,23 +645,16 @@ def procesar_venta_pos():
             
             venta_id = cursor.fetchone()[0]
             
+            # Actualización de existencias en la columna 'cantidad' de la tabla productos
             for item in items:
                 pid = item.get('id')
                 cant = int(item.get('cantidad', item.get('qty', 1)))
-                precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
-                subtotal_item = cant * precio
-                
                 if pid and str(pid).isdigit():
-                    product_id = int(pid)
-                    try:
-                        cursor.execute("""
-                            INSERT INTO detalle_ventas (venta_id, producto_id, cantidad, precio_unitario, subtotal)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (venta_id, product_id, cant, precio, subtotal_item))
-                    except Exception as ex_dt:
-                        logger.warning(f"No se insertó en detalle_ventas (continuando): {ex_dt}")
-                    
-                    cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (cant, product_id))
+                    cursor.execute("""
+                        UPDATE productos 
+                        SET cantidad = GREATEST(COALESCE(cantidad, 0) - %s, 0) 
+                        WHERE id = %s
+                    """, (cant, int(pid)))
                 
         conexion.commit()
         conexion.close()
@@ -860,42 +860,21 @@ def ticket_venta(venta_id):
 
                 raw_productos = r[13]
 
-            cursor.execute("""
-                SELECT 
-                    p.nombre, 
-                    dv.cantidad, 
-                    dv.precio_unitario, 
-                    dv.subtotal
-                FROM detalle_ventas dv
-                LEFT JOIN productos p ON dv.producto_id = p.id
-                WHERE dv.venta_id = %s
-            """, (venta_id,))
-            
-            dt_rows = cursor.fetchall()
-            if dt_rows:
-                for dt in dt_rows:
-                    pu = float(dt[2]) if dt[2] is not None else 0.0
-                    st = float(dt[3]) if dt[3] is not None else 0.0
-                    items.append({
-                        'nombre': dt[0] or 'Producto',
-                        'cantidad': int(dt[1] or 1),
-                        'precio_unitario': pu,
-                        'subtotal': st
-                    })
-            elif raw_productos:
-                try:
-                    p_list = json.loads(raw_productos) if isinstance(raw_productos, str) else raw_productos
-                    for p in p_list:
-                        cant = int(p.get('cantidad', p.get('qty', 1)))
-                        pu = float(p.get('precio', p.get('precio_unitario', 0.0)))
-                        items.append({
-                            'nombre': p.get('nombre', p.get('title', 'Producto')),
-                            'cantidad': cant,
-                            'precio_unitario': pu,
-                            'subtotal': cant * pu
-                        })
-                except Exception as ex_json:
-                    logger.warning(f"No se pudo decodificar JSON de productos para venta {venta_id}: {ex_json}")
+                # Decodificación directa del campo JSON 'productos' guardado en la venta
+                if raw_productos:
+                    try:
+                        p_list = json.loads(raw_productos) if isinstance(raw_productos, str) else raw_productos
+                        for p in p_list:
+                            cant = int(p.get('cantidad', p.get('qty', 1)))
+                            pu = float(p.get('precio', p.get('precio_unitario', 0.0)))
+                            items.append({
+                                'nombre': p.get('nombre', p.get('title', 'Producto / Servicio')),
+                                'cantidad': cant,
+                                'precio_unitario': pu,
+                                'subtotal': cant * pu
+                            })
+                    except Exception as ex_json:
+                        logger.warning(f"No se pudo decodificar JSON de productos para venta {venta_id}: {ex_json}")
 
         conexion.close()
     except Exception as e:
