@@ -1453,6 +1453,87 @@ def historial_clientes():
 
     return render_template('historial_clientes.html', clientes=clientes_lista, historial=clientes_lista)
 
+@app.route('/clientes/detalle/<int:cliente_id>', endpoint='detalle_cliente')
+@app.route('/clientes/<int:cliente_id>', endpoint='ver_cliente')
+def detalle_cliente(cliente_id):
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Acceso denegado.'}), 403
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    tenant_id = session.get('tenant_id', 1)
+    cliente = None
+    mascotas_lista = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Obtener datos del cliente
+            cursor.execute("""
+                SELECT 
+                    id, 
+                    COALESCE(nombre, '') AS nombre, 
+                    COALESCE(email, '') AS email, 
+                    COALESCE(telefono, '') AS telefono, 
+                    COALESCE(direccion, '') AS direccion, 
+                    COALESCE(documento, '') AS documento,
+                    COALESCE(activo, true) AS activo
+                FROM clientes
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (cliente_id, tenant_id))
+            
+            r = cursor.fetchone()
+            if r:
+                if isinstance(r, dict):
+                    cliente = {
+                        'id': r.get('id'),
+                        'nombre': r.get('nombre', ''),
+                        'email': r.get('email', ''),
+                        'telefono': r.get('telefono', ''),
+                        'direccion': r.get('direccion', ''),
+                        'documento': r.get('documento', ''),
+                        'activo': r.get('activo', True),
+                        0: r.get('id'), 1: r.get('nombre', ''), 2: r.get('email', ''),
+                        3: r.get('telefono', ''), 4: r.get('direccion', ''), 5: r.get('documento', '')
+                    }
+                else:
+                    cliente = {
+                        'id': r[0], 'nombre': r[1], 'email': r[2],
+                        'telefono': r[3], 'direccion': r[4], 'documento': r[5], 'activo': r[6],
+                        0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5]
+                    }
+
+            # 2. Consultar mascotas del cliente si existe la tabla
+            try:
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(especie, '') AS especie, COALESCE(raza, '') AS raza
+                    FROM mascotas
+                    WHERE cliente_id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                """, (cliente_id, tenant_id))
+                for m in cursor.fetchall():
+                    if isinstance(m, dict):
+                        mascotas_lista.append(m)
+                    else:
+                        mascotas_lista.append({'id': m[0], 'nombre': m[1], 'especie': m[2], 'raza': m[3]})
+            except Exception:
+                pass
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando detalle de cliente {cliente_id}: {e}")
+
+    if not cliente:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Cliente no encontrado'}), 404
+        flash('Cliente no encontrado.', 'error')
+        return redirect(url_for('clientes'))
+
+    # Respuesta según origen de la solicitud
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'cliente': cliente, 'mascotas': mascotas_lista})
+
+    return render_template('detalle_cliente.html', cliente=cliente, mascotas=mascotas_lista)
 
 @app.route('/mascotas')
 def mascotas():
