@@ -942,6 +942,8 @@ def ticket_venta(venta_id):
 
 # ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
 
+# ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
+
 @app.route('/productos')
 def productos():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
@@ -991,7 +993,9 @@ def almacen():
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
-                
+                cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
+                cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
+
                 # Validación de código de barras único
                 if codigo_barra:
                     if producto_id:
@@ -1048,7 +1052,7 @@ def almacen():
             flash(f'Error al procesar el producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # ─── LÓGICA DE FILTRADO Y CONSULTA ────────────────────────────────────────
+    # ─── LÓGICA DE FILTRADO Y CONSULTA DE ALMACÉN ─────────────────────────────
     tipo_filtro = request.args.get('tipo', '').strip().lower()
     productos_lista = []
 
@@ -1056,31 +1060,34 @@ def almacen():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
-            
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
+
             sql_query = """
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(stock_minimo, 5), codigo_barra 
+                SELECT id, nombre, COALESCE(tipo, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra 
                 FROM productos 
             """
-            params = []
 
-            # Aplicar filtro solo si es 'stock' o 'venta'
-            if tipo_filtro in ['stock', 'venta']:
-                sql_query += " WHERE LOWER(tipo) = %s "
-                params.append(tipo_filtro)
+            if tipo_filtro == 'stock':
+                sql_query += " WHERE LOWER(TRIM(COALESCE(tipo, 'stock'))) = 'stock' "
+            elif tipo_filtro == 'venta':
+                sql_query += " WHERE LOWER(TRIM(tipo)) = 'venta' "
 
             sql_query += " ORDER BY id ASC "
 
-            cursor.execute(sql_query, tuple(params))
+            cursor.execute(sql_query)
             rows = cursor.fetchall()
             
             for r in rows:
                 p_id = r[0]
                 nombre = r[1] or ''
-                tipo = str(r[2]) if r[2] is not None else 'stock'
+                tipo = str(r[2]).strip().lower() if r[2] is not None else 'stock'
                 cantidad = int(r[3]) if r[3] is not None else 0
                 precio = float(r[4]) if r[4] is not None else 0.0
                 stock_minimo = int(r[5]) if r[5] is not None else 5
-                codigo_barra = r[6] or ''
+                fecha_venc = r[6]
+                imagen = r[7] or ''
+                codigo_barra = r[8] or ''
 
                 item = {
                     'id': p_id,
@@ -1090,6 +1097,8 @@ def almacen():
                     'stock': cantidad,
                     'precio': precio,
                     'stock_minimo': stock_minimo,
+                    'fecha_vencimiento': fecha_venc,
+                    'imagen': imagen,
                     'codigo_barra': codigo_barra,
                     0: p_id,
                     1: nombre,
@@ -1097,7 +1106,9 @@ def almacen():
                     3: cantidad,
                     4: precio,
                     5: stock_minimo,
-                    6: codigo_barra
+                    6: fecha_venc,
+                    7: imagen,
+                    8: codigo_barra
                 }
                 productos_lista.append(item)
         conexion.close()
