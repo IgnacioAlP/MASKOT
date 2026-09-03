@@ -1219,44 +1219,123 @@ def clientes():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    lista = []
+    tenant_id = session.get('tenant_id', 1)
+    clientes_lista = []
+    
     try:
-        if hasattr(clientes_controlador, 'obtener_clientes'):
-            lista = clientes_controlador.obtener_clientes() or []
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    id, 
+                    COALESCE(nombre, '') AS nombre, 
+                    COALESCE(email, '') AS email, 
+                    COALESCE(telefono, '') AS telefono, 
+                    COALESCE(direccion, '') AS direccion, 
+                    COALESCE(documento, '') AS documento
+                FROM clientes
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                ORDER BY id DESC
+            """, (tenant_id,))
+            
+            rows = cursor.fetchall()
+            for r in rows:
+                if isinstance(r, dict):
+                    c_id = r.get('id')
+                    c_nom = r.get('nombre', '')
+                    c_email = r.get('email', '')
+                    c_tel = r.get('telefono', '')
+                    c_dir = r.get('direccion', '')
+                    c_doc = r.get('documento', '')
+                else:
+                    c_id, c_nom, c_email, c_tel, c_dir, c_doc = r[0], r[1], r[2], r[3], r[4], r[5]
+
+                clientes_lista.append({
+                    'id': c_id,
+                    'nombre': str(c_nom or ''),
+                    'email': str(c_email or ''),
+                    'telefono': str(c_tel or ''),
+                    'direccion': str(c_dir or ''),
+                    'documento': str(c_doc or ''),
+                    0: c_id, 
+                    1: str(c_nom or ''), 
+                    2: str(c_email or ''), 
+                    3: str(c_tel or ''), 
+                    4: str(c_dir or ''), 
+                    5: str(c_doc or '')
+                })
+        conexion.close()
     except Exception as e:
-        logger.error(f"Error cargando clientes: {e}")
+        logger.error(f"Error cargando clientes desde DB: {e}")
+        if hasattr(clientes_controlador, 'obtener_clientes'):
+            try:
+                clientes_lista = clientes_controlador.obtener_clientes() or []
+            except Exception as ex_ctrl:
+                logger.error(f"Error en clientes_controlador: {ex_ctrl}")
         
-    return render_template('clientes.html', clientes=lista)
+    return render_template('clientes.html', clientes=clientes_lista)
 
 
 @app.route('/clientes/crear', methods=['POST'], endpoint='crear_cliente')
 @app.route('/clientes/agregar', methods=['POST'], endpoint='agregar_cliente')
 def crear_cliente():
     if session.get('rol') not in ['admin', 'empleado', 'dueño']:
-        return jsonify({'success': False, 'error': 'No autorizado'}), 403
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'No autorizado'}), 403
+        flash('No autorizado.', 'error')
+        return redirect(url_for('clientes'))
+
+    tenant_id = session.get('tenant_id', 1)
+
     try:
-        nombre = request.form.get('nombre')
-        email = request.form.get('email', '')
-        telefono = request.form.get('telefono', '')
-        direccion = request.form.get('direccion', '')
-        documento = request.form.get('documento', '')
+        req_json = request.get_json(silent=True) or {}
         
-        if hasattr(clientes_controlador, 'insertar_cliente'):
-            clientes_controlador.insertar_cliente(nombre, email, telefono, direccion, documento)
-        else:
-            conexion = obtener_conexion()
-            with conexion.cursor() as cursor:
-                cursor.execute("""
-                    INSERT INTO clientes (nombre, email, telefono, direccion, documento)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (nombre, email, telefono, direccion, documento))
-            conexion.commit()
-            conexion.close()
-            
-        flash('Cliente registrado exitosamente.', 'success')
+        def get_field(*keys, default=''):
+            for k in keys:
+                v = req_json.get(k)
+                if v is not None and str(v).strip() != '':
+                    return str(v).strip()
+                v = request.form.get(k)
+                if v is not None and str(v).strip() != '':
+                    return str(v).strip()
+            return default
+
+        nombre = get_field('nombre', 'cliente_nombre')
+        email = get_field('email', 'correo')
+        telefono = get_field('telefono', 'celular', 'phone')
+        direccion = get_field('direccion', 'dir')
+        documento = get_field('documento', 'doc', 'dni', 'ruc')
+
+        if not nombre:
+            msg = 'El nombre del cliente es obligatorio.'
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(msg, 'warning')
+            return redirect(url_for('clientes'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO clientes (nombre, email, telefono, direccion, documento, tenant_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (nombre, email, telefono, direccion, documento, tenant_id))
+            nuevo_id = cursor.fetchone()[0]
+
+        conexion.commit()
+        conexion.close()
+
+        msg = f'Cliente "{nombre}" registrado exitosamente.'
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': msg, 'cliente_id': nuevo_id})
+
+        flash(msg, 'success')
     except Exception as e:
         logger.error(f"Error al registrar cliente: {e}")
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': str(e)}), 500
         flash(f'Error al registrar cliente: {e}', 'error')
+
     return redirect(url_for('clientes'))
 
 
@@ -1267,8 +1346,49 @@ def historial_clientes():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    lista = clientes_controlador.obtener_clientes() if hasattr(clientes_controlador, 'obtener_clientes') else []
-    return render_template('historial_clientes.html', clientes=lista, historial=lista)
+    tenant_id = session.get('tenant_id', 1)
+    clientes_lista = []
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT 
+                    id, 
+                    COALESCE(nombre, '') AS nombre, 
+                    COALESCE(email, '') AS email, 
+                    COALESCE(telefono, '') AS telefono, 
+                    COALESCE(direccion, '') AS direccion, 
+                    COALESCE(documento, '') AS documento
+                FROM clientes
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                ORDER BY id DESC
+            """, (tenant_id,))
+            
+            rows = cursor.fetchall()
+            for r in rows:
+                if isinstance(r, dict):
+                    c_id, c_nom = r.get('id'), r.get('nombre', '')
+                    c_email, c_tel = r.get('email', ''), r.get('telefono', '')
+                    c_dir, c_doc = r.get('direccion', ''), r.get('documento', '')
+                else:
+                    c_id, c_nom, c_email, c_tel, c_dir, c_doc = r[0], r[1], r[2], r[3], r[4], r[5]
+
+                clientes_lista.append({
+                    'id': c_id,
+                    'nombre': str(c_nom or ''),
+                    'email': str(c_email or ''),
+                    'telefono': str(c_tel or ''),
+                    'direccion': str(c_dir or ''),
+                    'documento': str(c_doc or ''),
+                    0: c_id, 1: str(c_nom or ''), 2: str(c_email or ''),
+                    3: str(c_tel or ''), 4: str(c_dir or ''), 5: str(c_doc or '')
+                })
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error cargando historial de clientes desde DB: {e}")
+
+    return render_template('historial_clientes.html', clientes=clientes_lista, historial=clientes_lista)
 
 
 @app.route('/mascotas')
