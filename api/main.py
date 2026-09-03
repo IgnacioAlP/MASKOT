@@ -1024,6 +1024,7 @@ def ver_producto(producto_id):
 
 
 # ─── SERVICIOS ───────────────────────────────────────────────────────────────
+
 @app.template_filter('moneda')
 def formato_moneda_filter(val):
     """Filtro seguro para formatear precios en las plantillas Jinja2."""
@@ -1059,31 +1060,43 @@ def servicios():
                 ORDER BY nombre ASC
             """, (tenant_id,))
             
-            for s in cursor.fetchall():
+            rows = cursor.fetchall()
+            for s in rows:
+                # Compatibilidad unificada para DictCursor y Tuplas
+                if isinstance(s, dict):
+                    s_id = s.get('id')
+                    s_nom = s.get('nombre')
+                    s_desc = s.get('descripcion')
+                    raw_prec = s.get('precio')
+                    raw_dur = s.get('duracion')
+                    s_act = s.get('activo')
+                else:
+                    s_id, s_nom, s_desc = s[0], s[1], s[2]
+                    raw_prec, raw_dur, s_act = s[3], s[4], s[5]
+
                 try:
-                    s_prec = float(s[3]) if s[3] is not None else 0.0
+                    s_prec = float(raw_prec) if raw_prec is not None else 0.0
                 except (ValueError, TypeError):
                     s_prec = 0.0
 
                 try:
-                    s_dur = int(s[4]) if s[4] is not None else 30
+                    s_dur = int(raw_dur) if raw_dur is not None else 30
                 except (ValueError, TypeError):
                     s_dur = 30
 
                 servicios_lista.append({
-                    'id': s[0],
-                    'nombre': s[1] or '',
-                    'descripcion': s[2] or '',
+                    'id': s_id,
+                    'nombre': str(s_nom or ''),
+                    'descripcion': str(s_desc or ''),
                     'precio': s_prec,
                     'duracion': s_dur,
                     'duracion_minutos': s_dur,
-                    'activo': bool(s[5]),
-                    0: s[0], 1: s[1] or '', 2: s[2] or '', 3: s_prec, 4: s_dur, 5: bool(s[5])
+                    'activo': bool(s_act),
+                    0: s_id, 1: str(s_nom or ''), 2: str(s_desc or ''), 3: s_prec, 4: s_dur, 5: bool(s_act)
                 })
         conexion.close()
     except Exception as e:
         logger.error(f"Error consultando servicios desde DB: {e}")
-        # Fallback al controlador limpiando tipos
         if hasattr(servicios_controlador, 'obtener_servicios'):
             raw_lista = servicios_controlador.obtener_servicios() or []
             for item in raw_lista:
@@ -1092,10 +1105,14 @@ def servicios():
                         item['precio'] = float(item.get('precio', 0.0))
                     except (ValueError, TypeError):
                         item['precio'] = 0.0
+                    try:
+                        item['duracion'] = int(item.get('duracion', 30))
+                    except (ValueError, TypeError):
+                        item['duracion'] = 30
                     servicios_lista.append(item)
 
     return render_template('servicios.html', servicios=servicios_lista)
-    
+
 # ─── CLIENTES & MASCOTAS ─────────────────────────────────────────────────────
 
 @app.route('/clientes', endpoint='clientes')
