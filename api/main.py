@@ -2302,7 +2302,14 @@ def citas():
         return redirect(url_for('dashboard'))
     
     tenant_id = session.get('tenant_id', 1)
-    fecha_filtro = request.args.get('fecha', default=date.today().strftime('%Y-%m-%d'))
+    
+    hoy_str = date.today().strftime('%Y-%m-%d')
+    fecha_filtro = request.args.get('fecha', default=hoy_str)
+    
+    # Validar que no se puedan ver citas pasadas
+    if fecha_filtro < hoy_str:
+        fecha_filtro = hoy_str
+
     citas_list = []
     servicios_lista = []
 
