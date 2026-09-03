@@ -1024,6 +1024,14 @@ def ver_producto(producto_id):
 
 
 # ─── SERVICIOS ───────────────────────────────────────────────────────────────
+@app.template_filter('moneda')
+def formato_moneda_filter(val):
+    """Filtro seguro para formatear precios en las plantillas Jinja2."""
+    try:
+        return f"S/ {float(val):.2f}"
+    except (ValueError, TypeError):
+        return "S/ 0.00"
+
 
 @app.route('/servicios', endpoint='servicios')
 @app.route('/gestion_servicios', endpoint='gestion_servicios')
