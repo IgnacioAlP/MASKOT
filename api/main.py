@@ -1135,8 +1135,6 @@ def fidelizacion():
 # ─── MÓDULO DE GESTIÓN Y HISTORIAL DE ASISTENCIA ─────────────────────────────
 
 @app.route('/asistencia', methods=['GET', 'POST'])
-@app.route('/asistencia/marcar', methods=['GET', 'POST'])
-@app.route('/marcar_asistencia', methods=['GET', 'POST'])
 def asistencia():
     if 'rol' not in session:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
@@ -1148,91 +1146,18 @@ def asistencia():
     usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
     rol = session.get('rol', 'empleado')
 
-    # Redirigir si se accede mediante GET a URLs exclusivas de acción
-    if request.method == 'GET' and request.path in ['/marcar_asistencia', '/asistencia/marcar']:
-        return redirect(url_for('asistencia'))
-
-    # ─── PROCESAMIENTO DE REGISTRO DE ASISTENCIA (POST) ───────────────────────
+    # Si es una petición POST directa a /asistencia, procesamos la marca
     if request.method == 'POST':
-        try:
-            req_json = request.get_json(silent=True) or {}
-            tipo = (req_json.get('tipo') or request.form.get('tipo') or '').strip().lower()
-            
-            if not tipo:
-                if 'salida' in request.form or 'marcar_salida' in request.form:
-                    tipo = 'salida'
-                elif 'entrada' in request.form or 'marcar_entrada' in request.form:
-                    tipo = 'entrada'
+        return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
-            conexion = obtener_conexion()
-            with conexion.cursor() as cursor:
-                # 1. Obtener o autogenerar el personal_id enlazado al usuario
-                cursor.execute("SELECT id FROM personal WHERE usuario_id = %s AND tenant_id = %s", (usuario_id, tenant_id))
-                p_row = cursor.fetchone()
-
-                if p_row:
-                    personal_id = p_row[0]
-                else:
-                    cursor.execute("""
-                        INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
-                        VALUES (%s, 'Empleado', 0.00, true, %s)
-                        RETURNING id
-                    """, (usuario_id, tenant_id))
-                    personal_id = cursor.fetchone()[0]
-
-                # 2. Consultar si existe un registro activo de hoy
-                cursor.execute("""
-                    SELECT id, hora_salida 
-                    FROM asistencia 
-                    WHERE personal_id = %s AND fecha = CURRENT_DATE AND tenant_id = %s
-                    ORDER BY id DESC LIMIT 1
-                """, (personal_id, tenant_id))
-                reg_hoy = cursor.fetchone()
-
-                # 3. Determinar si se registra Entrada o Salida
-                if tipo == 'salida' or (not tipo and reg_hoy and reg_hoy[1] is None):
-                    if reg_hoy:
-                        cursor.execute("""
-                            UPDATE asistencia 
-                            SET hora_salida = CURRENT_TIME 
-                            WHERE id = %s AND tenant_id = %s
-                        """, (reg_hoy[0], tenant_id))
-                    else:
-                        cursor.execute("""
-                            INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, estado, tenant_id)
-                            VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, 'presente', %s)
-                        """, (personal_id, tenant_id))
-                    mensaje = 'Hora de salida registrada correctamente.'
-                else:
-                    cursor.execute("""
-                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, estado, tenant_id)
-                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, 'presente', %s)
-                    """, (personal_id, tenant_id))
-                    mensaje = 'Hora de entrada registrada correctamente.'
-
-            conexion.commit()
-            conexion.close()
-
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-                return jsonify({'success': True, 'message': mensaje})
-                
-            flash(mensaje, 'success')
-        except Exception as e:
-            logger.error(f"Error registrando asistencia: {e}")
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-                return jsonify({'success': False, 'error': str(e)}), 500
-            flash('Error al registrar la asistencia.', 'error')
-
-        return redirect(url_for('asistencia'))
-
-    # ─── VISTA GET: CONSULTA DE REGISTROS DE HOY Y ESTADO ACTUAL ──────────────
+    # Vista GET: Renderizado de la plantilla HTML con los registros
     registros = []
     asistencia_actual = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # A. Estado actual del usuario hoy
+            # 1. Estado actual del usuario hoy
             cursor.execute("""
                 SELECT a.id, TO_CHAR(a.hora_entrada, 'HH12:MI AM'), TO_CHAR(a.hora_salida, 'HH12:MI AM'), a.estado
                 FROM asistencia a
@@ -1250,7 +1175,7 @@ def asistencia():
                     0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
                 }
 
-            # B. Registros del día
+            # 2. Registros del día (Admin/Dueño ven todos, Empleado sus marcas)
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
@@ -1311,6 +1236,97 @@ def asistencia():
         asistencia=asistencia_actual, 
         asistencia_actual=asistencia_actual
     )
+
+
+@app.route('/asistencia/marcar', methods=['GET', 'POST'])
+@app.route('/marcar_asistencia', methods=['GET', 'POST'])
+def marcar_asistencia():
+    if 'rol' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': 'No autorizado'}), 401
+        flash('Debes iniciar sesión para registrar asistencia.', 'error')
+        return redirect(url_for('login'))
+
+    # Si se intenta entrar mediante GET a la URL de acción, redirige limpiamente a la vista
+    if request.method == 'GET':
+        return redirect(url_for('asistencia'))
+
+    tenant_id = session.get('tenant_id', 1)
+    usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
+    return _procesar_marcar_asistencia(usuario_id, tenant_id)
+
+
+def _procesar_marcar_asistencia(usuario_id, tenant_id):
+    try:
+        req_json = request.get_json(silent=True) or {}
+        tipo = (req_json.get('tipo') or request.form.get('tipo') or '').strip().lower()
+        
+        if not tipo:
+            if 'salida' in request.form or 'marcar_salida' in request.form:
+                tipo = 'salida'
+            elif 'entrada' in request.form or 'marcar_entrada' in request.form:
+                tipo = 'entrada'
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Obtener o autogenerar el personal_id enlazado al usuario
+            cursor.execute("SELECT id FROM personal WHERE usuario_id = %s AND tenant_id = %s", (usuario_id, tenant_id))
+            p_row = cursor.fetchone()
+
+            if p_row:
+                personal_id = p_row[0]
+            else:
+                cursor.execute("""
+                    INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
+                    VALUES (%s, 'Empleado', 0.00, true, %s)
+                    RETURNING id
+                """, (usuario_id, tenant_id))
+                personal_id = cursor.fetchone()[0]
+
+            # 2. Consultar si existe un registro activo hoy
+            cursor.execute("""
+                SELECT id, hora_salida 
+                FROM asistencia 
+                WHERE personal_id = %s AND fecha = CURRENT_DATE AND tenant_id = %s
+                ORDER BY id DESC LIMIT 1
+            """, (personal_id, tenant_id))
+            reg_hoy = cursor.fetchone()
+
+            # 3. Determinar si se registra Entrada o Salida
+            if tipo == 'salida' or (not tipo and reg_hoy and reg_hoy[1] is None):
+                if reg_hoy:
+                    cursor.execute("""
+                        UPDATE asistencia 
+                        SET hora_salida = CURRENT_TIME 
+                        WHERE id = %s AND tenant_id = %s
+                    """, (reg_hoy[0], tenant_id))
+                else:
+                    cursor.execute("""
+                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, estado, tenant_id)
+                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, 'presente', %s)
+                    """, (personal_id, tenant_id))
+                mensaje = 'Hora de salida registrada correctamente.'
+            else:
+                cursor.execute("""
+                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, estado, tenant_id)
+                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, 'presente', %s)
+                """, (personal_id, tenant_id))
+                mensaje = 'Hora de entrada registrada correctamente.'
+
+        conexion.commit()
+        conexion.close()
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'message': mensaje})
+            
+        flash(mensaje, 'success')
+    except Exception as e:
+        logger.error(f"Error registrando asistencia: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash('Error al registrar la asistencia.', 'error')
+
+    return redirect(url_for('asistencia'))
 
 
 @app.route('/historial_asistencia', endpoint='historial_asistencia')
