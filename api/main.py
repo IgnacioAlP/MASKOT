@@ -1135,8 +1135,8 @@ def fidelizacion():
 # ─── MÓDULO DE GESTIÓN Y HISTORIAL DE ASISTENCIA ─────────────────────────────
 
 @app.route('/asistencia', methods=['GET', 'POST'])
-@app.route('/asistencia/marcar', methods=['POST'])
-@app.route('/marcar_asistencia', methods=['POST'])
+@app.route('/asistencia/marcar', methods=['GET', 'POST'])
+@app.route('/marcar_asistencia', methods=['GET', 'POST'])
 def asistencia():
     if 'rol' not in session:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
@@ -1147,6 +1147,10 @@ def asistencia():
     tenant_id = session.get('tenant_id', 1)
     usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
     rol = session.get('rol', 'empleado')
+
+    # Redirigir si se accede mediante GET a URLs exclusivas de acción
+    if request.method == 'GET' and request.path in ['/marcar_asistencia', '/asistencia/marcar']:
+        return redirect(url_for('asistencia'))
 
     # ─── PROCESAMIENTO DE REGISTRO DE ASISTENCIA (POST) ───────────────────────
     if request.method == 'POST':
@@ -1162,14 +1166,13 @@ def asistencia():
 
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
-                # 1. Obtener o autogenerar el personal_id enlazado al usuario en sesión
+                # 1. Obtener o autogenerar el personal_id enlazado al usuario
                 cursor.execute("SELECT id FROM personal WHERE usuario_id = %s AND tenant_id = %s", (usuario_id, tenant_id))
                 p_row = cursor.fetchone()
 
                 if p_row:
                     personal_id = p_row[0]
                 else:
-                    # Crear ficha de personal automáticamente si el usuario no cuenta con una
                     cursor.execute("""
                         INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id)
                         VALUES (%s, 'Empleado', 0.00, true, %s)
@@ -1247,7 +1250,7 @@ def asistencia():
                     0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
                 }
 
-            # B. Registros del día (Admin/Dueño ven todos, Empleado ve sus marcas)
+            # B. Registros del día
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
