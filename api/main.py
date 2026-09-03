@@ -398,8 +398,6 @@ def dashboard():
 
 # ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
 
-# ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
-
 @app.route('/punto_de_venta', methods=['GET', 'POST'])
 @app.route('/pos', methods=['GET', 'POST'])
 def punto_de_venta():
@@ -507,10 +505,12 @@ def punto_de_venta():
 
     return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
 
-
-# ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
-@app.route('/api/ventas/buscar-productos')
-def api_buscar_productos():
+# ─── API BÚSQUEDA DE CLIENTES PARA EL POS ─────────────────────────────────────
+@app.route('/api/ventas/buscar-clientes')
+def api_buscar_clientes():
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    
     q = request.args.get('q', '').strip()
     tenant_id = session.get('tenant_id', 1)
     
@@ -518,27 +518,77 @@ def api_buscar_productos():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             if q:
-                query_like = f"%{q}%"
+                param_like = f"%{q}%"
                 cursor.execute("""
-                    SELECT id, nombre, precio, cantidad, COALESCE(codigo_barra, ''), 'General' AS categoria
-                    FROM productos 
+                    SELECT id, nombre, COALESCE(documento, '') AS documento, COALESCE(telefono, '') AS telefono
+                    FROM clientes
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
-                      AND LOWER(tipo::text) = 'venta'
-                      AND (nombre ILIKE %s OR codigo_barra ILIKE %s OR codigo_barra = %s)
+                      AND (nombre ILIKE %s OR documento ILIKE %s OR telefono ILIKE %s)
                     ORDER BY nombre ASC
-                    LIMIT 30
-                """, (tenant_id, query_like, query_like, q))
+                    LIMIT 10
+                """, (tenant_id, param_like, param_like, param_like))
             else:
                 cursor.execute("""
-                    SELECT id, nombre, precio, cantidad, COALESCE(codigo_barra, ''), 'General' AS categoria
-                    FROM productos 
+                    SELECT id, nombre, COALESCE(documento, '') AS documento, COALESCE(telefono, '') AS telefono
+                    FROM clientes
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
-                      AND LOWER(tipo::text) = 'venta'
                     ORDER BY nombre ASC
-                    LIMIT 50
+                    LIMIT 10
                 """, (tenant_id,))
+            
+            rows = cursor.fetchall()
+            clientes = [{
+                'id': r[0],
+                'nombre': r[1],
+                'documento': r[2],
+                'telefono': r[3]
+            } for r in rows]
+            
+        conexion.close()
+        return jsonify({'success': True, 'clientes': clientes})
+    except Exception as e:
+        logger.error(f"Error buscando clientes para POS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
+# ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
+@app.route('/api/ventas/buscar-productos')
+def api_buscar_productos():
+    q = request.args.get('q', '').strip()
+    cat_id = request.args.get('categoria_id', '').strip()
+    tenant_id = session.get('tenant_id', 1)
+    
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            condiciones = [
+                "(tenant_id = %s OR tenant_id IS NULL)",
+                "COALESCE(activo, true) = true",
+                "LOWER(tipo::text) = 'venta'"
+            ]
+            params = [tenant_id]
+
+            if cat_id and cat_id.isdigit():
+                condiciones.append("categoria_id = %s")
+                params.append(int(cat_id))
+
+            if q:
+                condiciones.append("(nombre ILIKE %s OR codigo_barra::text ILIKE %s OR TRIM(codigo_barra::text) = %s)")
+                query_like = f"%{q}%"
+                params.extend([query_like, query_like, q])
+
+            where_clause = " AND ".join(condiciones)
+
+            cursor.execute(f"""
+                SELECT id, nombre, COALESCE(precio, 0.00) AS precio, COALESCE(cantidad, 0) AS cantidad, 
+                       COALESCE(codigo_barra::text, '') AS codigo_barra, 'General' AS categoria
+                FROM productos 
+                WHERE {where_clause}
+                ORDER BY nombre ASC
+                LIMIT 50
+            """, tuple(params))
             
             rows = cursor.fetchall()
             productos = [{
@@ -546,7 +596,7 @@ def api_buscar_productos():
                 'nombre': r[1],
                 'precio': float(r[2]) if r[2] is not None else 0.0,
                 'stock': int(r[3]) if r[3] is not None else 0,
-                'codigo_barra': r[4] or '',
+                'codigo_barra': str(r[4] or ''),
                 'categoria': r[5]
             } for r in rows]
 
@@ -555,7 +605,6 @@ def api_buscar_productos():
     except Exception as e:
         logger.error(f"Error buscando productos POS: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @app.route('/api/ventas/validar-stock', methods=['POST'])
 def api_validar_stock():
