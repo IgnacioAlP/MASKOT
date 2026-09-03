@@ -1132,6 +1132,32 @@ def fidelizacion():
     return render_template('fidelizacion.html', alertas=alertas)
 
 
+# ─── FUNCIÓN AUXILIAR DE RESOLUCIÓN DE USUARIO ───────────────────────────────
+
+def obtener_usuario_id_sesion():
+    # Intenta obtener el ID de usuario numérico desde la sesión
+    uid = session.get('usuario_id') or session.get('user_id') or session.get('id')
+    if uid and str(uid).isdigit():
+        return int(uid)
+    
+    # Si en la sesión está guardado el nombre de usuario (texto), busca su ID en la BD
+    username = session.get('usuario') or session.get('username')
+    if username:
+        try:
+            conexion = obtener_conexion()
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT id FROM usuarios WHERE username = %s OR id::text = %s LIMIT 1", (str(username), str(username)))
+                row = cursor.fetchone()
+                if row:
+                    conexion.close()
+                    return row[0]
+            conexion.close()
+        except Exception as e:
+            logger.error(f"Error resolviendo ID de usuario: {e}")
+            
+    return None
+
+
 # ─── MÓDULO DE GESTIÓN Y HISTORIAL DE ASISTENCIA ─────────────────────────────
 
 @app.route('/asistencia', methods=['GET', 'POST'])
@@ -1143,27 +1169,30 @@ def asistencia():
         return redirect(url_for('login'))
         
     tenant_id = session.get('tenant_id', 1)
-    usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
+    usuario_id = obtener_usuario_id_sesion()
     rol = session.get('rol', 'empleado')
+
+    if not usuario_id:
+        flash('Sesión de usuario no válida.', 'error')
+        return redirect(url_for('login'))
 
     # Procesar marcación si viene por POST a /asistencia
     if request.method == 'POST':
         return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
-    # Vista GET: Renderizado de la plantilla HTML
+    # ─── VISTA GET: CONSULTA DE ESTADO Y REGISTROS ────────────────────────────
     registros = []
     asistencia_actual = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Buscar ÚNICAMENTE si existe un turno activo abierto (hora_salida IS NULL)
+            # 1. Buscar si existe un turno activo abierto (hora_salida IS NULL)
             cursor.execute("""
                 SELECT 
                     a.id, 
-                    TO_CHAR(a.hora_entrada, 'HH12:MI AM'), 
-                    TO_CHAR(a.hora_salida, 'HH12:MI AM'),
-                    'presente' AS estado
+                    TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada_fmt, 
+                    TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida_fmt
                 FROM asistencia a
                 INNER JOIN personal p ON a.personal_id = p.id
                 WHERE p.usuario_id = %s AND a.hora_salida IS NULL
@@ -1171,18 +1200,18 @@ def asistencia():
             """, (usuario_id,))
             a_row = cursor.fetchone()
             
-            # Si hay turno abierto, se envía la asistencia_actual activa.
-            # Si ya registró salida (hora_salida NOT NULL), a_row es None -> asistencia_actual = None (resetea el panel a Marcar Entrada).
+            # Si hay un turno abierto, cargamos 'asistencia_actual' para mostrar el botón "Marcar Salida".
+            # Si ya se marcó salida (a_row es None), asistencia_actual queda en None y el HTML muestra "Marcar Entrada".
             if a_row:
                 asistencia_actual = {
                     'id': a_row[0],
                     'hora_entrada': a_row[1],
                     'hora_salida': a_row[2],
-                    'estado': a_row[3],
-                    0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
+                    'estado': 'presente',
+                    0: a_row[0], 1: a_row[1], 2: a_row[2], 3: 'presente'
                 }
 
-            # 2. Consultar el historial de registros para la tabla
+            # 2. Consultar registros del día de hoy para la tabla de visualización
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
@@ -1196,9 +1225,8 @@ def asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL)
-                    ORDER BY a.fecha DESC, a.hora_entrada DESC
-                    LIMIT 100
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND a.fecha = CURRENT_DATE
+                    ORDER BY a.hora_entrada DESC
                 """, (tenant_id,))
             else:
                 cursor.execute("""
@@ -1213,9 +1241,8 @@ def asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s
-                    ORDER BY a.fecha DESC, a.hora_entrada DESC
-                    LIMIT 50
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s AND a.fecha = CURRENT_DATE
+                    ORDER BY a.hora_entrada DESC
                 """, (tenant_id, usuario_id))
 
             for r in cursor.fetchall():
@@ -1242,6 +1269,7 @@ def asistencia():
     return render_template(
         'asistencia.html', 
         registros=registros, 
+        historial=registros,
         asistencia=asistencia_actual, 
         asistencia_actual=asistencia_actual
     )
@@ -1260,12 +1288,23 @@ def marcar_asistencia():
         return redirect(url_for('asistencia'))
 
     tenant_id = session.get('tenant_id', 1)
-    usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
+    usuario_id = obtener_usuario_id_sesion()
+    
+    if not usuario_id:
+        msg = 'Sesión no válida. Por favor inicia sesión nuevamente.'
+        return jsonify({'success': False, 'error': msg}) if request.is_json else (flash(msg, 'error') or redirect(url_for('login')))
+
     return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
 
 def _procesar_marcar_asistencia(usuario_id, tenant_id):
     try:
+        req_json = request.get_json(silent=True) or {}
+        tipo = (
+            req_json.get('tipo') or req_json.get('accion') or 
+            request.form.get('tipo') or request.form.get('accion') or ''
+        ).strip().lower()
+
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             # 1. Obtener personal_id enlazado al usuario
@@ -1282,7 +1321,7 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            # 2. Buscar si existe un turno activo sin cerrar (hora_salida IS NULL)
+            # 2. Consultar si hay un turno abierto (hora_salida IS NULL)
             cursor.execute("""
                 SELECT id 
                 FROM asistencia 
@@ -1291,17 +1330,24 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
             """, (personal_id,))
             reg_abierto = cursor.fetchone()
 
-            if reg_abierto:
-                # Si hay turno abierto -> Registra SALIDA y cierra el ciclo
-                asistencia_id = reg_abierto[0]
-                cursor.execute("""
-                    UPDATE asistencia 
-                    SET hora_salida = CURRENT_TIME 
-                    WHERE id = %s
-                """, (asistencia_id,))
-                mensaje = 'Hora de salida registrada correctamente.'
+            if reg_abierto or tipo == 'salida':
+                if reg_abierto:
+                    asistencia_id = reg_abierto[0]
+                    cursor.execute("""
+                        UPDATE asistencia 
+                        SET hora_salida = CURRENT_TIME 
+                        WHERE id = %s
+                    """, (asistencia_id,))
+                    mensaje = 'Hora de salida registrada correctamente.'
+                else:
+                    # En caso de solicitar salida sin entrada previa, inserta el turno completo de salida
+                    cursor.execute("""
+                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, tenant_id)
+                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, %s)
+                    """, (personal_id, tenant_id))
+                    mensaje = 'Hora de salida registrada correctamente.'
             else:
-                # Si no hay turno abierto -> Inicia un NUEVO CICLO (Registra ENTRADA)
+                # Marcación de NUEVA ENTRADA
                 cursor.execute("""
                     INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
                     VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
@@ -1331,7 +1377,7 @@ def historial_asistencia():
         return redirect(url_for('login'))
         
     tenant_id = session.get('tenant_id', 1)
-    usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
+    usuario_id = obtener_usuario_id_sesion()
     rol = session.get('rol', 'empleado')
     registros = []
 
