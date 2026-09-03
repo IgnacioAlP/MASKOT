@@ -1216,7 +1216,20 @@ def historial_asistencia():
     return render_template('historial_asistencia.html', historial=registros, registros=registros)
 
 
-# ─── MÓDULO DE GESTIÓN DE CITAS (CON ENDPOINTS EXPLÍCITOS) ───────────────────
+# ─── INYECTOR GLOBAL DE FECHA Y HORA EN PLANTILLAS (CONTEXT PROCESSOR) ───────
+
+@app.context_processor
+def inject_global_datetime():
+    ahora = datetime.now()
+    return {
+        'momento_actual': ahora,
+        'today': date.today,
+        'now': ahora,
+        'format_date': lambda d: d.strftime('%d/%m/%Y') if hasattr(d, 'strftime') else str(d)
+    }
+
+
+# ─── MÓDULO DE GESTIÓN DE CITAS (COMPLETO) ───────────────────────────────────
 
 @app.route('/citas')
 def citas():
@@ -1280,13 +1293,13 @@ def citas():
                     'precio_total': c_precio,
                     'fecha': c_fecha,
                     'observaciones': c_obs,
-                    # Mapeo posicional exacto para tu plantilla citas.html
+                    # Mapeo posicional exacto para citas.html
                     0: c_id,        # {{ cita[0] }} -> ID
                     1: c_nombre,    # {{ cita[1] }} -> Nombre del cliente
                     2: c_contacto,  # {{ cita[2] }} -> Email/Contacto
                     3: c_tel,       # {{ cita[3] }} -> Teléfono
                     4: c_hora,      # {{ cita[4] }} -> Hora
-                    5: c_estado,    # {{ cita[5] }} -> Estado
+                    5: c_estado,    # {{ cita[5] }} -> Estado ('pendiente', 'confirmada', etc.)
                     6: s_nombre,    # {{ cita[6] }} -> Nombre Servicio
                     7: m_nombre,    # {{ cita[7] }} -> Nombre Mascota
                     8: m_especie,   # {{ cita[8] }} -> Especie
@@ -1534,7 +1547,11 @@ def ver_recibo_cita(cita_id):
         flash('La cita solicitada no existe o no se encontró en el sistema.', 'error')
         return redirect(url_for('citas'))
 
-    return render_template('recibo_cita.html', cita=cita)
+    return render_template(
+        'recibo_cita.html', 
+        cita=cita, 
+        momento_actual=datetime.now()
+    )
 
 
 @app.route('/cita/ticket/<int:cita_id>', endpoint='ticket_cita')
@@ -1579,7 +1596,11 @@ def ver_ticket_cita(cita_id):
         flash('La cita solicitada no existe.', 'error')
         return redirect(url_for('citas'))
 
-    return render_template('ticket_cita.html', cita=cita)
+    return render_template(
+        'ticket_cita.html', 
+        cita=cita, 
+        momento_actual=datetime.now()
+    )
 
 
 @app.route('/cita/<int:cita_id>/editar', methods=['GET', 'POST'])
