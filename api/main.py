@@ -1453,7 +1453,8 @@ def historial_clientes():
 
     return render_template('historial_clientes.html', clientes=clientes_lista, historial=clientes_lista)
 
-@app.route('/clientes/detalle/<int:cliente_id>', endpoint='detalle_cliente')
+@app.route('/clientes/detalle', defaults={'cliente_id': None}, endpoint='detalle_cliente')
+@app.route('/clientes/detalle/<int:cliente_id>', endpoint='detalle_cliente_id')
 @app.route('/clientes/<int:cliente_id>', endpoint='ver_cliente')
 def detalle_cliente(cliente_id):
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
@@ -1461,6 +1462,17 @@ def detalle_cliente(cliente_id):
             return jsonify({'success': False, 'error': 'Acceso denegado.'}), 403
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
+
+    # Si cliente_id no viene en la URL (/clientes/detalle/5), lo busca en query params (?cliente_id=5 o ?id=5)
+    if cliente_id is None:
+        raw_id = request.args.get('cliente_id') or request.args.get('id')
+        cliente_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
+
+    if not cliente_id:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'ID de cliente no especificado'}), 400
+        flash('No se especificó un cliente válido.', 'warning')
+        return redirect(url_for('clientes'))
 
     tenant_id = session.get('tenant_id', 1)
     cliente = None
@@ -1529,7 +1541,6 @@ def detalle_cliente(cliente_id):
         flash('Cliente no encontrado.', 'error')
         return redirect(url_for('clientes'))
 
-    # Respuesta según origen de la solicitud
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({'success': True, 'cliente': cliente, 'mascotas': mascotas_lista})
 
