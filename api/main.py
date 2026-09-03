@@ -993,6 +993,21 @@ def almacen():
             with conexion.cursor() as cursor:
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 
+                # ─── VALIDACIÓN DE CÓDIGO DE BARRAS ÚNICO ───────────────────
+                if codigo_barra:
+                    if producto_id:
+                        cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s AND id != %s", (codigo_barra, producto_id))
+                    else:
+                        cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s", (codigo_barra,))
+                    
+                    existente = cursor.fetchone()
+                    if existente:
+                        nombre_duplicado = existente[0]
+                        flash(f'No se puede guardar: El código de barras "{codigo_barra}" ya pertenece al producto "{nombre_duplicado}".', 'error')
+                        conexion.close()
+                        return redirect(url_for('almacen'))
+                # ────────────────────────────────────────────────────────────
+
                 if producto_id:
                     # Si no llegó el tipo en el formulario al editar, conservar el tipo actual de la BD
                     if not tipo:
