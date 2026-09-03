@@ -1232,7 +1232,8 @@ def clientes():
                     COALESCE(email, '') AS email, 
                     COALESCE(telefono, '') AS telefono, 
                     COALESCE(direccion, '') AS direccion, 
-                    COALESCE(documento, '') AS documento
+                    COALESCE(documento, '') AS documento,
+                    COALESCE(activo, true) AS activo
                 FROM clientes
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
                 ORDER BY id DESC
@@ -1247,8 +1248,9 @@ def clientes():
                     c_tel = r.get('telefono', '')
                     c_dir = r.get('direccion', '')
                     c_doc = r.get('documento', '')
+                    c_act = r.get('activo', True)
                 else:
-                    c_id, c_nom, c_email, c_tel, c_dir, c_doc = r[0], r[1], r[2], r[3], r[4], r[5]
+                    c_id, c_nom, c_email, c_tel, c_dir, c_doc, c_act = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
 
                 clientes_lista.append({
                     'id': c_id,
@@ -1257,21 +1259,18 @@ def clientes():
                     'telefono': str(c_tel or ''),
                     'direccion': str(c_dir or ''),
                     'documento': str(c_doc or ''),
+                    'activo': bool(c_act),
                     0: c_id, 
                     1: str(c_nom or ''), 
                     2: str(c_email or ''), 
                     3: str(c_tel or ''), 
                     4: str(c_dir or ''), 
-                    5: str(c_doc or '')
+                    5: str(c_doc or ''),
+                    6: bool(c_act)
                 })
         conexion.close()
     except Exception as e:
         logger.error(f"Error cargando clientes desde DB: {e}")
-        if hasattr(clientes_controlador, 'obtener_clientes'):
-            try:
-                clientes_lista = clientes_controlador.obtener_clientes() or []
-            except Exception as ex_ctrl:
-                logger.error(f"Error en clientes_controlador: {ex_ctrl}")
         
     return render_template('clientes.html', clientes=clientes_lista)
 
@@ -1306,8 +1305,8 @@ def crear_cliente():
         direccion = get_field('direccion', 'dir')
         documento = get_field('documento', 'doc', 'dni', 'ruc')
 
-        if not nombre:
-            msg = 'El nombre del cliente es obligatorio.'
+        if not nombre or not email:
+            msg = 'El nombre y el correo electrónico son obligatorios.'
             if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': msg}), 400
             flash(msg, 'warning')
@@ -1316,8 +1315,8 @@ def crear_cliente():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO clientes (nombre, email, telefono, direccion, documento, tenant_id)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO clientes (nombre, email, telefono, direccion, documento, activo, tenant_id)
+                VALUES (%s, %s, %s, %s, %s, true, %s)
                 RETURNING id
             """, (nombre, email, telefono, direccion, documento, tenant_id))
             nuevo_id = cursor.fetchone()[0]
@@ -1335,6 +1334,70 @@ def crear_cliente():
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
         flash(f'Error al registrar cliente: {e}', 'error')
+
+    return redirect(url_for('clientes'))
+
+
+@app.route('/clientes/editar', methods=['POST'], endpoint='editar_cliente')
+def editar_cliente():
+    if session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'No autorizado'}), 403
+        flash('No autorizado.', 'error')
+        return redirect(url_for('clientes'))
+
+    tenant_id = session.get('tenant_id', 1)
+
+    try:
+        req_json = request.get_json(silent=True) or {}
+        
+        def get_field(*keys, default=''):
+            for k in keys:
+                v = req_json.get(k)
+                if v is not None and str(v).strip() != '':
+                    return str(v).strip()
+                v = request.form.get(k)
+                if v is not None and str(v).strip() != '':
+                    return str(v).strip()
+            return default
+
+        raw_id = get_field('id', 'cliente_id')
+        cliente_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
+
+        nombre = get_field('nombre', 'cliente_nombre')
+        email = get_field('email', 'correo')
+        telefono = get_field('telefono', 'celular')
+        direccion = get_field('direccion')
+        documento = get_field('documento', 'dni', 'ruc')
+
+        if not cliente_id or not nombre or not email:
+            msg = 'Nombre, correo e ID de cliente son obligatorios.'
+            if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': msg}), 400
+            flash(msg, 'warning')
+            return redirect(url_for('clientes'))
+
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE clientes
+                SET nombre = %s, email = %s, telefono = %s, direccion = %s, documento = %s
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (nombre, email, telefono, direccion, documento, cliente_id, tenant_id))
+
+        conexion.commit()
+        conexion.close()
+
+        msg = 'Cliente actualizado exitosamente.'
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'message': msg})
+
+        flash(msg, 'success')
+    except Exception as e:
+        logger.error(f"Error al editar cliente: {e}")
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Error al editar cliente: {e}', 'error')
 
     return redirect(url_for('clientes'))
 
