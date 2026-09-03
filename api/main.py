@@ -1027,12 +1027,19 @@ def ver_producto(producto_id):
 
 @app.template_filter('moneda')
 def formato_moneda_filter(val):
-    """Filtro seguro para formatear precios en las plantillas Jinja2."""
+    """Formatea precios a moneda (S/ 0.00) de forma ultra segura."""
     try:
         return f"S/ {float(val):.2f}"
     except (ValueError, TypeError):
         return "S/ 0.00"
 
+@app.template_filter('decimales')
+def formato_decimales_filter(val):
+    """Formatea números a 2 decimales (0.00) de forma ultra segura."""
+    try:
+        return f"{float(val):.2f}"
+    except (ValueError, TypeError):
+        return "0.00"
 
 @app.route('/servicios', endpoint='servicios')
 @app.route('/gestion_servicios', endpoint='gestion_servicios')

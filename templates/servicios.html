@@ -43,50 +43,72 @@
                                 </thead>
                                 <tbody>
                                     {% for servicio in servicios %}
+                                    {# Extracción ultra-segura de variables (soporta Dict y Tuplas) #}
+                                    {% set s_id = servicio.id if servicio.id is defined else servicio[0] %}
+                                    {% set s_nom = servicio.nombre if servicio.nombre is defined else servicio[1] %}
+                                    {% set s_desc = servicio.descripcion if servicio.descripcion is defined else
+                                    (servicio[2] if servicio[2] is string and servicio[2] != '' else (servicio[4] if
+                                    servicio[4] is defined else '')) %}
+                                    {% set s_prec = (servicio.precio if servicio.precio is defined else servicio[3 if
+                                    servicio[3] is defined and (servicio[3] is number or (servicio[3] is string and
+                                    servicio[3]|float(default=-1) >= 0)) else 2])|default(0.0)|float %}
+                                    {% set s_dur = (servicio.duracion if servicio.duracion is defined else servicio[4 if
+                                    servicio[4] is defined and servicio[4] is number else 3])|default(30)|int %}
+                                    {% set s_act = (servicio.activo if servicio.activo is defined else
+                                    servicio[5])|default(true) %}
+                                    {% set s_citas = servicio.total_citas if servicio.total_citas is defined else
+                                    (servicio[8] if servicio[8] is defined else 0) %}
+                                    {% set s_fecha = servicio.fecha_creacion if servicio.fecha_creacion is defined else
+                                    (servicio[6] if servicio[6] is defined else None) %}
+
                                     <tr>
                                         <td>
                                             <div>
-                                                <strong>{{ servicio[1] }}</strong>
-                                                {% if servicio[4] %}
-                                                <p class="text-muted mb-0 small">{{ servicio[4] }}</p>
+                                                <strong>{{ s_nom }}</strong>
+                                                {% if s_desc %}
+                                                <p class="text-muted mb-0 small">{{ s_desc }}</p>
                                                 {% endif %}
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="fw-bold text-success">S/. {{ "%.2f"|format(servicio[2])
+                                            <span class="fw-bold text-success">S/. {{ "%.2f"|format(s_prec|float)
                                                 }}</span>
                                         </td>
-                                        <td>{{ servicio[3] }} min</td>
+                                        <td>{{ s_dur }} min</td>
                                         <td>
-                                            <span class="badge bg-info">{{ servicio[8] }} citas</span>
+                                            <span class="badge bg-info">{{ s_citas }} citas</span>
                                         </td>
                                         <td>
-                                            {% if servicio[5] %}
+                                            {% if s_act %}
                                             <span class="badge bg-success">Activo</span>
                                             {% else %}
                                             <span class="badge bg-secondary">Inactivo</span>
                                             {% endif %}
                                         </td>
-                                        <td class="text-muted small">{{ servicio[6].strftime('%d/%m/%Y') if servicio[6]
-                                            else '-' }}</td>
+                                        <td class="text-muted small">
+                                            {% if s_fecha and s_fecha.strftime is defined %}
+                                            {{ s_fecha.strftime('%d/%m/%Y') }}
+                                            {% else %}
+                                            -
+                                            {% endif %}
+                                        </td>
                                         {% if session.rol in ['dueño', 'admin'] %}
                                         <td>
                                             <div class="btn-group btn-group-sm">
                                                 <button class="btn btn-outline-primary"
-                                                    onclick="editarServicio({{ servicio[0] }}, '{{ servicio[1] }}', {{ servicio[2] }}, {{ servicio[3] }}, '{{ servicio[4] or '' }}')"
+                                                    onclick="editarServicio({{ s_id }}, '{{ s_nom|e }}', {{ s_prec|float }}, {{ s_dur|int }}, '{{ s_desc|e }}')"
                                                     title="Editar">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                {% if servicio[5] %}
+                                                {% if s_act %}
                                                 <button class="btn btn-outline-warning"
-                                                    onclick="cambiarEstadoServicio({{ servicio[0] }}, false)"
+                                                    onclick="cambiarEstadoServicio({{ s_id }}, false)"
                                                     title="Desactivar">
                                                     <i class="fas fa-ban"></i>
                                                 </button>
                                                 {% else %}
                                                 <button class="btn btn-outline-success"
-                                                    onclick="cambiarEstadoServicio({{ servicio[0] }}, true)"
-                                                    title="Activar">
+                                                    onclick="cambiarEstadoServicio({{ s_id }}, true)" title="Activar">
                                                     <i class="fas fa-check"></i>
                                                 </button>
                                                 {% endif %}
@@ -139,17 +161,15 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="precio" class="form-label">Precio (S/.) *</label>
-                                <!-- Usamos name="precio" y forzamos el formato a float | default(0.0) -->
                                 <input type="number" class="form-control" id="precio" name="precio" step="0.01" min="0"
-                                    value="{{ '%.2f'|format(servicio.precio|float) if servicio else '' }}" required>
+                                    placeholder="0.00" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="duracion" class="form-label">Duración (min) *</label>
-                                <!-- Mantenemos name="duracion" y casteamos a int -->
                                 <input type="number" class="form-control" id="duracion" name="duracion" min="5"
-                                    value="{{ servicio.duracion|int if servicio else '' }}" required>
+                                    value="30" required>
                             </div>
                         </div>
                     </div>
@@ -222,15 +242,11 @@
 </div>
 
 <script>
-    // Agregar servicio - eliminado JavaScript personalizado, usar envío normal de formulario
-
-    // Editar servicio - eliminado JavaScript personalizado, usar envío normal de formulario
-
     function editarServicio(id, nombre, precio, duracion, descripcion) {
         document.getElementById('edit-servicio-id').value = id;
         document.getElementById('edit-nombre').value = nombre;
-        document.getElementById('edit-precio').value = precio;
-        document.getElementById('edit-duracion').value = duracion;
+        document.getElementById('edit-precio').value = parseFloat(precio).toFixed(2);
+        document.getElementById('edit-duracion').value = parseInt(duracion) || 30;
         document.getElementById('edit-descripcion').value = descripcion;
 
         new bootstrap.Modal(document.getElementById('modalEditarServicio')).show();
@@ -269,19 +285,17 @@
     }
 
     function showNotification(message, type) {
-        // Simple notification system
         const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
         const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    `;
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
 
         const container = document.querySelector('.servicios-section .container-fluid');
         container.insertAdjacentHTML('afterbegin', alertHtml);
 
-        // Auto remove after 5 seconds
         setTimeout(() => {
             const alert = container.querySelector('.alert');
             if (alert) {
