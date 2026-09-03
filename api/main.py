@@ -1146,18 +1146,18 @@ def asistencia():
     usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
     rol = session.get('rol', 'empleado')
 
-    # Procesar registro cuando el formulario/AJAX envía POST a /asistencia
+    # Si se recibe una petición POST en /asistencia, procesamos la marcación
     if request.method == 'POST':
         return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
-    # Vista GET: Renderizado de plantilla con historial y estado actual
+    # Vista GET: Renderizado de plantilla HTML
     registros = []
     asistencia_actual = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Estado actual del usuario hoy (calculado según hora_salida)
+            # 1. Obtener estado actual del usuario hoy (calculando estado dinámicamente)
             cursor.execute("""
                 SELECT 
                     a.id, 
@@ -1179,7 +1179,7 @@ def asistencia():
                     0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
                 }
 
-            # 2. Registros del día (Admin/Dueño ven todos, Empleado solo los suyos)
+            # 2. Obtener lista de marcas del día (Admin/Dueño ven todos, Empleados ven lo suyo)
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
@@ -1262,17 +1262,22 @@ def marcar_asistencia():
 def _procesar_marcar_asistencia(usuario_id, tenant_id):
     try:
         req_json = request.get_json(silent=True) or {}
-        tipo = (req_json.get('tipo') or request.form.get('tipo') or '').strip().lower()
+        
+        # Extraer intención/tipo desde cualquier parámetro posible del formulario o JSON
+        tipo = (
+            req_json.get('tipo') or req_json.get('accion') or req_json.get('action') or
+            request.form.get('tipo') or request.form.get('accion') or request.form.get('action') or ''
+        ).strip().lower()
         
         if not tipo:
-            if 'salida' in request.form or 'marcar_salida' in request.form:
+            if any(k in request.form for k in ['salida', 'marcar_salida', 'btn_salida']):
                 tipo = 'salida'
-            elif 'entrada' in request.form or 'marcar_entrada' in request.form:
+            elif any(k in request.form for k in ['entrada', 'marcar_entrada', 'btn_entrada']):
                 tipo = 'entrada'
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener o enlazar personal_id
+            # 1. Obtener o enlazar personal_id correspondiente al usuario
             cursor.execute("SELECT id FROM personal WHERE usuario_id = %s AND tenant_id = %s", (usuario_id, tenant_id))
             p_row = cursor.fetchone()
 
@@ -1286,7 +1291,7 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            # 2. Consultar si existe un registro activo de hoy
+            # 2. Consultar el último registro del día de este empleado
             cursor.execute("""
                 SELECT id, hora_salida 
                 FROM asistencia 
@@ -1295,21 +1300,37 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
             """, (personal_id, tenant_id))
             reg_hoy = cursor.fetchone()
 
-            # 3. Operaciones mapeadas únicamente a las 6 columnas del esquema: id, personal_id, fecha, hora_entrada, hora_salida, tenant_id
-            if tipo == 'salida' or (not tipo and reg_hoy and reg_hoy[1] is None):
-                if reg_hoy:
+            # 3. Lógica para determinar si marcamos SALIDA o ENTRADA:
+            # Si el usuario ya marcó entrada hoy y su hora_salida está vacía (NULL),
+            # O si explícitamente se solicita la 'salida' -> Se actualiza hora_salida.
+            es_marcar_salida = (tipo == 'salida') or (reg_hoy is not None and reg_hoy[1] is None)
+
+            if es_marcar_salida:
+                if reg_hoy and reg_hoy[1] is None:
+                    # Actualización de la marca de entrada abierta con la hora de salida
                     cursor.execute("""
                         UPDATE asistencia 
                         SET hora_salida = CURRENT_TIME 
                         WHERE id = %s AND tenant_id = %s
                     """, (reg_hoy[0], tenant_id))
+                    mensaje = 'Hora de salida registrada correctamente.'
+                elif reg_hoy:
+                    # En caso de re-actualizar la hora de salida del registro del día
+                    cursor.execute("""
+                        UPDATE asistencia 
+                        SET hora_salida = CURRENT_TIME 
+                        WHERE id = %s AND tenant_id = %s
+                    """, (reg_hoy[0], tenant_id))
+                    mensaje = 'Hora de salida actualizada correctamente.'
                 else:
+                    # Marca de salida sin entrada previa: inserta entrada y salida simultáneas
                     cursor.execute("""
                         INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, tenant_id)
                         VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, %s)
                     """, (personal_id, tenant_id))
-                mensaje = 'Hora de salida registrada correctamente.'
+                    mensaje = 'Hora de salida registrada correctamente.'
             else:
+                # Marcación normal de ENTRADA (nuevo registro)
                 cursor.execute("""
                     INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
                     VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
