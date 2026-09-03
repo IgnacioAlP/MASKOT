@@ -1146,20 +1146,24 @@ def asistencia():
     usuario_id = session.get('usuario_id') or session.get('user_id') or session.get('id')
     rol = session.get('rol', 'empleado')
 
-    # Si es una petición POST directa a /asistencia, procesamos la marca
+    # Procesar registro cuando el formulario/AJAX envía POST a /asistencia
     if request.method == 'POST':
         return _procesar_marcar_asistencia(usuario_id, tenant_id)
 
-    # Vista GET: Renderizado de la plantilla HTML con los registros
+    # Vista GET: Renderizado de plantilla con historial y estado actual
     registros = []
     asistencia_actual = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Estado actual del usuario hoy
+            # 1. Estado actual del usuario hoy (calculado según hora_salida)
             cursor.execute("""
-                SELECT a.id, TO_CHAR(a.hora_entrada, 'HH12:MI AM'), TO_CHAR(a.hora_salida, 'HH12:MI AM'), a.estado
+                SELECT 
+                    a.id, 
+                    TO_CHAR(a.hora_entrada, 'HH12:MI AM'), 
+                    TO_CHAR(a.hora_salida, 'HH12:MI AM'),
+                    CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                 FROM asistencia a
                 INNER JOIN personal p ON a.personal_id = p.id
                 WHERE p.usuario_id = %s AND a.fecha = CURRENT_DATE AND a.tenant_id = %s
@@ -1175,7 +1179,7 @@ def asistencia():
                     0: a_row[0], 1: a_row[1], 2: a_row[2], 3: a_row[3]
                 }
 
-            # 2. Registros del día (Admin/Dueño ven todos, Empleado sus marcas)
+            # 2. Registros del día (Admin/Dueño ven todos, Empleado solo los suyos)
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
                     SELECT 
@@ -1185,7 +1189,7 @@ def asistencia():
                         a.fecha,
                         TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
                         TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        COALESCE(a.estado, 'presente') AS estado
+                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
@@ -1201,7 +1205,7 @@ def asistencia():
                         a.fecha,
                         TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
                         TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        COALESCE(a.estado, 'presente') AS estado
+                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
@@ -1247,7 +1251,6 @@ def marcar_asistencia():
         flash('Debes iniciar sesión para registrar asistencia.', 'error')
         return redirect(url_for('login'))
 
-    # Si se intenta entrar mediante GET a la URL de acción, redirige limpiamente a la vista
     if request.method == 'GET':
         return redirect(url_for('asistencia'))
 
@@ -1269,7 +1272,7 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener o autogenerar el personal_id enlazado al usuario
+            # 1. Obtener o enlazar personal_id
             cursor.execute("SELECT id FROM personal WHERE usuario_id = %s AND tenant_id = %s", (usuario_id, tenant_id))
             p_row = cursor.fetchone()
 
@@ -1283,7 +1286,7 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            # 2. Consultar si existe un registro activo hoy
+            # 2. Consultar si existe un registro activo de hoy
             cursor.execute("""
                 SELECT id, hora_salida 
                 FROM asistencia 
@@ -1292,7 +1295,7 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
             """, (personal_id, tenant_id))
             reg_hoy = cursor.fetchone()
 
-            # 3. Determinar si se registra Entrada o Salida
+            # 3. Operaciones mapeadas únicamente a las 6 columnas del esquema: id, personal_id, fecha, hora_entrada, hora_salida, tenant_id
             if tipo == 'salida' or (not tipo and reg_hoy and reg_hoy[1] is None):
                 if reg_hoy:
                     cursor.execute("""
@@ -1302,14 +1305,14 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                     """, (reg_hoy[0], tenant_id))
                 else:
                     cursor.execute("""
-                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, estado, tenant_id)
-                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, 'presente', %s)
+                        INSERT INTO asistencia (personal_id, fecha, hora_entrada, hora_salida, tenant_id)
+                        VALUES (%s, CURRENT_DATE, CURRENT_TIME, CURRENT_TIME, %s)
                     """, (personal_id, tenant_id))
                 mensaje = 'Hora de salida registrada correctamente.'
             else:
                 cursor.execute("""
-                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, estado, tenant_id)
-                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, 'presente', %s)
+                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
+                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
                 """, (personal_id, tenant_id))
                 mensaje = 'Hora de entrada registrada correctamente.'
 
@@ -1352,7 +1355,7 @@ def historial_asistencia():
                         a.fecha,
                         TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
                         TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        COALESCE(a.estado, 'presente') AS estado
+                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
@@ -1369,7 +1372,7 @@ def historial_asistencia():
                         a.fecha,
                         TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
                         TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        COALESCE(a.estado, 'presente') AS estado
+                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
