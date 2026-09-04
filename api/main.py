@@ -1033,13 +1033,15 @@ def historial_clientes():
         c_id, c_nom, c_email, c_tel = cli['id'], cli['nombre'], cli['email'], cli['telefono']
         c_freg, c_citas, c_pedidos = cli['fecha_registro'], cli['total_citas'], cli['total_pedidos']
         c_gastado, c_ucita, c_upedido = cli['total_gastado'], cli['ultima_cita'], cli['ultimo_pedido']
+        gastado_fmt = round(c_gastado, 2)
 
         obj = {
             'id': c_id, 'nombre': c_nom, 'email': c_email, 'telefono': c_tel, 'direccion': cli['direccion'],
             'fecha_registro': c_freg, 'total_citas': c_citas, 'total_pedidos': c_pedidos,
-            'total_gastado': round(c_gastado, 2), 'ultima_cita': c_ucita, 'ultimo_pedido': c_upedido,
+            'total_gastado': gastado_fmt, 'total_monto': gastado_fmt, 'monto_total': gastado_fmt, 'total_vendido': gastado_fmt,
+            'ultima_cita': c_ucita, 'ultimo_pedido': c_upedido,
             0: c_id, 1: c_nom, 2: c_email, 3: c_tel, 4: cli['direccion'], 5: c_freg,
-            6: c_citas, 7: c_pedidos, 8: round(c_gastado, 2), 9: c_ucita, 10: c_upedido
+            6: c_citas, 7: c_pedidos, 8: gastado_fmt, 9: c_ucita, 10: c_upedido
         }
         historial_lista.append(obj)
         total_citas_sum += c_citas
@@ -1173,7 +1175,7 @@ def historial_asistencia():
 
 
 # ==============================================================================
-# 3. HISTORIAL DE COMPRAS (VENTA DE PRODUCTOS SEPARADA E ITEMIZADA)
+# 3. HISTORIAL DE COMPRAS (VENTA DE PRODUCTOS SEPARADA E ITEMIZADA + ALIAS)
 # ==============================================================================
 @app.route('/historial_compras', endpoint='historial_compras')
 @app.route('/historial-compras')
@@ -1250,6 +1252,7 @@ def historial_compras():
                         cant = int(item.get('cantidad', item.get('qty', 1)))
                         precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
                         subtotal = cant * precio
+                        subtotal_fmt = round(subtotal, 2)
 
                         if busqueda and (busqueda not in p_nombre.lower() and busqueda not in v_cli.lower() and busqueda not in str(v_num).lower()):
                             continue
@@ -1260,15 +1263,27 @@ def historial_compras():
                         compras_items.append({
                             'venta_id': v_id,
                             'numero_comprobante': v_num,
+                            'comprobante': v_num,
+                            'numero_venta': v_num,
                             'fecha': v_fec,
                             'cliente_nombre': v_cli,
+                            'cliente': v_cli,
                             'producto_id': p_id,
                             'producto_nombre': p_nombre,
+                            'producto': p_nombre,
+                            'nombre': p_nombre,
                             'cantidad': cant,
+                            'unidades': cant,
                             'precio_unitario': precio,
-                            'subtotal': round(subtotal, 2),
+                            'precio': precio,
+                            'subtotal': subtotal_fmt,
+                            'total': subtotal_fmt,
+                            'monto': subtotal_fmt,
+                            'monto_total': subtotal_fmt,
+                            'total_vendido': subtotal_fmt,
                             'metodo_pago': v_pago,
-                            0: v_id, 1: v_num, 2: v_fec, 3: v_cli, 4: p_nombre, 5: cant, 6: precio, 7: round(subtotal, 2), 8: v_pago
+                            'pago': v_pago,
+                            0: v_id, 1: v_num, 2: v_fec, 3: v_cli, 4: p_nombre, 5: cant, 6: precio, 7: subtotal_fmt, 8: v_pago
                         })
                 except Exception as ex_json:
                     logger.warning(f"Error procesando JSON de productos para venta {v_id}: {ex_json}")
@@ -1277,17 +1292,23 @@ def historial_compras():
     except Exception as e:
         logger.error(f"Error consultando historial de compras: {e}")
 
+    total_acumulado_fmt = round(monto_total_acumulado, 2)
+
     estadisticas = {
         'total_compras': len(compras_items),
+        'total_items': len(compras_items),
         'unidades_totales': unidades_totales,
-        'monto_total': round(monto_total_acumulado, 2)
+        'total_unidades': unidades_totales,
+        'monto_total': total_acumulado_fmt,
+        'total_monto': total_acumulado_fmt,
+        'total_vendido': total_acumulado_fmt
     }
 
     return render_template('historial_compras.html', compras=compras_items, estadisticas=estadisticas, filtros=filtros)
 
 
 # ==============================================================================
-# 4. HISTORIAL DE SERVICIOS DINÁMICO (CITAS Y VENTAS POS)
+# 4. HISTORIAL DE SERVICIOS DINÁMICO (CITAS Y VENTAS POS + ALIAS)
 # ==============================================================================
 @app.route('/historial_servicios', endpoint='historial_servicios')
 @app.route('/historial-servicios')
@@ -1352,17 +1373,29 @@ def historial_servicios():
                 if s_est in ['completada', 'completado', 'confirmada']:
                     servicios_completados += 1
 
+                prec_fmt = round(s_prec, 2)
+
                 servicios_historial.append({
                     'id': f"CITA-{c_id}",
                     'fecha': c_fec,
                     'hora': c_hor,
                     'cliente_nombre': c_cli,
+                    'cliente': c_cli,
                     'mascota_nombre': c_masc,
+                    'mascota': c_masc,
                     'servicio_nombre': s_nom,
-                    'precio': round(s_prec, 2),
+                    'servicio': s_nom,
+                    'nombre': s_nom,
+                    'precio': prec_fmt,
+                    'precio_total': prec_fmt,
+                    'subtotal': prec_fmt,
+                    'monto': prec_fmt,
+                    'monto_total': prec_fmt,
+                    'total': prec_fmt,
+                    'total_vendido': prec_fmt,
                     'estado': s_est,
                     'origen': 'Cita Agendada',
-                    0: f"CITA-{c_id}", 1: c_fec, 2: c_cli, 3: c_masc, 4: s_nom, 5: round(s_prec, 2), 6: s_est, 7: 'Cita Agendada'
+                    0: f"CITA-{c_id}", 1: c_fec, 2: c_cli, 3: c_masc, 4: s_nom, 5: prec_fmt, 6: s_est, 7: 'Cita Agendada'
                 })
 
             # 2. Cargar servicios vendidos directamente en POS (VENTAS)
@@ -1409,6 +1442,7 @@ def historial_servicios():
                             prec = float(item.get('precio', item.get('precio_unitario', 0.0)))
                             cant = int(item.get('cantidad', item.get('qty', 1)))
                             total_s = prec * cant
+                            total_s_fmt = round(total_s, 2)
 
                             if busqueda and (busqueda not in p_nom.lower() and busqueda not in v_cli.lower()):
                                 continue
@@ -1421,12 +1455,22 @@ def historial_servicios():
                                 'fecha': v_fec,
                                 'hora': '--:--',
                                 'cliente_nombre': v_cli,
+                                'cliente': v_cli,
                                 'mascota_nombre': '-',
+                                'mascota': '-',
                                 'servicio_nombre': p_nom,
-                                'precio': round(total_s, 2),
+                                'servicio': p_nom,
+                                'nombre': p_nom,
+                                'precio': total_s_fmt,
+                                'precio_total': total_s_fmt,
+                                'subtotal': total_s_fmt,
+                                'monto': total_s_fmt,
+                                'monto_total': total_s_fmt,
+                                'total': total_s_fmt,
+                                'total_vendido': total_s_fmt,
                                 'estado': 'completado',
                                 'origen': 'Punto de Venta',
-                                0: f"POS-{v_id}", 1: v_fec, 2: v_cli, 3: '-', 4: p_nom, 5: round(total_s, 2), 6: 'completado', 7: 'Punto de Venta'
+                                0: f"POS-{v_id}", 1: v_fec, 2: v_cli, 3: '-', 4: p_nom, 5: total_s_fmt, 6: 'completado', 7: 'Punto de Venta'
                             })
                 except Exception:
                     pass
@@ -1435,9 +1479,14 @@ def historial_servicios():
     except Exception as e:
         logger.error(f"Error consultando historial de servicios: {e}")
 
+    total_serv_fmt = round(monto_total_servicios, 2)
+
     estadisticas = {
         'total_servicios': len(servicios_historial),
-        'monto_total': round(monto_total_servicios, 2),
+        'total_items': len(servicios_historial),
+        'monto_total': total_serv_fmt,
+        'total_monto': total_serv_fmt,
+        'total_vendido': total_serv_fmt,
         'servicios_completados': servicios_completados
     }
 
@@ -1512,12 +1561,14 @@ def historial_ventas():
                 ventas_lista.append({
                     'id': v_id,
                     'numero_comprobante': v_num,
+                    'comprobante': v_num,
                     'fecha': str(v_fec),
                     'cliente_nombre': v_cli,
                     'servicio_descripcion': v_serv,
                     'personal': v_pers,
                     'metodo_pago': v_pago,
                     'total': v_tot,
+                    'total_vendido': v_tot,
                     'estado': v_est,
                     0: v_id, 1: v_num, 2: str(v_fec), 3: v_cli, 4: v_serv, 5: v_pers, 6: v_pago, 7: v_tot, 8: v_est
                 })
