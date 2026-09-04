@@ -535,7 +535,7 @@
 
         container.innerHTML = html;
 
-        // Ajustar el valor por defecto de recibido si está en 0 o vacio
+        // Ajustar el valor por defecto de recibido si está en 0 o vacío
         const mRec = document.getElementById('monto_recibido');
         if (mRec && (parseFloat(mRec.value) === 0 || mRec.value === '')) {
             mRec.value = window.total.toFixed(2);
@@ -595,7 +595,6 @@
         if (metodo === 'efectivo') {
             if (dineroSec) dineroSec.style.display = 'block';
             if (multiSec) multiSec.style.display = 'none';
-            // Auto-llenar monto exacto al cambiar a efectivo
             const mRec = document.getElementById('monto_recibido');
             if (mRec && (parseFloat(mRec.value) === 0 || mRec.value === '')) {
                 mRec.value = window.total.toFixed(2);
@@ -645,12 +644,11 @@
         window.actualizarBotonPagar();
     };
 
-    // ─── VALIDACIÓN RIGUROSA DEL BOTÓN PAGAR (CORREGIDO REDONDEO A CENTAVOS) ────
+    // ─── VALIDACIÓN RIGUROSA DEL BOTÓN PAGAR ──────────────────────────────────
     window.actualizarBotonPagar = function () {
         const btn = document.getElementById('btn-pagar');
         if (!btn) return;
 
-        // Convertir a centavos enteros para evitar errores de coma flotante de JS
         const totalCents = Math.round((window.total || 0) * 100);
 
         if (!window.carrito || window.carrito.length === 0 || totalCents <= 0) {
@@ -666,7 +664,6 @@
             const recibidoVal = parseFloat(document.getElementById('monto_recibido')?.value) || 0;
             const recibidoCents = Math.round(recibidoVal * 100);
 
-            // Comparar centavos exactos para eliminar el bug del botón bloqueado
             if (recibidoCents < totalCents) {
                 btn.disabled = true;
                 btn.style.background = '#adb5bd';
@@ -680,7 +677,7 @@
         btn.style.cursor = 'pointer';
     };
 
-    // ─── PROCESAMIENTO DE PAGO CON NOMBRE DE CLIENTE GARANTIZADO ──────────────
+    // ─── PROCESAMIENTO DE PAGO CON VARIABLES CORREGIDAS ──────────────────────
     window.procesarPago = function () {
         if (!window.carrito || window.carrito.length === 0) {
             alert('El carrito está vacío');
@@ -693,12 +690,13 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
         }
 
-        // Captura del campo de texto
+        // Captura del campo de cliente
         const inputNombre = document.getElementById('cliente_nombre');
         const inputId = document.getElementById('cliente_id');
 
         const clienteNombre = inputNombre ? inputNombre.value.trim() : '';
         const clienteId = inputId && inputId.value ? parseInt(inputId.value) : null;
+        const clienteFinal = clienteNombre || 'Cliente General';
 
         const metodoPago = document.getElementById('metodo_pago')?.value || 'efectivo';
         let montoRecibido = parseFloat(document.getElementById('monto_recibido')?.value);
@@ -710,20 +708,30 @@
         const subtotalCalc = window.total / 1.18;
         const igvCalc = window.total - subtotalCalc;
 
+        let detalleMultipago = null;
+        if (metodoPago === 'multipago') {
+            detalleMultipago = {
+                monto1: parseFloat(document.getElementById('monto1')?.value) || 0,
+                metodo1: document.getElementById('metodo1')?.value || 'efectivo',
+                monto2: parseFloat(document.getElementById('monto2')?.value) || 0,
+                metodo2: document.getElementById('metodo2')?.value || 'tarjeta'
+            };
+        }
+
         const payload = {
             productos: window.carrito || [],
-            subtotal: subtotal,
-            igv: igv,
-            total: total,
+            subtotal: subtotalCalc,
+            igv: igvCalc,
+            total: window.total,
             metodo_pago: metodoPago,
             monto_recibido: montoRecibido,
-            cambio_entregado: cambio,
-            detalle_multipago: detalleMultipago || null,
+            cambio_entregado: cambioVal,
+            detalle_multipago: detalleMultipago,
 
             cliente_id: clienteId,
             id_cliente: clienteId,
-            cliente_nombre: clienteNombre || 'Cliente General',
-            nombre_cliente: clienteNombre || 'Cliente General'
+            cliente_nombre: clienteFinal,
+            nombre_cliente: clienteFinal
         };
 
         console.log(">>> ENVIANDO PAYLOAD DESDE POS:", payload);
@@ -810,7 +818,6 @@
         let html = '';
         if (clientes && clientes.length > 0) {
             clientes.forEach(c => {
-                // Extraer ID y Nombre sin importar cómo vengan nombrados en la API
                 const cid = c.id || c.id_cliente || c.cliente_id || '';
                 const cnombre = c.nombre || c.cliente_nombre || c.nombre_cliente || '';
                 const doc = c.documento || c.dni || c.ruc || '';
@@ -978,7 +985,7 @@
         t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
     }
 
-    // Camara scanner
+    // Cámara scanner
     let posStream = null;
     let posScanInterval = null;
     async function abrirEscanerPOS() {
