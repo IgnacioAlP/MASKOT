@@ -343,10 +343,8 @@ def logout():
 
 
 def obtener_fecha_hoy_peru():
-    """Retorna la fecha actual en formato YYYY-MM-DD según la hora de Perú."""
     return datetime.now(ZONA_HORARIA_PERU).strftime('%Y-%m-%d')
 
-# Registrar la función en Jinja2 para que {{ today_string() }} en las plantillas dé la fecha exacta de Perú
 @app.context_processor
 def inject_today():
     return dict(today_string=obtener_fecha_hoy_peru)
@@ -386,7 +384,7 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
 
-        # Consulta robusta con casting seguro y limpieza de cadenas
+        # Consulta limpia tolerante a variaciones de formato de fecha
         conexion = None
         try:
             conexion = obtener_conexion()
@@ -399,19 +397,16 @@ def dashboard():
                         COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
                         COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) NOT IN ('efectivo', 'yape', 'plin') THEN total ELSE 0 END), 0) AS total_tarjeta
                     FROM ventas
-                    WHERE 
-                        fecha::date = %s::date
-                        OR DATE(fecha::text) = %s::date
-                        OR DATE(fecha::timestamp - INTERVAL '5 hours') = %s::date
-                """, (hoy, hoy, hoy))
+                    WHERE DATE(fecha) = %s::date OR fecha::text LIKE %s || '%%'
+                """, (hoy, hoy))
                 
                 res = cursor.fetchone()
-                if res:
-                    cant = int(res[0] or 0)
-                    tot_soles = float(res[1] or 0)
-                    tot_efec = float(res[2] or 0)
-                    tot_yape = float(res[3] or 0)
-                    tot_tarj = float(res[4] or 0)
+                if res and res[0] is not None:
+                    cant = int(res[0])
+                    tot_soles = float(res[1])
+                    tot_efec = float(res[2])
+                    tot_yape = float(res[3])
+                    tot_tarj = float(res[4])
 
                     cuadre_hoy = {
                         'cantidad_ventas': cant,
@@ -422,6 +417,8 @@ def dashboard():
                     }
                     totales_dia = cuadre_hoy.copy()
         except Exception as e:
+            if conexion:
+                conexion.rollback()
             logger.error(f"Error calculando acumulado de ventas: {e}")
         finally:
             if conexion:
@@ -469,6 +466,7 @@ def dashboard():
                            totales_dia=totales_dia, 
                            cuadre_hoy=cuadre_hoy)
 
+
 @app.route('/exportar-cuadre-excel', methods=['GET'])
 @app.route('/exportar-cierre-diario', methods=['GET'])
 def exportar_cierre_diario():
@@ -479,22 +477,13 @@ def exportar_cierre_diario():
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT 
-                    COALESCE(v.servicio_descripcion, 'Venta General') AS servicio,
-                    COALESCE(v.cliente, 'Cliente Varios') AS cliente,
-                    'Mediano' AS tamano,
-                    COALESCE(v.total, 0) AS total,
-                    CASE WHEN LOWER(v.metodo_pago) = 'efectivo' THEN v.total ELSE 0 END AS efectivo,
-                    CASE WHEN LOWER(v.metodo_pago) IN ('yape', 'plin') THEN v.total ELSE 0 END AS yape,
-                    CASE WHEN LOWER(v.metodo_pago) = 'qr bbva' THEN v.total ELSE 0 END AS qr_bbva,
-                    CASE WHEN LOWER(v.metodo_pago) = 'benapay' THEN v.total ELSE 0 END AS benapay,
-                    v.metodo_pago,
-                    '' AS promocion,
-                    '' AS fecha_prox_bano,
-                    COALESCE(v.nro_boleta, '') AS boleta
-                FROM ventas v
-                WHERE DATE(v.fecha AT TIME ZONE 'UTC' AT TIME ZONE 'America/Lima') = %s
-                   OR DATE(v.fecha) = %s
-                ORDER BY v.id ASC
+                    id,
+                    COALESCE(total, 0) AS total,
+                    COALESCE(metodo_pago, 'Efectivo') AS metodo_pago,
+                    fecha
+                FROM ventas
+                WHERE DATE(fecha) = %s::date OR fecha::text LIKE %s || '%%'
+                ORDER BY id ASC
             """, (fecha_filtro, fecha_filtro))
             registros = cursor.fetchall()
 
@@ -502,24 +491,20 @@ def exportar_cierre_diario():
         ws = wb.active
         ws.title = f"Cierre {fecha_filtro}"
 
-        # Encabezado con fecha
-        ws.merge_cells("A1:M1")
-        ws["A1"] = f"FECHA: {fecha_filtro}"
+        # Título principal
+        ws.merge_cells("A1:G1")
+        ws["A1"] = f"REPORTE DE CIERRE DE CAJA - FECHA: {fecha_filtro}"
         ws["A1"].font = Font(bold=True, size=11)
         ws["A1"].alignment = Alignment(horizontal="center")
 
-        headers = [
-            "N°", "DESCRIPCION DEL SERVICIO", "CLIENTE", "TAMAÑO", "TOTAL A RENDIR",
-            "EFECTIVO S/", "YAPE", "QR BBVA", "BENAPAY", "MEDIO PAGO",
-            "PROMOCIÓN", "FECHA PROX. BAÑO", "N° BOLETA FACTURA"
-        ]
+        headers = ["N° Venta", "Monto Total", "Efectivo S/", "Yape / Plin S/", "Tarjeta / Otros S/", "Método Pago", "Fecha / Hora"]
         ws.append(headers)
 
-        header_font = Font(bold=True, color="000000", size=9)
-        header_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=10)
+        header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
         border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-        for col_idx, header in enumerate(headers, 1):
+        for col_idx in range(1, 8):
             cell = ws.cell(row=2, column=col_idx)
             cell.font = header_font
             cell.fill = header_fill
@@ -527,54 +512,36 @@ def exportar_cierre_diario():
             cell.border = border_thin
 
         row_start = 3
-        total_rendir = 0.0
-        total_efectivo = 0.0
-        total_yape = 0.0
-        total_tarjeta_qr = 0.0
+        t_total, t_efec, t_yape, t_tarj = 0.0, 0.0, 0.0, 0.0
 
         for idx, row in enumerate(registros, start=1):
-            monto = float(row[3] or 0)
-            efec = float(row[4] or 0)
-            yape_val = float(row[5] or 0)
-            qr_val = float(row[6] or 0) + float(row[7] or 0)
+            v_id = row[0]
+            monto = float(row[1] or 0)
+            metodo = str(row[2] or '').strip().lower()
+            f_hora = str(row[3] or '')
 
-            total_rendir += monto
-            total_efectivo += efec
-            total_yape += yape_val
-            total_tarjeta_qr += qr_val
+            efec = monto if metodo == 'efectivo' else 0.0
+            yape = monto if metodo in ['yape', 'plin'] else 0.0
+            tarj = monto if metodo not in ['efectivo', 'yape', 'plin'] else 0.0
 
-            line = [
-                idx, row[0], row[1], row[2],
-                f"S/ {monto:.2f}" if monto else "",
-                f"S/ {efec:.2f}" if efec else "",
-                f"S/ {yape_val:.2f}" if yape_val else "",
-                f"S/ {float(row[6]):.2f}" if row[6] else "",
-                f"S/ {float(row[7]):.2f}" if row[7] else "",
-                row[8] or "", row[9] or "", row[10] or "", row[11] or ""
-            ]
-            ws.append(line)
-            
-            for col_idx in range(1, 14):
+            t_total += monto
+            t_efec += efec
+            t_yape += yape
+            t_tarj += tarj
+
+            ws.append([v_id, monto, efec, yape, tarj, row[2], f_hora])
+
+            for col_idx in range(1, 8):
                 ws.cell(row=row_start + idx - 1, column=col_idx).border = border_thin
 
         # Fila de Totales
-        totales_row = [
-            "TOTALES", "", "", "",
-            f"S/ {total_rendir:.2f}",
-            f"S/ {total_efectivo:.2f}",
-            f"S/ {total_yape:.2f}",
-            f"S/ {total_tarjeta_qr:.2f}",
-            "", "", "", "", ""
-        ]
-        ws.append(totales_row)
-        
+        ws.append(["TOTALES", t_total, t_efec, t_yape, t_tarj, "", ""])
         last_row = ws.max_row
-        ws.merge_cells(start_row=last_row, start_column=1, end_row=last_row, end_column=4)
         
         total_font = Font(bold=True, size=10)
         total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
-        
-        for col_idx in range(1, 14):
+
+        for col_idx in range(1, 8):
             cell = ws.cell(row=last_row, column=col_idx)
             cell.font = total_font
             cell.fill = total_fill
@@ -583,18 +550,26 @@ def exportar_cierre_diario():
         for col in ws.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = col[0].column_letter
-            ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
 
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name=f"Cierre_Diario_{fecha_filtro}.xlsx"
-        )
+        try:
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=f"Cierre_Diario_{fecha_filtro}.xlsx"
+            )
+        except TypeError:
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                attachment_filename=f"Cierre_Diario_{fecha_filtro}.xlsx"
+            )
 
     except Exception as e:
         if conexion:
@@ -604,6 +579,7 @@ def exportar_cierre_diario():
     finally:
         if conexion:
             conexion.close()
+
 
 # ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
 
