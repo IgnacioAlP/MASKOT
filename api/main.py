@@ -6,9 +6,9 @@ import logging
 import hashlib
 from datetime import datetime, date
 from functools import wraps
-import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.utils import get_column_letter
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
@@ -349,6 +349,15 @@ def dashboard():
     
     citas_hoy = []
     alertas_fidelizacion = []
+    
+    # Estructura por defecto para evitar errores en Jinja2
+    cuadre_hoy = {
+        'cantidad_ventas': 0,
+        'efectivo': 0.0,
+        'yape': 0.0,
+        'tarjeta': 0.0,
+        'total': 0.0
+    }
     totales_dia = {
         'total_soles': 0.0,
         'total_efectivo': 0.0,
@@ -370,27 +379,41 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
 
-        # Cálculo de totales del día por medio de pago
+        # Cálculo de ventas del día corrigiendo "metodo_pago"
         conexion = None
         try:
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 cursor.execute("""
                     SELECT 
+                        COUNT(*) AS cantidad_ventas,
                         COALESCE(SUM(total), 0) AS total_soles,
-                        COALESCE(SUM(CASE WHEN LOWER(medio_pago) = 'efectivo' THEN total ELSE 0 END), 0) AS total_efectivo,
-                        COALESCE(SUM(CASE WHEN LOWER(medio_pago) = 'yape' THEN total ELSE 0 END), 0) AS total_yape,
-                        COALESCE(SUM(CASE WHEN LOWER(medio_pago) IN ('tarjeta', 'bbva', 'pos', 'qr bbva') THEN total ELSE 0 END), 0) AS total_tarjeta
+                        COALESCE(SUM(CASE WHEN LOWER(metodo_pago) = 'efectivo' THEN total ELSE 0 END), 0) AS total_efectivo,
+                        COALESCE(SUM(CASE WHEN LOWER(metodo_pago) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
+                        COALESCE(SUM(CASE WHEN LOWER(metodo_pago) IN ('tarjeta', 'bbva', 'pos', 'qr bbva', 'benapay') THEN total ELSE 0 END), 0) AS total_tarjeta
                     FROM ventas
                     WHERE DATE(fecha) = %s
                 """, (hoy,))
                 res = cursor.fetchone()
                 if res:
+                    cant = int(res[0])
+                    tot_soles = float(res[1])
+                    tot_efec = float(res[2])
+                    tot_yape = float(res[3])
+                    tot_tarj = float(res[4])
+
                     totales_dia = {
-                        'total_soles': float(res[0]),
-                        'total_efectivo': float(res[1]),
-                        'total_yape': float(res[2]),
-                        'total_tarjeta': float(res[3])
+                        'total_soles': tot_soles,
+                        'total_efectivo': tot_efec,
+                        'total_yape': tot_yape,
+                        'total_tarjeta': tot_tarj
+                    }
+                    cuadre_hoy = {
+                        'cantidad_ventas': cant,
+                        'efectivo': tot_efec,
+                        'yape': tot_yape,
+                        'tarjeta': tot_tarj,
+                        'total': tot_soles
                     }
         except Exception as e:
             logger.warning(f"Error calculando totales de ventas del día: {e}")
@@ -425,11 +448,20 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error productos stock bajo dashboard: {e}")
         
-        return render_template('dashboard.html', citas_hoy=citas_hoy, total_empleados=total_empleados,
-                               servicios_activos=servicios_activos, productos_bajos=productos_bajos,
-                               alertas_fidelizacion=alertas_fidelizacion, totales_dia=totales_dia)
+        return render_template('dashboard.html', 
+                               citas_hoy=citas_hoy, 
+                               total_empleados=total_empleados,
+                               servicios_activos=servicios_activos, 
+                               productos_bajos=productos_bajos,
+                               alertas_fidelizacion=alertas_fidelizacion, 
+                               totales_dia=totales_dia, 
+                               cuadre_hoy=cuadre_hoy)
     
-    return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion, totales_dia=totales_dia)
+    return render_template('dashboard.html', 
+                           citas_hoy=citas_hoy, 
+                           alertas_fidelizacion=alertas_fidelizacion, 
+                           totales_dia=totales_dia, 
+                           cuadre_hoy=cuadre_hoy)
 
 @app.route('/exportar-cierre-diario', methods=['GET'])
 def exportar_cierre_diario():
