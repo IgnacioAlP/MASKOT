@@ -845,43 +845,43 @@ def procesar_venta():
     try:
         data = request.get_json(silent=True) or {}
         
-        # 1. Obtener productos del carrito
         items = data.get('items') or data.get('productos') or []
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
 
-        # 2. Capturar Cliente (ID y Nombre)
-        cliente_id_raw = data.get('cliente_id') or data.get('id_cliente')
-        cliente_nombre_raw = (
+        # 1. Capturar ID del cliente
+        raw_id = data.get('cliente_id') or data.get('id_cliente') or data.get('client_id')
+        cliente_id = int(raw_id) if (raw_id is not None and str(raw_id).isdigit()) else None
+
+        # 2. Capturar Nombre del cliente
+        raw_nombre = (
             data.get('cliente_nombre') or 
             data.get('nombre_cliente') or 
             data.get('client_name') or 
-            data.get('cliente')
+            data.get('cliente') or ''
         )
+        if isinstance(raw_nombre, dict):
+            raw_nombre = raw_nombre.get('nombre', '')
 
-        # Asignar ID si es un número entero válido
-        cliente_id = int(cliente_id_raw) if (cliente_id_raw and str(cliente_id_raw).isdigit()) else None
-
-        # Capturar el texto ingresado (evita que se fuerce a 'Cliente General')
-        if isinstance(cliente_nombre_raw, str) and cliente_nombre_raw.strip():
-            cliente_nombre = cliente_nombre_raw.strip()
-        else:
-            cliente_nombre = 'Cliente General'
+        cliente_nombre = str(raw_nombre).strip()
 
         conexion = obtener_conexion()
         tenant_id = session.get('tenant_id', 1)
 
         with conexion.cursor() as cursor:
-            # Si hay un ID de cliente válido, confirmar los datos en la BD
+            # Si se recibió un ID de cliente válido, confirmar los datos desde la BD
             if cliente_id:
                 cursor.execute("SELECT id, nombre FROM clientes WHERE id = %s", (cliente_id,))
                 cli_db = cursor.fetchone()
-                if cli_db and cli_db[1]:
-                    cliente_nombre = cli_db[1]
-            # Si no hay ID pero sí un nombre escrito, verificar si coincide con algún cliente registrado
-            elif cliente_nombre.lower() != 'cliente general':
+                if cli_db:
+                    cliente_id = cli_db[0]
+                    if cli_db[1] and cli_db[1].strip():
+                        cliente_nombre = cli_db[1].strip()
+            
+            # Si no hay ID pero hay un nombre ingresado, intentar vincularlo por coincidencia de texto
+            elif cliente_nombre and cliente_nombre.lower() != 'cliente general':
                 cursor.execute(
-                    "SELECT id, nombre FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) LIMIT 1", 
+                    "SELECT id, nombre FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) LIMIT 1",
                     (cliente_nombre,)
                 )
                 cli_db = cursor.fetchone()
@@ -889,7 +889,11 @@ def procesar_venta():
                     cliente_id = cli_db[0]
                     cliente_nombre = cli_db[1]
 
-            # 3. Datos económicos de la venta
+            # Solo asigna 'Cliente General' si el campo vino totalmente vacío
+            if not cliente_nombre:
+                cliente_nombre = 'Cliente General'
+
+            # Datos numéricos
             subtotal = float(data.get('subtotal', 0.0))
             igv = float(data.get('igv', 0.0))
             total = float(data.get('total', 0.0))
@@ -903,7 +907,7 @@ def procesar_venta():
             fecha_actual = datetime.now(ZONA_HORARIA_PERU)
             productos_json = json.dumps(items, ensure_ascii=False)
 
-            # 4. Registrar la venta en la BD forzando el cliente_nombre capturado
+            # Insertar Venta
             cursor.execute("""
                 INSERT INTO ventas (
                     numero_venta, fecha_venta, cliente_id, cliente_nombre, 
@@ -920,7 +924,7 @@ def procesar_venta():
 
             venta_id = cursor.fetchone()[0]
 
-            # Descontar el stock de los productos vendidos
+            # Descontar stock
             for item in items:
                 pid = item.get('id')
                 cant = int(item.get('cantidad', 1))
@@ -930,8 +934,7 @@ def procesar_venta():
         conexion.commit()
         conexion.close()
 
-        ticket_url = f"/venta/ticket/{venta_id}"
-        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
+        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': f"/venta/ticket/{venta_id}"})
 
     except Exception as e:
         logger.error(f"Error procesando venta: {e}")

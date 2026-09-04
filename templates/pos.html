@@ -811,13 +811,18 @@
         const dd = document.getElementById('cliente-dropdown');
         if (!dd) return;
         if ((!clientes || clientes.length === 0) && !q) { dd.style.display = 'none'; return; }
+
         let html = '';
         if (clientes && clientes.length > 0) {
             clientes.forEach(c => {
+                // Extraer ID y Nombre sin importar cómo vengan nombrados en la API
+                const cid = c.id || c.id_cliente || c.cliente_id || '';
+                const cnombre = c.nombre || c.cliente_nombre || c.nombre_cliente || '';
                 const doc = c.documento || c.dni || c.ruc || '';
-                html += `<div class="pc-item" onclick="posClienteSeleccionar('${(c.nombre || '').replace(/'/g, "\\'")}','${c.id || ''}')"`
+
+                html += `<div class="pc-item" onclick="posClienteSeleccionar('${cnombre.replace(/'/g, "\\'")}','${cid}')"`
                     + ` style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;font-size:13px;">`
-                    + `<strong>${c.nombre}</strong>${doc ? ' <span style="color:#888;">(' + doc + ')</span>' : ''}`
+                    + `<strong>${cnombre}</strong>${doc ? ' <span style="color:#888;">(' + doc + ')</span>' : ''}`
                     + `</div>`;
             });
         }
