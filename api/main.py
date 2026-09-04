@@ -84,8 +84,10 @@ def _ensure_schema():
         ("productos", "stock_minimo", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5"),
         ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
         ("clientes",  "documento",   "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS documento VARCHAR(50) DEFAULT NULL"),
+        ("clientes",  "activo",      "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT true"),
         ("ventas",    "tenant_id",   "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
         ("ventas",    "cliente_id",  "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente_id INT DEFAULT NULL"),
+        ("ventas",    "cliente_nombre", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(255) DEFAULT 'Cliente General'"),
         ("ventas",    "cliente_documento", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente_documento VARCHAR(50) DEFAULT NULL"),
         ("ventas",    "vendedor_id", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_id INT DEFAULT NULL"),
         ("ventas",    "vendedor_nombre", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_nombre VARCHAR(100) DEFAULT NULL"),
@@ -852,54 +854,50 @@ def procesar_venta_pos():
 
         conexion = obtener_conexion()
 
-        # ─── EXTRAER Y RESOLVER CLIENTE ROBUSTAMENTE ───
+        # ─── RESOLUCIÓN TOTAL Y AUTO-CREACIÓN DE CLIENTE ───
         client_raw = data.get('cliente') or request.form.get('cliente')
         
-        cliente_id = (
-            data.get('cliente_id') or data.get('id_cliente') or data.get('clienteId') or
+        cid_raw = (
+            data.get('cliente_id') or data.get('id_cliente') or data.get('clienteId') or data.get('id_cliente_pos') or
             request.form.get('cliente_id') or request.form.get('id_cliente') or request.form.get('clienteId')
         )
         
-        cliente_nombre = (
-            data.get('cliente_nombre') or data.get('nombre_cliente') or data.get('clienteNombre') or
-            request.form.get('cliente_nombre') or request.form.get('nombre_cliente') or request.form.get('clienteNombre') or ''
+        cnombre_raw = (
+            data.get('cliente_nombre') or data.get('nombre_cliente') or data.get('clienteNombre') or data.get('nombre') or
+            request.form.get('cliente_nombre') or request.form.get('nombre_cliente') or request.form.get('clienteNombre') or request.form.get('nombre') or ''
         )
         
-        cliente_doc = (
+        cdoc_raw = (
             data.get('cliente_documento') or data.get('cliente_doc') or data.get('documento') or data.get('doc') or
             request.form.get('cliente_documento') or request.form.get('cliente_doc') or request.form.get('documento') or request.form.get('doc') or ''
         )
-        
+
         if isinstance(client_raw, dict):
-            if not cliente_id:
-                cliente_id = client_raw.get('id') or client_raw.get('cliente_id') or client_raw.get('id_cliente')
-            if not cliente_nombre:
-                cliente_nombre = client_raw.get('nombre') or client_raw.get('cliente_nombre') or client_raw.get('nombre_cliente') or ''
-            if not cliente_doc:
-                cliente_doc = client_raw.get('documento') or client_raw.get('cliente_documento') or client_raw.get('doc') or ''
+            if not cid_raw:
+                cid_raw = client_raw.get('id') or client_raw.get('cliente_id') or client_raw.get('id_cliente') or client_raw.get('value')
+            if not cnombre_raw:
+                cnombre_raw = client_raw.get('nombre') or client_raw.get('cliente_nombre') or client_raw.get('nombre_cliente') or client_raw.get('label') or client_raw.get('text') or ''
+            if not cdoc_raw:
+                cdoc_raw = client_raw.get('documento') or client_raw.get('cliente_documento') or client_raw.get('doc') or client_raw.get('dni') or ''
         elif isinstance(client_raw, (int, float)):
-            if not cliente_id:
-                cliente_id = int(client_raw)
-        elif isinstance(client_raw, str):
+            if not cid_raw:
+                cid_raw = int(client_raw)
+        elif isinstance(client_raw, str) and client_raw.strip():
             val = client_raw.strip()
             if val.isdigit():
-                if not cliente_id:
-                    cliente_id = int(val)
-            elif val and val.lower() != 'cliente general':
-                if not cliente_nombre:
-                    cliente_nombre = val
+                if not cid_raw:
+                    cid_raw = int(val)
+            elif val.lower() != 'cliente general':
+                if not cnombre_raw:
+                    cnombre_raw = val
 
-        cliente_nombre = cliente_nombre.strip() if isinstance(cliente_nombre, str) else ''
-        cliente_doc = cliente_doc.strip() if isinstance(cliente_doc, str) else ''
-        
-        if cliente_id and str(cliente_id).isdigit():
-            cliente_id = int(cliente_id)
-        else:
-            cliente_id = None
+        cliente_id = int(str(cid_raw).strip()) if (cid_raw is not None and str(cid_raw).strip().isdigit()) else None
+        cliente_nombre = str(cnombre_raw).strip() if cnombre_raw else ''
+        cliente_doc = str(cdoc_raw).strip() if cdoc_raw else ''
 
         tenant_id = session.get('tenant_id', 1)
 
-        # Consultar cliente exacto en la BD si tenemos ID o Nombre
+        # Buscar en la BD o Auto-crear cliente
         with conexion.cursor() as cursor:
             if cliente_id:
                 cursor.execute("""
@@ -913,7 +911,8 @@ def procesar_venta_pos():
                     cliente_nombre = cli_db[1] or cliente_nombre
                     if not cliente_doc:
                         cliente_doc = cli_db[2] or ''
-            elif cliente_nombre and cliente_nombre.lower() != 'cliente general':
+            
+            if (not cliente_id) and cliente_nombre and cliente_nombre.lower() != 'cliente general':
                 cursor.execute("""
                     SELECT id, nombre, COALESCE(documento, '') 
                     FROM clientes 
@@ -926,6 +925,17 @@ def procesar_venta_pos():
                     cliente_nombre = cli_db[1]
                     if not cliente_doc:
                         cliente_doc = cli_db[2] or ''
+                else:
+                    # Si ingresó un nombre pero no existía en BD, se registra automáticamente
+                    cursor.execute("""
+                        INSERT INTO clientes (nombre, documento, activo, tenant_id)
+                        VALUES (%s, %s, true, %s)
+                        RETURNING id, nombre, COALESCE(documento, '')
+                    """, (cliente_nombre, cliente_doc, tenant_id))
+                    new_cli = cursor.fetchone()
+                    cliente_id = new_cli[0]
+                    cliente_nombre = new_cli[1]
+                    cliente_doc = new_cli[2] or cliente_doc
 
         if not cliente_nombre:
             cliente_nombre = 'Cliente General'
@@ -942,9 +952,7 @@ def procesar_venta_pos():
         vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
         num_venta = f"VNT-{int(time.time())}"
         
-        # Fecha y hora exacta de Perú
         fecha_venta_actual = datetime.now(ZONA_HORARIA_PERU)
-        
         productos_json = json.dumps(items, ensure_ascii=False)
         
         with conexion.cursor() as cursor:
@@ -1005,7 +1013,7 @@ def scan_poll():
 
 
 # ==============================================================================
-# 1. HISTORIAL DE CLIENTES (CORREGIDO Y OPTIMIZADO)
+# 1. HISTORIAL DE CLIENTES (CORREGIDO CON TODAS LAS VARIABLES DE TEMPLATE)
 # ==============================================================================
 @app.route('/historial_clientes', endpoint='historial_clientes')
 @app.route('/historial-clientes')
@@ -1032,7 +1040,7 @@ def historial_clientes():
         with conexion.cursor() as cursor:
             col_fecha_ventas = obtener_columna_fecha(cursor)
 
-            # 1. Cargar la lista completa de clientes de la base de datos
+            # 1. Cargar Clientes registrados de la base de datos
             cursor.execute("""
                 SELECT 
                     id, 
@@ -1063,12 +1071,12 @@ def historial_clientes():
                     'ultimo_pedido': None
                 }
                 
-                clientes_dict[c_id] = cli_obj
+                clientes_dict[f"id_{c_id}"] = cli_obj
                 id_map[c_id] = cli_obj
-                if norm_name and norm_name != 'cliente general':
+                if norm_name:
                     name_map[norm_name] = cli_obj
 
-            # 2. Consultar Ventas y vincular a los clientes por cliente_id o cliente_nombre
+            # 2. Consultar Ventas
             cursor.execute(f"""
                 SELECT 
                     COALESCE(cliente_id, 0) AS cliente_id,
@@ -1091,21 +1099,21 @@ def historial_clientes():
                     target_cli = id_map[v_cid]
                 elif norm_v_nom in name_map:
                     target_cli = name_map[norm_v_nom]
-                elif norm_v_nom and norm_v_nom != 'cliente general':
+                else:
+                    display_name = v_nom if (v_nom and v_nom.strip()) else 'Cliente General'
                     target_cli = {
-                        'id': 0, 'nombre': v_nom, 'email': 'No registrado', 'telefono': '', 'direccion': '',
+                        'id': 0, 'nombre': display_name, 'email': 'No registrado', 'telefono': '', 'direccion': '',
                         'fecha_registro': v_fec, 'total_citas': 0, 'total_pedidos': 0,
                         'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
                     }
-                    key_virtual = f"virtual_{norm_v_nom}"
+                    key_virtual = f"name_{norm_v_nom}"
                     clientes_dict[key_virtual] = target_cli
                     name_map[norm_v_nom] = target_cli
 
-                if target_cli:
-                    target_cli['total_pedidos'] += 1
-                    target_cli['total_gastado'] += v_tot
-                    if v_fec and (not target_cli['ultimo_pedido'] or v_fec > str(target_cli['ultimo_pedido'])):
-                        target_cli['ultimo_pedido'] = v_fec
+                target_cli['total_pedidos'] += 1
+                target_cli['total_gastado'] += v_tot
+                if v_fec and (not target_cli['ultimo_pedido'] or v_fec > str(target_cli['ultimo_pedido'])):
+                    target_cli['ultimo_pedido'] = v_fec
 
             # 3. Consultar Citas
             cursor.execute("""
@@ -1126,21 +1134,21 @@ def historial_clientes():
                 target_cli = None
                 if norm_c_nom in name_map:
                     target_cli = name_map[norm_c_nom]
-                elif norm_c_nom and norm_c_nom != 'cliente general':
+                else:
+                    display_name = c_nom if (c_nom and c_nom.strip()) else 'Cliente General'
                     target_cli = {
-                        'id': 0, 'nombre': c_nom, 'email': 'No registrado', 'telefono': '', 'direccion': '',
+                        'id': 0, 'nombre': display_name, 'email': 'No registrado', 'telefono': '', 'direccion': '',
                         'fecha_registro': c_fec, 'total_citas': 0, 'total_pedidos': 0,
                         'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
                     }
-                    key_virtual = f"virtual_{norm_c_nom}"
+                    key_virtual = f"name_{norm_c_nom}"
                     clientes_dict[key_virtual] = target_cli
                     name_map[norm_c_nom] = target_cli
 
-                if target_cli:
-                    target_cli['total_citas'] += 1
-                    target_cli['total_gastado'] += c_tot
-                    if c_fec and (not target_cli['ultima_cita'] or c_fec > str(target_cli['ultima_cita'])):
-                        target_cli['ultima_cita'] = c_fec
+                target_cli['total_citas'] += 1
+                target_cli['total_gastado'] += c_tot
+                if c_fec and (not target_cli['ultima_cita'] or c_fec > str(target_cli['ultima_cita'])):
+                    target_cli['ultima_cita'] = c_fec
 
     except Exception as e:
         if conexion:
@@ -1161,14 +1169,31 @@ def historial_clientes():
         c_freg, c_citas, c_pedidos = cli['fecha_registro'], cli['total_citas'], cli['total_pedidos']
         c_gastado, c_ucita, c_upedido = cli['total_gastado'], cli['ultima_cita'], cli['ultimo_pedido']
         gastado_fmt = round(c_gastado, 2)
+        ucita_str = str(c_ucita) if c_ucita else '-'
+        upedido_str = str(c_upedido) if c_upedido else '-'
+        freg_str = str(c_freg) if c_freg else '-'
+        fecha_ult = upedido_str if upedido_str != '-' else (ucita_str if ucita_str != '-' else freg_str)
 
         obj = {
-            'id': c_id, 'nombre': c_nom, 'email': c_email, 'telefono': c_tel, 'direccion': cli['direccion'],
-            'fecha_registro': c_freg, 'total_citas': c_citas, 'total_pedidos': c_pedidos,
-            'total_gastado': gastado_fmt, 'total_monto': gastado_fmt, 'monto_total': gastado_fmt, 'total_vendido': gastado_fmt,
-            'ultima_cita': c_ucita, 'ultimo_pedido': c_upedido,
-            0: c_id, 1: c_nom, 2: c_email, 3: c_tel, 4: cli['direccion'], 5: c_freg,
-            6: c_citas, 7: c_pedidos, 8: gastado_fmt, 9: c_ucita, 10: c_upedido
+            'id': c_id, 'cliente_id': c_id, 'id_cliente': c_id,
+            'nombre': c_nom, 'cliente': c_nom, 'cliente_nombre': c_nom, 'nombre_cliente': c_nom,
+            'email': c_email, 'cliente_email': c_email, 'correo': c_email,
+            'telefono': c_tel, 'cliente_telefono': c_tel, 'celular': c_tel,
+            'direccion': cli['direccion'], 'cliente_direccion': cli['direccion'],
+            'fecha_registro': freg_str, 'fecha': fecha_ult, 'fecha_atencion': fecha_ult,
+            'total_citas': c_citas, 'citas': c_citas,
+            'total_pedidos': c_pedidos, 'pedidos': c_pedidos,
+            'total_atenciones': c_citas + c_pedidos, 'atenciones': c_citas + c_pedidos,
+            'total_gastado': gastado_fmt, 'monto_total': gastado_fmt, 'total_monto': gastado_fmt,
+            'total_vendido': gastado_fmt, 'monto': gastado_fmt, 'total': gastado_fmt, 'precio': gastado_fmt, 'precio_total': gastado_fmt,
+            'ultima_cita': ucita_str, 'ultimo_pedido': upedido_str,
+            'servicio': f"{c_citas} citas / {c_pedidos} ventas",
+            'servicio_nombre': f"{c_citas} citas / {c_pedidos} ventas",
+            'servicio_descripcion': f"Atención integral cliente {c_nom}",
+            'comprobante': f"CLI-{c_id}", 'numero_comprobante': f"CLI-{c_id}",
+            'estado': 'completado', 'origen': 'Historial Clientes',
+            0: c_id, 1: c_nom, 2: c_email, 3: c_tel, 4: cli['direccion'], 5: freg_str,
+            6: c_citas, 7: c_pedidos, 8: gastado_fmt, 9: ucita_str, 10: upedido_str
         }
         historial_lista.append(obj)
         total_citas_sum += c_citas
@@ -1177,13 +1202,36 @@ def historial_clientes():
 
     historial_lista.sort(key=lambda x: x['total_gastado'], reverse=True)
 
+    total_clientes_cnt = len(historial_lista)
+    total_gastado_final = round(total_gastado_sum, 2)
+    promedio_ticket_val = round(total_gastado_final / total_clientes_cnt, 2) if total_clientes_cnt > 0 else 0.0
+
     return render_template(
         'historial_clientes.html', 
         historial=historial_lista, 
         clientes=historial_lista,
+        servicios=historial_lista,
+        atenciones=historial_lista,
+        registros=historial_lista,
+        
         total_citas=total_citas_sum, 
         total_pedidos=total_pedidos_sum, 
-        total_gastado=round(total_gastado_sum, 2), 
+        total_gastado=total_gastado_final,
+        
+        total_servicios=total_clientes_cnt,
+        total_clientes=total_clientes_cnt,
+        total_registros=total_clientes_cnt,
+        total_atenciones=total_clientes_cnt,
+        
+        total_monto=total_gastado_final,
+        monto_total=total_gastado_final,
+        total_ingresos=total_gastado_final,
+        ingresos_recaudados=total_gastado_final,
+        
+        promedio_ticket=promedio_ticket_val,
+        promedio_por_ticket=promedio_ticket_val,
+        promedio=promedio_ticket_val,
+        
         filtros=filtros
     )
 
@@ -3295,7 +3343,6 @@ def procesar_pago():
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Buscar si el cliente ya existe por email o documento
             cursor.execute("""
                 SELECT id FROM clientes 
                 WHERE (email = %s OR documento = %s) AND (tenant_id = %s OR tenant_id IS NULL)
