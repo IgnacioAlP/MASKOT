@@ -1,511 +1,411 @@
 {% extends "base.html" %}
 
-{% block title %}Historial de Servicios - Veterinaria PetCare{% endblock %}
+{% block title %}Historial de Servicios – MASKOT{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Redirect styles to match the main historial_clientes design */
+:root {
+    --hc-teal:    #06b6d4;
+    --hc-green:   #10b981;
+    --hc-indigo:  #4f46e5;
+    --hc-text:    #1e1b4b;
+    --hc-muted:   #64748b;
+    --hc-border:  #e8e4f7;
+    --hc-surface: #ffffff;
+    --hc-bg:      #f0f2ff;
+    --hc-radius:  16px;
+    --hc-shadow:  0 4px 24px rgba(124,58,237,.10);
+}
+body { font-family: 'Poppins', sans-serif; }
+
+.hc2-page { background: var(--hc-bg); min-height: 100vh; padding: 2rem 0 4rem; }
+
+/* Header */
+.hc2-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem; }
+.hc2-header h1 { font-size: 1.85rem; font-weight: 800; color: var(--hc-text); margin: 0; }
+.hc2-header h1 .icon-wrap {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 46px; height: 46px; border-radius: 14px;
+    background: linear-gradient(135deg, #0891b2, #06b6d4);
+    color: #fff; font-size: 1.1rem; margin-right: .6rem;
+    box-shadow: 0 4px 14px rgba(6,182,212,.4); vertical-align: middle;
+}
+.hc2-header p { color: var(--hc-muted); font-size: .9rem; margin: .25rem 0 0 3.5rem; }
+.hc2-header-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+
+/* Stats */
+.hc2-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+.hc2-stat-card {
+    border-radius: var(--hc-radius); padding: 1.4rem 1.6rem; color: #fff;
+    position: relative; overflow: hidden; box-shadow: 0 8px 40px rgba(124,58,237,.18);
+    transition: transform .25s, box-shadow .25s; animation: fadeInUp .4s ease both;
+}
+.hc2-stat-card:hover { transform: translateY(-4px); }
+.hc2-stat-card::before { content:''; position:absolute; top:-30px; right:-30px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.12); }
+.sc2-teal   { background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); animation-delay:.05s; }
+.sc2-green  { background: linear-gradient(135deg, #059669 0%, #10b981 100%); animation-delay:.1s; }
+.sc2-indigo { background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); animation-delay:.15s; }
+.sc2-icon  { font-size:1.6rem; opacity:.85; margin-bottom:.6rem; }
+.sc2-value { font-size:1.8rem; font-weight:800; line-height:1; margin-bottom:.3rem; }
+.sc2-label { font-size:.8rem; opacity:.85; font-weight:500; letter-spacing:.5px; text-transform:uppercase; }
+
+/* Filter card */
+.hc2-filter { background:var(--hc-surface); border-radius:var(--hc-radius); box-shadow:var(--hc-shadow); padding:1.5rem 1.75rem; margin-bottom:1.5rem; border:1px solid var(--hc-border); }
+.filter-title { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#0891b2; margin-bottom:1rem; display:flex; align-items:center; gap:.4rem; }
+.hc2-filter .form-label { font-size:.8rem; font-weight:600; color:var(--hc-muted); margin-bottom:.3rem; }
+.hc2-filter input, .hc2-filter select {
+    border: 1.5px solid var(--hc-border); border-radius:10px; font-size:.88rem;
+    padding:.5rem .85rem; transition:border-color .2s, box-shadow .2s; background:#f8fdff; width:100%;
+}
+.hc2-filter input:focus, .hc2-filter select:focus { border-color:#06b6d4; box-shadow:0 0 0 3px rgba(6,182,212,.12); background:#fff; outline:none; }
+.search-wrap { position:relative; }
+.search-icon { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:var(--hc-muted); font-size:.85rem; pointer-events:none; }
+.search-wrap input { padding-left:2.3rem; }
+.chip-group { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem; }
+.chip { display:inline-flex; align-items:center; gap:.3rem; padding:.35rem .9rem; border:1.5px solid var(--hc-border); border-radius:20px; font-size:.82rem; font-weight:600; cursor:pointer; background:#fff; color:var(--hc-text); transition:all .2s; user-select:none; }
+.chip:hover { background:#06b6d4; border-color:#06b6d4; color:#fff; transform:translateY(-1px); }
+.chip-danger:hover { background:#f43f5e; border-color:#f43f5e; }
+.btn-filter { background:linear-gradient(135deg,#0891b2,#06b6d4); color:#fff; border:none; border-radius:10px; padding:.55rem 1.4rem; font-size:.88rem; font-weight:600; transition:all .2s; cursor:pointer; }
+.btn-filter:hover { transform:translateY(-2px); box-shadow:0 5px 20px rgba(6,182,212,.35); }
+
+/* Table card */
+.hc2-table-card { background:var(--hc-surface); border-radius:var(--hc-radius); box-shadow:var(--hc-shadow); border:1px solid var(--hc-border); overflow:hidden; animation: fadeInUp .4s .2s ease both; }
+.hc2-table-header { display:flex; align-items:center; justify-content:space-between; padding:1.25rem 1.75rem; border-bottom:1px solid var(--hc-border); background:linear-gradient(135deg,#f0fdff,#e0f7fa); flex-wrap:wrap; gap:.5rem; }
+.tbl-title { font-size:1rem; font-weight:700; color:var(--hc-text); display:flex; align-items:center; gap:.5rem; }
+.tbl-title i { color:#0891b2; }
+.tbl-count { font-size:.82rem; font-weight:600; background:rgba(6,182,212,.12); border-radius:20px; padding:.2rem .7rem; color:#0891b2; }
+
+/* Table */
+.hc2-table { width:100%; border-collapse:collapse; font-size:.88rem; }
+.hc2-table thead tr { background:#f0fdff; }
+.hc2-table thead th { padding:.9rem 1rem; text-align:left; font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#0891b2; border-bottom:2px solid #e0f7fa; white-space:nowrap; }
+.hc2-table tbody tr { border-bottom:1px solid #f0fefe; transition:background .15s, transform .15s; }
+.hc2-table tbody tr:hover { background:#f0fdff; transform:translateX(3px); }
+.hc2-table tbody tr:last-child { border-bottom:none; }
+.hc2-table td { padding:.9rem 1rem; vertical-align:middle; color:var(--hc-text); }
+
+/* Cells */
+.comp-num { display:inline-flex; align-items:center; gap:.3rem; font-weight:700; font-size:.85rem; color:#0891b2; background:#e0f7fa; border-radius:8px; padding:.25rem .6rem; }
+.client-cell { display:flex; align-items:center; gap:.55rem; }
+.client-avatar { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#0891b2,#06b6d4); color:#fff; display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:700; flex-shrink:0; }
+.client-name { font-weight:600; font-size:.9rem; }
+.service-badge { display:inline-flex; align-items:center; gap:.3rem; background:#eff6ff; color:#1e40af; border-radius:8px; padding:.25rem .65rem; font-size:.82rem; font-weight:600; }
+.personal-cell { display:flex; align-items:center; gap:.35rem; font-size:.86rem; color:var(--hc-muted); }
+.pm-badge { display:inline-flex; align-items:center; gap:.3rem; padding:.25rem .65rem; border-radius:20px; font-size:.78rem; font-weight:600; white-space:nowrap; }
+.pm-efectivo { background:#d1fae5; color:#065f46; }
+.pm-tarjeta  { background:#dbeafe; color:#1e40af; }
+.pm-yape     { background:#ede9fe; color:#5b21b6; }
+.pm-plin     { background:#fce7f3; color:#9d174d; }
+.pm-default  { background:#f1f5f9; color:#475569; }
+.amount-cell { font-weight:800; font-size:1rem; color:var(--hc-green); }
+.st-badge { display:inline-flex; align-items:center; gap:.3rem; padding:.3rem .75rem; border-radius:20px; font-size:.78rem; font-weight:700; }
+.st-completado { background:#d1fae5; color:#065f46; }
+.st-pendiente  { background:#fef9c3; color:#854d0e; }
+.st-cancelado  { background:#fee2e2; color:#991b1b; }
+.action-group { display:flex; gap:.4rem; }
+.btn-icon { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px; border:none; text-decoration:none; font-size:.85rem; transition:all .2s; cursor:pointer; }
+.btn-icon-view  { background:#e0f7fa; color:#0891b2; }
+.btn-icon-view:hover  { background:#06b6d4; color:#fff; transform:translateY(-2px); box-shadow:0 4px 12px rgba(6,182,212,.4); }
+
+/* Empty state */
+.hc2-empty { text-align:center; padding:4rem 2rem; }
+.hc2-empty .empty-icon { font-size:4rem; color:var(--hc-border); margin-bottom:1.2rem; display:block; }
+.hc2-empty h4 { font-weight:700; color:var(--hc-text); margin-bottom:.5rem; }
+.hc2-empty p  { color:var(--hc-muted); max-width:300px; margin:0 auto 1.5rem; font-size:.9rem; }
+
+/* Footer row */
+.hc2-footer-row { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.75rem; border-top:1px solid var(--hc-border); background:#f0fdff; flex-wrap:wrap; gap:.5rem; font-size:.85rem; color:var(--hc-muted); }
+
+/* Utility */
+.btn-outline-hc { border:1.5px solid var(--hc-border); background:#fff; color:var(--hc-text); border-radius:10px; padding:.5rem 1.1rem; font-size:.88rem; font-weight:600; transition:all .2s; text-decoration:none; display:inline-flex; align-items:center; gap:.4rem; }
+.btn-outline-hc:hover { border-color:#06b6d4; color:#0891b2; background:#f0fdff; }
+
+@keyframes fadeInUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@media (max-width:768px) {
+    .hc2-header { flex-direction:column; align-items:flex-start; }
+    .hc2-stats  { grid-template-columns:1fr 1fr; }
+    .hc2-table  { font-size:.82rem; }
+    .hc2-table th, .hc2-table td { padding:.7rem .5rem; }
+}
+@media (max-width:480px) { .hc2-stats { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
 
 {% block content %}
-<section class="servicios-section">
-    <div class="container">
-        <div class="section-header">
+<div class="hc2-page">
+<div class="container-fluid px-3 px-md-4">
+
+    <!-- Header -->
+    <div class="hc2-header">
+        <div>
             <h1>
-                <i class="fas fa-concierge-bell"></i>
+                <span class="icon-wrap"><i class="fas fa-concierge-bell"></i></span>
                 Historial de Servicios y Ventas
             </h1>
             <p>Registro y seguimiento de atención de servicios veterinarios, baños y comprobantes</p>
         </div>
-
-        <!-- Filtros -->
-        <div class="filters-card">
-            <h3><i class="fas fa-filter"></i> Filtros y Búsqueda</h3>
-            <div class="filter-row">
-                <div class="form-group">
-                    <label><i class="fas fa-search"></i> Buscar:</label>
-                    <input type="text" id="buscarServicio" placeholder="Cliente, N° comprobante o servicio..."
-                        value="{{ filtros.busqueda }}" onkeyup="filtrarServicios()">
-                </div>
-                <div class="form-group">
-                    <label><i class="fas fa-calendar"></i> Desde:</label>
-                    <input type="date" id="fechaDesde" value="{{ filtros.fecha_inicio }}" onchange="filtrarServicios()">
-                </div>
-                <div class="form-group">
-                    <label><i class="fas fa-calendar-alt"></i> Hasta:</label>
-                    <input type="date" id="fechaHasta" value="{{ filtros.fecha_fin }}" onchange="filtrarServicios()">
-                </div>
-                <div class="form-group">
-                    <label><i class="fas fa-sort"></i> Ordenar por:</label>
-                    <select id="ordenarPor" onchange="ordenarServicios()">
-                        <option value="fecha_desc">Más recientes primero</option>
-                        <option value="fecha_asc">Más antiguos primero</option>
-                        <option value="monto_desc">Mayor Monto</option>
-                        <option value="cliente">Cliente A-Z</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">🔄 Limpiar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Estadísticas rápidas -->
-        <div class="stats-row">
-            <div class="stat-card">
-                <i class="fas fa-receipt"></i>
-                <div class="stat-info">
-                    <h3 id="totalRegistros">{{ servicios|length }}</h3>
-                    <p>Total Servicios/Ventas</p>
-                </div>
-            </div>
-            <div class="stat-card stat-success">
-                <i class="fas fa-dollar-sign"></i>
-                <div class="stat-info">
-                    {% set suma_totales = servicios | map(attribute='total') | sum %}
-                    <h3 id="ingresosTotales">S/. {{ "%.2f"|format(suma_totales) }}</h3>
-                    <p>Ingresos Recaudados</p>
-                </div>
-            </div>
-            <div class="stat-card stat-info-card">
-                <i class="fas fa-chart-line"></i>
-                <div class="stat-info">
-                    {% set promedio = (suma_totales / servicios|length) if servicios|length > 0 else 0 %}
-                    <h3 id="promedioTicket">S/. {{ "%.2f"|format(promedio) }}</h3>
-                    <p>Promedio por Ticket</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tabla de servicios -->
-        <div class="table-card">
-            <h3><i class="fas fa-list"></i> Registro de Atenciones</h3>
-
-            {% if servicios %}
-            <div class="table-responsive">
-                <table class="servicios-table" id="tablaServicios">
-                    <thead>
-                        <tr>
-                            <th><i class="fas fa-hashtag"></i> N° Comprobante</th>
-                            <th><i class="fas fa-calendar-day"></i> Fecha / Hora</th>
-                            <th><i class="fas fa-user"></i> Cliente</th>
-                            <th><i class="fas fa-paw"></i> Servicio / Descripción</th>
-                            <th><i class="fas fa-user-md"></i> Personal</th>
-                            <th><i class="fas fa-credit-card"></i> Método Pago</th>
-                            <th><i class="fas fa-money-bill"></i> Total</th>
-                            <th><i class="fas fa-info-circle"></i> Estado</th>
-                            <th><i class="fas fa-cogs"></i> Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for s in servicios %}
-                        <tr class="servicio-row" data-id="{{ s.id }}"
-                            data-comprobante="{{ (s.numero_comprobante or '')|lower }}"
-                            data-cliente="{{ (s.cliente_nombre or '')|lower }}"
-                            data-servicio="{{ (s.servicio_descripcion or '')|lower }}" data-total="{{ s.total or 0 }}"
-                            data-fecha="{{ s.fecha or '' }}">
-
-                            <td>
-                                <strong>{{ s.numero_comprobante if s.numero_comprobante else 'N/A' }}</strong>
-                            </td>
-                            <td>
-                                <span class="fecha-text"><i class="fas fa-clock text-muted"></i> {{ s.fecha }}</span>
-                            </td>
-                            <td>
-                                <div class="cliente-info">
-                                    <i class="fas fa-user-circle"></i>
-                                    <strong>{{ s.cliente_nombre }}</strong>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="servicio-badge">{{ s.servicio_descripcion }}</span>
-                            </td>
-                            <td>
-                                <span class="personal-text">{{ s.personal }}</span>
-                            </td>
-                            <td>
-                                <span class="pago-badge {{ s.metodo_pago|lower }}">
-                                    <i class="fas fa-wallet"></i> {{ s.metodo_pago|upper }}
-                                </span>
-                            </td>
-                            <td>
-                                <strong class="monto-text">S/. {{ "%.2f"|format(s.total or 0) }}</strong>
-                            </td>
-                            <td>
-                                {% if s.estado in ['completado', 'pagado', 'activo'] %}
-                                <span class="status-badge status-completed"><i class="fas fa-check-circle"></i> {{
-                                    s.estado|capitalize }}</span>
-                                {% elif s.estado == 'pendiente' %}
-                                <span class="status-badge status-pending"><i class="fas fa-hourglass-half"></i>
-                                    Pendiente</span>
-                                {% else %}
-                                <span class="status-badge status-cancelled"><i class="fas fa-times-circle"></i> {{
-                                    s.estado|capitalize }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="acciones-buttons">
-                                    <a href="{{ url_for('historial_servicios') }}"
-                                        onclick="alert('Ticket ID: ' + {{ s.id }})" class="btn-accion ver"
-                                        title="Ver Ticket / Detalle">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <i class="fas fa-concierge-bell"></i>
-                <h3>No hay servicios registrados</h3>
-                <p>Aún no se han procesado atenciones o ventas en el sistema.</p>
-            </div>
-            {% endif %}
+        <div class="hc2-header-actions">
+            <a href="{{ url_for('citas') }}" class="btn-filter">
+                <i class="fas fa-calendar-plus"></i> Agendar Cita
+            </a>
+            <a href="{{ url_for('dashboard') }}" class="btn-outline-hc">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
         </div>
     </div>
-</section>
 
-<style>
-    .servicios-section {
-        padding: 20px 0;
-    }
+    <!-- Stats -->
+    {% set suma_totales = servicios | map(attribute='total') | sum %}
+    {% set promedio = (suma_totales / servicios|length) if servicios|length > 0 else 0 %}
+    <div class="hc2-stats">
+        <div class="hc2-stat-card sc2-teal">
+            <div class="sc2-icon"><i class="fas fa-receipt"></i></div>
+            <div class="sc2-value" id="totalRegistros">{{ servicios|length }}</div>
+            <div class="sc2-label">Total Servicios</div>
+        </div>
+        <div class="hc2-stat-card sc2-green">
+            <div class="sc2-icon"><i class="fas fa-sack-dollar"></i></div>
+            <div class="sc2-value" id="ingresosTotales">S/ {{ "%.2f"|format(suma_totales) }}</div>
+            <div class="sc2-label">Ingresos Recaudados</div>
+        </div>
+        <div class="hc2-stat-card sc2-indigo">
+            <div class="sc2-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="sc2-value" id="promedioTicket">S/ {{ "%.2f"|format(promedio) }}</div>
+            <div class="sc2-label">Promedio por Ticket</div>
+        </div>
+    </div>
 
-    .section-header {
-        text-align: center;
-        margin-bottom: 30px;
-    }
+    <!-- Filters -->
+    <div class="hc2-filter">
+        <div class="filter-title"><i class="fas fa-sliders-h"></i> Filtros y búsqueda</div>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Desde</label>
+                <input type="date" id="fechaDesde" value="{{ filtros.fecha_inicio }}" onchange="filtrarServicios()">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Hasta</label>
+                <input type="date" id="fechaHasta" value="{{ filtros.fecha_fin }}" onchange="filtrarServicios()">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Buscar</label>
+                <div class="search-wrap">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="buscarServicio"
+                           placeholder="Cliente, N° comprobante o servicio..."
+                           value="{{ filtros.busqueda }}" onkeyup="filtrarServicios()">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Ordenar</label>
+                <select id="ordenarPor" onchange="ordenarServicios()">
+                    <option value="fecha_desc">Más recientes</option>
+                    <option value="fecha_asc">Más antiguos</option>
+                    <option value="monto_desc">Mayor monto</option>
+                    <option value="cliente">Cliente A-Z</option>
+                </select>
+            </div>
+        </div>
+        <div class="chip-group">
+            <span class="chip chip-danger" onclick="limpiarFiltros()">
+                <i class="fas fa-times"></i> Limpiar
+            </span>
+        </div>
+    </div>
 
-    .section-header h1 {
-        color: #2c3e50;
-        font-size: 2.2rem;
-        margin-bottom: 8px;
-    }
+    <!-- Table -->
+    <div class="hc2-table-card">
+        <div class="hc2-table-header">
+            <div class="tbl-title"><i class="fas fa-list-alt"></i> Registro de atenciones</div>
+            <span class="tbl-count" id="tbl-count-badge">{{ servicios|length }} registros</span>
+        </div>
 
-    .filters-card {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-        margin-bottom: 20px;
-    }
+        {% if servicios %}
+        <div class="table-responsive">
+            <table class="hc2-table" id="tablaServicios">
+                <thead>
+                    <tr>
+                        <th><i class="fas fa-hashtag"></i> N° Comprobante</th>
+                        <th><i class="fas fa-clock"></i> Fecha / Hora</th>
+                        <th><i class="fas fa-user"></i> Cliente</th>
+                        <th><i class="fas fa-paw"></i> Servicio</th>
+                        <th><i class="fas fa-user-md"></i> Personal</th>
+                        <th><i class="fas fa-credit-card"></i> Método Pago</th>
+                        <th><i class="fas fa-money-bill"></i> Total</th>
+                        <th><i class="fas fa-info-circle"></i> Estado</th>
+                        <th><i class="fas fa-cog"></i> Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in servicios %}
+                    <tr class="servicio-row"
+                        data-id="{{ s.id }}"
+                        data-comprobante="{{ (s.numero_comprobante or '')|lower }}"
+                        data-cliente="{{ (s.cliente_nombre or '')|lower }}"
+                        data-servicio="{{ (s.servicio_descripcion or '')|lower }}"
+                        data-total="{{ s.total or 0 }}"
+                        data-fecha="{{ s.fecha or '' }}">
 
-    .filter-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 15px;
-        align-items: end;
-    }
+                        <td>
+                            <span class="comp-num">
+                                <i class="fas fa-file-invoice" style="font-size:.7rem;"></i>
+                                {{ s.numero_comprobante if s.numero_comprobante else '—' }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="font-weight:600;">{{ s.fecha }}</div>
+                        </td>
+                        <td>
+                            <div class="client-cell">
+                                <div class="client-avatar">{{ s.cliente_nombre[0]|upper if s.cliente_nombre else 'A' }}</div>
+                                <span class="client-name">{{ s.cliente_nombre }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="service-badge">
+                                <i class="fas fa-scissors" style="font-size:.75rem;"></i>
+                                {{ s.servicio_descripcion }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="personal-cell">
+                                <i class="fas fa-user-md"></i> {{ s.personal }}
+                            </div>
+                        </td>
+                        <td>
+                            {% set p = s.metodo_pago|lower %}
+                            <span class="pm-badge
+                                {% if p in ['efectivo','cash'] %}pm-efectivo
+                                {% elif p in ['tarjeta','card'] %}pm-tarjeta
+                                {% elif p in ['yape','yp'] %}pm-yape
+                                {% elif p == 'plin' %}pm-plin
+                                {% else %}pm-default{% endif %}">
+                                {% if p in ['efectivo','cash'] %}💵 Efectivo
+                                {% elif p in ['tarjeta','card'] %}💳 Tarjeta
+                                {% elif p in ['yape','yp'] %}📱 Yape
+                                {% elif p == 'plin' %}📲 Plin
+                                {% else %}🏷️ {{ s.metodo_pago|upper }}{% endif %}
+                            </span>
+                        </td>
+                        <td class="amount-cell">S/ {{ "%.2f"|format(s.total or 0) }}</td>
+                        <td>
+                            {% set est = s.estado|lower %}
+                            <span class="st-badge
+                                {% if est in ['completado','completada','pagado','activo'] %}st-completado
+                                {% elif est == 'pendiente' %}st-pendiente
+                                {% else %}st-cancelado{% endif %}">
+                                {% if est in ['completado','completada','pagado','activo'] %}
+                                    <i class="fas fa-check-circle"></i> {{ s.estado|capitalize }}
+                                {% elif est == 'pendiente' %}
+                                    <i class="fas fa-hourglass-half"></i> Pendiente
+                                {% else %}
+                                    <i class="fas fa-times-circle"></i> {{ s.estado|capitalize }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-group">
+                                <a href="{{ url_for('historial_servicios') }}"
+                                   class="btn-icon btn-icon-view" title="Ver Ticket">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-    .btn-limpiar {
-        background: #6c757d;
-        color: white;
-        border: none;
-        padding: 9px 16px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 14px;
-        width: 100%;
-        transition: background 0.2s;
-    }
+        <div class="hc2-footer-row">
+            <span>Mostrando <strong id="footerCount">{{ servicios|length }}</strong> registro(s)</span>
+            <span>Total visible: <strong id="footerTotal">S/ {{ "%.2f"|format(suma_totales) }}</strong></span>
+        </div>
 
-    .btn-limpiar:hover {
-        background: #5a6268;
-    }
+        {% else %}
+        <div class="hc2-empty">
+            <span class="empty-icon"><i class="fas fa-concierge-bell"></i></span>
+            <h4>Sin servicios registrados</h4>
+            <p>Aún no se han procesado atenciones o ventas en el sistema.</p>
+        </div>
+        {% endif %}
+    </div>
 
-    .stats-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 15px;
-        margin-bottom: 20px;
-    }
+</div>
+</div>
+{% endblock %}
 
-    .stat-card {
-        background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .stat-card.stat-success {
-        background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);
-    }
-
-    .stat-card.stat-info-card {
-        background: linear-gradient(135deg, #36b9cc 0%, #258391 100%);
-    }
-
-    .stat-card i {
-        font-size: 2rem;
-        margin-right: 15px;
-        opacity: 0.85;
-    }
-
-    .stat-info h3 {
-        font-size: 1.6rem;
-        margin: 0;
-        font-weight: bold;
-    }
-
-    .stat-info p {
-        margin: 0;
-        opacity: 0.9;
-        font-size: 0.85rem;
-    }
-
-    .table-card {
-        background: white;
-        padding: 25px;
-        border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    }
-
-    .table-responsive {
-        overflow-x: auto;
-    }
-
-    .servicios-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 15px;
-    }
-
-    .servicios-table th,
-    .servicios-table td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid #eef2f5;
-        font-size: 0.92rem;
-    }
-
-    .servicios-table th {
-        background: #f8f9fc;
-        font-weight: 600;
-        color: #4e73df;
-    }
-
-    .servicios-table tbody tr:hover {
-        background: #f8f9fa;
-    }
-
-    .cliente-info {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .cliente-info i {
-        color: #4e73df;
-    }
-
-    .servicio-badge {
-        background: #eaecf4;
-        color: #3a3b45;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-weight: 500;
-    }
-
-    .pago-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        background: #e2e3e5;
-        color: #383d41;
-    }
-
-    .pago-badge.efectivo {
-        background: #d4edda;
-        color: #155724;
-    }
-
-    .pago-badge.yape,
-    .pago-badge.plin {
-        background: #e2d9f3;
-        color: #5a2ca0;
-    }
-
-    .pago-badge.tarjeta {
-        background: #cce5ff;
-        color: #004085;
-    }
-
-    .monto-text {
-        color: #1cc88a;
-    }
-
-    .status-badge {
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-
-    .status-completed {
-        background: #d4edda;
-        color: #155724;
-    }
-
-    .status-pending {
-        background: #fff3cd;
-        color: #856404;
-    }
-
-    .status-cancelled {
-        background: #f8d7da;
-        color: #721c24;
-    }
-
-    .acciones-buttons {
-        display: flex;
-        gap: 5px;
-    }
-
-    .btn-accion {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
-        border-radius: 5px;
-        text-decoration: none;
-        color: white;
-        font-size: 0.85rem;
-        transition: transform 0.2s;
-    }
-
-    .btn-accion.ver {
-        background: #36b9cc;
-    }
-
-    .btn-accion.ver:hover {
-        transform: scale(1.1);
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 40px;
-        color: #858796;
-    }
-
-    .empty-state i {
-        font-size: 3.5rem;
-        margin-bottom: 15px;
-        opacity: 0.4;
-    }
-
-    .text-muted {
-        color: #858796 !important;
-    }
-
-    @media (max-width: 768px) {
-        .filter-row {
-            grid-template-columns: 1fr;
-        }
-
-        .stats-row {
-            grid-template-columns: 1fr;
-        }
-
-        .servicios-table {
-            font-size: 0.85rem;
-        }
-    }
-</style>
-
+{% block scripts %}
 <script>
-    function filtrarServicios() {
-        const busqueda = document.getElementById('buscarServicio').value.toLowerCase().trim();
-        const fechaDesde = document.getElementById('fechaDesde').value;
-        const fechaHasta = document.getElementById('fechaHasta').value;
-        const filas = document.querySelectorAll('.servicio-row');
+function filtrarServicios() {
+    const busqueda   = (document.getElementById('buscarServicio')?.value || '').toLowerCase().trim();
+    const fechaDesde = document.getElementById('fechaDesde')?.value || '';
+    const fechaHasta = document.getElementById('fechaHasta')?.value || '';
+    const filas = document.querySelectorAll('.servicio-row');
+    let visibles = 0, sumaTotales = 0;
 
-        let visibles = 0;
-        let sumaTotales = 0;
+    filas.forEach(fila => {
+        const cliente     = fila.dataset.cliente;
+        const servicio    = fila.dataset.servicio;
+        const comprobante = fila.dataset.comprobante;
+        const fechaText   = fila.dataset.fecha;
+        const total       = parseFloat(fila.dataset.total) || 0;
+        let mostrar = true;
 
-        filas.forEach(fila => {
-            const cliente = fila.dataset.cliente;
-            const servicio = fila.dataset.servicio;
-            const comprobante = fila.dataset.comprobante;
-            const fechaText = fila.dataset.fecha; // Ej: "04/09/2026 02:30 PM"
-            const total = parseFloat(fila.dataset.total) || 0;
+        if (busqueda && !cliente.includes(busqueda) && !servicio.includes(busqueda) && !comprobante.includes(busqueda))
+            mostrar = false;
 
-            let mostrar = true;
+        if (fechaDesde && fechaText) {
+            const p = fechaText.split(' ')[0].split('/');
+            if (p.length === 3 && `${p[2]}-${p[1]}-${p[0]}` < fechaDesde) mostrar = false;
+        }
+        if (fechaHasta && fechaText) {
+            const p = fechaText.split(' ')[0].split('/');
+            if (p.length === 3 && `${p[2]}-${p[1]}-${p[0]}` > fechaHasta) mostrar = false;
+        }
 
-            // Filtro por texto libre
-            if (busqueda && !cliente.includes(busqueda) && !servicio.includes(busqueda) && !comprobante.includes(busqueda)) {
-                mostrar = false;
-            }
+        fila.style.display = mostrar ? '' : 'none';
+        if (mostrar) { visibles++; sumaTotales += total; }
+    });
 
-            // Filtros rápidos por fecha si coinciden en ISO
-            if (fechaDesde && fechaText) {
-                const partesFecha = fechaText.split(' ')[0].split('/');
-                if (partesFecha.length === 3) {
-                    const fechaFilaISO = `${partesFecha[2]}-${partesFecha[1]}-${partesFecha[0]}`;
-                    if (fechaFilaISO < fechaDesde) mostrar = false;
-                }
-            }
+    ['totalRegistros','ingresosTotales','promedioTicket','footerCount','footerTotal','tbl-count-badge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === 'totalRegistros' || id === 'footerCount') el.textContent = visibles;
+        else if (id === 'ingresosTotales' || id === 'footerTotal') el.textContent = 'S/ ' + sumaTotales.toFixed(2);
+        else if (id === 'promedioTicket') el.textContent = 'S/ ' + (visibles > 0 ? (sumaTotales/visibles).toFixed(2) : '0.00');
+        else if (id === 'tbl-count-badge') el.textContent = visibles + ' registros';
+    });
+}
 
-            if (fechaHasta && fechaText) {
-                const partesFecha = fechaText.split(' ')[0].split('/');
-                if (partesFecha.length === 3) {
-                    const fechaFilaISO = `${partesFecha[2]}-${partesFecha[1]}-${partesFecha[0]}`;
-                    if (fechaFilaISO > fechaHasta) mostrar = false;
-                }
-            }
+function ordenarServicios() {
+    const orden = document.getElementById('ordenarPor')?.value;
+    if (!orden) return;
+    const tabla = document.getElementById('tablaServicios');
+    if (!tabla) return;
+    const filas = Array.from(tabla.querySelectorAll('.servicio-row'));
+    filas.sort((a, b) => {
+        switch (orden) {
+            case 'cliente':    return a.dataset.cliente.localeCompare(b.dataset.cliente);
+            case 'monto_desc': return parseFloat(b.dataset.total) - parseFloat(a.dataset.total);
+            case 'fecha_asc':  return parseInt(a.dataset.id) - parseInt(b.dataset.id);
+            default:           return parseInt(b.dataset.id) - parseInt(a.dataset.id);
+        }
+    });
+    const tbody = tabla.querySelector('tbody');
+    filas.forEach(f => tbody.appendChild(f));
+}
 
-            if (mostrar) {
-                fila.style.display = '';
-                visibles++;
-                sumaTotales += total;
-            } else {
-                fila.style.display = 'none';
-            }
-        });
-
-        // Actualizar tarjetas dinámicas
-        document.getElementById('totalRegistros').textContent = visibles;
-        document.getElementById('ingresosTotales').textContent = 'S/. ' + sumaTotales.toFixed(2);
-        document.getElementById('promedioTicket').textContent = 'S/. ' + (visibles > 0 ? (sumaTotales / visibles).toFixed(2) : '0.00');
-    }
-
-    function ordenarServicios() {
-        const orden = document.getElementById('ordenarPor').value;
-        const tabla = document.getElementById('tablaServicios');
-        const filas = Array.from(tabla.querySelectorAll('.servicio-row'));
-
-        filas.sort((a, b) => {
-            switch (orden) {
-                case 'cliente':
-                    return a.dataset.cliente.localeCompare(b.dataset.cliente);
-                case 'monto_desc':
-                    return parseFloat(b.dataset.total) - parseFloat(a.dataset.total);
-                case 'fecha_asc':
-                    return parseInt(a.dataset.id) - parseInt(b.dataset.id);
-                case 'fecha_desc':
-                default:
-                    return parseInt(b.dataset.id) - parseInt(a.dataset.id);
-            }
-        });
-
-        const tbody = tabla.querySelector('tbody');
-        filas.forEach(fila => tbody.appendChild(fila));
-    }
-
-    function limpiarFiltros() {
-        document.getElementById('buscarServicio').value = '';
-        document.getElementById('fechaDesde').value = '';
-        document.getElementById('fechaHasta').value = '';
-        document.getElementById('ordenarPor').value = 'fecha_desc';
-
-        const filas = document.querySelectorAll('.servicio-row');
-        filas.forEach(fila => fila.style.display = '');
-
-        filtrarServicios();
-    }
+function limpiarFiltros() {
+    const bs = document.getElementById('buscarServicio');
+    const fd = document.getElementById('fechaDesde');
+    const fh = document.getElementById('fechaHasta');
+    if (bs) bs.value = '';
+    if (fd) fd.value = '';
+    if (fh) fh.value = '';
+    document.querySelectorAll('.servicio-row').forEach(f => f.style.display = '');
+    filtrarServicios();
+}
 </script>
 {% endblock %}
