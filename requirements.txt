@@ -9,3 +9,6 @@ requests>=2.28.0
 # Para desarrollo y testing (opcional)
 # pytest>=7.0.0
 # pytest-flask>=1.2.0
+
+# Para exportación a Excel
+openpyxl>=3.1.0

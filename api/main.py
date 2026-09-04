@@ -9,7 +9,6 @@ from functools import wraps
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-import io
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
@@ -340,9 +339,6 @@ def logout():
 
 
 # ─── DASHBOARD ───────────────────────────────────────────────────────────────
-
-# ─── DASHBOARD CON CUADRE DE CAJA ─────────────────────────────────────────────
-
 @app.route('/dashboard')
 def dashboard():
     if 'rol' not in session:
@@ -350,56 +346,16 @@ def dashboard():
     
     rol = session['rol']
     hoy = date.today().strftime('%Y-%m-%d')
-    tenant_id = session.get('tenant_id', 1)
     
     citas_hoy = []
     alertas_fidelizacion = []
-    
-    # Datos de Cuadre de Caja de Hoy
-    cuadre_hoy = {
-        'efectivo': 0.0,
-        'yape': 0.0,
-        'tarjeta': 0.0,
-        'otros': 0.0,
-        'total': 0.0,
-        'cantidad_ventas': 0
+    totales_dia = {
+        'total_soles': 0.0,
+        'total_efectivo': 0.0,
+        'total_yape': 0.0,
+        'total_tarjeta': 0.0
     }
-
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                SELECT 
-                    LOWER(TRIM(COALESCE(metodo_pago, 'efectivo'))), 
-                    SUM(COALESCE(total, 0.00)),
-                    COUNT(id)
-                FROM ventas
-                WHERE (tenant_id = %s OR tenant_id IS NULL)
-                  AND DATE(fecha_venta) = CURRENT_DATE
-                  AND LOWER(COALESCE(estado::text, 'completada')) = 'completada'
-                GROUP BY LOWER(TRIM(COALESCE(metodo_pago, 'efectivo')))
-            """, (tenant_id,))
-            
-            for row in cursor.fetchall():
-                metodo = str(row[0] or 'efectivo').lower()
-                monto = float(row[1] or 0.0)
-                cant = int(row[2] or 0)
-                
-                cuadre_hoy['cantidad_ventas'] += cant
-                cuadre_hoy['total'] += monto
-                
-                if 'efectivo' in metodo:
-                    cuadre_hoy['efectivo'] += monto
-                elif 'yape' in metodo or 'plin' in metodo:
-                    cuadre_hoy['yape'] += monto
-                elif 'tarjeta' in metodo or 'debito' in metodo or 'credito' in metodo:
-                    cuadre_hoy['tarjeta'] += monto
-                else:
-                    cuadre_hoy['otros'] += monto
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error calculando cuadre de caja de hoy: {e}")
-
+    
     if rol in ['admin', 'empleado', 'dueño']:
         try:
             citas_hoy = citas_controlador.obtener_citas_por_fecha(hoy)
@@ -413,12 +369,40 @@ def dashboard():
                 alertas_fidelizacion = fidelizacion_ctrl.obtener_alertas_recientes(limit=10)
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
-    
-    total_empleados = 0
-    servicios_activos = 0
-    productos_bajos = []
 
+        # Cálculo de totales del día por medio de pago
+        conexion = None
+        try:
+            conexion = obtener_conexion()
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        COALESCE(SUM(total), 0) AS total_soles,
+                        COALESCE(SUM(CASE WHEN LOWER(medio_pago) = 'efectivo' THEN total ELSE 0 END), 0) AS total_efectivo,
+                        COALESCE(SUM(CASE WHEN LOWER(medio_pago) = 'yape' THEN total ELSE 0 END), 0) AS total_yape,
+                        COALESCE(SUM(CASE WHEN LOWER(medio_pago) IN ('tarjeta', 'bbva', 'pos', 'qr bbva') THEN total ELSE 0 END), 0) AS total_tarjeta
+                    FROM ventas
+                    WHERE DATE(fecha) = %s
+                """, (hoy,))
+                res = cursor.fetchone()
+                if res:
+                    totales_dia = {
+                        'total_soles': float(res[0]),
+                        'total_efectivo': float(res[1]),
+                        'total_yape': float(res[2]),
+                        'total_tarjeta': float(res[3])
+                    }
+        except Exception as e:
+            logger.warning(f"Error calculando totales de ventas del día: {e}")
+        finally:
+            if conexion:
+                conexion.close()
+    
     if rol == 'dueño':
+        total_empleados = 0
+        servicios_activos = 0
+        productos_bajos = []
+        
         try:
             if hasattr(personal_controlador, 'obtener_personal'):
                 total_empleados = len(personal_controlador.obtener_personal())
@@ -441,253 +425,154 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error productos stock bajo dashboard: {e}")
         
-    return render_template(
-        'dashboard.html', 
-        citas_hoy=citas_hoy, 
-        total_empleados=total_empleados,
-        servicios_activos=servicios_activos, 
-        productos_bajos=productos_bajos,
-        alertas_fidelizacion=alertas_fidelizacion,
-        cuadre_hoy=cuadre_hoy
-    )
+        return render_template('dashboard.html', citas_hoy=citas_hoy, total_empleados=total_empleados,
+                               servicios_activos=servicios_activos, productos_bajos=productos_bajos,
+                               alertas_fidelizacion=alertas_fidelizacion, totales_dia=totales_dia)
+    
+    return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion, totales_dia=totales_dia)
 
-
-# ─── EXPORTACIÓN EXCEL DE CUADRE DE CAJA ──────────────────────────────────────
-
-@app.route('/cuadre_caja/excel')
-def exportar_cuadre_excel():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-
-    tenant_id = session.get('tenant_id', 1)
-    fecha_filtro = request.args.get('fecha', date.today().strftime('%Y-%m-%d')).strip()
-
-    ventas_detalle = []
-    totales_pago = {
-        'efectivo': 0.0,
-        'yape': 0.0,
-        'tarjeta': 0.0,
-        'otros': 0.0,
-        'total_general': 0.0
-    }
-
+@app.route('/exportar-cierre-diario', methods=['GET'])
+def exportar_cierre_diario():
+    fecha_filtro = request.args.get('fecha', date.today().strftime('%Y-%m-%d'))
+    conexion = None
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # Obtiene el desglose detallado idéntico a las columnas del reporte físico
             cursor.execute("""
                 SELECT 
-                    v.numero_venta,
-                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM'),
-                    COALESCE(v.cliente_nombre, 'Cliente General'),
-                    COALESCE(v.vendedor_nombre, 'Cajero'),
-                    COALESCE(v.metodo_pago, 'efectivo'),
-                    COALESCE(v.subtotal, 0.00),
-                    COALESCE(v.igv, 0.00),
-                    COALESCE(v.total, 0.00)
-                FROM ventas v
-                WHERE (v.tenant_id = %s OR v.tenant_id IS NULL)
-                  AND DATE(v.fecha_venta) = %s
-                  AND LOWER(COALESCE(v.estado::text, 'completada')) = 'completada'
-                ORDER BY v.fecha_venta ASC
-            """, (tenant_id, fecha_filtro))
+                    servicio_descripcion,
+                    cliente_mascota,
+                    tamano,
+                    monto_total,
+                    efectivo,
+                    yape,
+                    qr_bbva,
+                    bbvapay,
+                    medio_pago,
+                    promocion,
+                    fecha_prox_bano,
+                    nro_boleta_factura
+                FROM detalle_servicios_diarios
+                WHERE DATE(fecha) = %s
+                ORDER BY id ASC
+            """, (fecha_filtro,))
+            registros = cursor.fetchall()
 
-            rows = cursor.fetchall()
-            for r in rows:
-                num_v = r[0] or ''
-                fecha_v = r[1] or ''
-                cliente = r[2]
-                vendedor = r[3]
-                metodo = str(r[4] or 'efectivo').strip()
-                subtotal = float(r[5])
-                igv = float(r[6])
-                total = float(r[7])
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"Cierre {fecha_filtro}"
 
-                ventas_detalle.append({
-                    'num': num_v,
-                    'fecha': fecha_v,
-                    'cliente': cliente,
-                    'vendedor': vendedor,
-                    'metodo': metodo.title(),
-                    'subtotal': subtotal,
-                    'igv': igv,
-                    'total': total
-                })
+        # Fila de fecha del reporte
+        ws.merge_cells("A1:M1")
+        ws["A1"] = f"FECHA: {fecha_filtro}"
+        ws["A1"].font = Font(bold=True, size=11)
+        ws["A1"].alignment = Alignment(horizontal="center")
 
-                m_low = metodo.lower()
-                totales_pago['total_general'] += total
-                if 'efectivo' in m_low:
-                    totales_pago['efectivo'] += total
-                elif 'yape' in m_low or 'plin' in m_low:
-                    totales_pago['yape'] += total
-                elif 'tarjeta' in m_low or 'debito' in m_low or 'credito' in m_low:
-                    totales_pago['tarjeta'] += total
-                else:
-                    totales_pago['otros'] += total
+        headers = [
+            "N°", "DESCRIPCION DEL SERVICIO", "CLIENTE", "TAMAÑO", "TOTAL A RENDIR",
+            "EFECTIVO S/", "YAPE", "QR BBVA", "BBVAPAY", "MEDIO PAGO",
+            "PROMOCIÓN", "FECHA PROX. BAÑO", "N° BOLETA FACTURA"
+        ]
+        ws.append(headers)
 
-        conexion.close()
+        header_font = Font(bold=True, color="000000", size=9)
+        header_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid") # Tono naranja claro
+        border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+        for col_idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col_idx)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border_thin
+
+        row_start = 3
+        total_rendir = 0.0
+        total_efectivo = 0.0
+        total_yape = 0.0
+        total_tarjeta_qr = 0.0
+
+        for idx, row in enumerate(registros, start=1):
+            monto = float(row[3] or 0)
+            efec = float(row[4] or 0)
+            yape_val = float(row[5] or 0)
+            qr_val = float(row[6] or 0) + float(row[7] or 0)
+
+            total_rendir += monto
+            total_efectivo += efec
+            total_yape += yape_val
+            total_tarjeta_qr += qr_val
+
+            line = [
+                idx,
+                row[0] or "",
+                row[1] or "",
+                row[2] or "Mediano",
+                f"S/ {monto:.2f}" if monto else "",
+                f"S/ {efec:.2f}" if efec else "",
+                f"S/ {yape_val:.2f}" if yape_val else "",
+                f"S/ {float(row[6]):.2f}" if row[6] else "",
+                f"S/ {float(row[7]):.2f}" if row[7] else "",
+                row[8] or "",
+                row[9] or "",
+                str(row[10]) if row[10] else "",
+                row[11] or ""
+            ]
+            ws.append(line)
+            
+            for col_idx in range(1, 14):
+                cell = ws.cell(row=row_start + idx - 1, column=col_idx)
+                cell.border = border_thin
+
+        # Fila Final de Consolidados y Totales
+        totales_row = [
+            "TOTALES", "", "", "",
+            f"S/ {total_rendir:.2f}",
+            f"S/ {total_efectivo:.2f}",
+            f"S/ {total_yape:.2f}",
+            f"S/ {total_tarjeta_qr:.2f}",
+            "", "", "", "", ""
+        ]
+        ws.append(totales_row)
+        
+        last_row = ws.max_row
+        ws.merge_cells(start_row=last_row, start_column=1, end_row=last_row, end_column=4)
+        
+        total_font = Font(bold=True, color="000000", size=10)
+        total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+        
+        for col_idx in range(1, 14):
+            cell = ws.cell(row=last_row, column=col_idx)
+            cell.font = total_font
+            cell.fill = total_fill
+            cell.border = border_thin
+
+        # Ajuste dinámico de columnas
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = col[0].column_letter
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f"Cierre_Diario_{fecha_filtro}.xlsx"
+        )
+
     except Exception as e:
-        logger.error(f"Error consultando cuadre de caja para Excel: {e}")
-
-    # ── CREACIÓN DEL LIBRO EXCEL ──────────────────────────────────────────────
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Cuadre de Caja"
-    ws.views.sheetView[0].showGridLines = True
-
-    # Estilos
-    font_titulo = Font(name='Calibri', size=16, bold=True, color='1E3A8A')
-    font_subtitulo = Font(name='Calibri', size=11, italic=True, color='4B5563')
-    font_header = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-    fill_header = PatternFill(start_color='1E3A8A', end_color='1E3A8A', fill_type='solid')
-
-    font_bold = Font(name='Calibri', size=11, bold=True)
-    font_resumen_hdr = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
-    fill_resumen_hdr = PatternFill(start_color='0D9488', end_color='0D9488', fill_type='solid')
-    fill_total_final = PatternFill(start_color='FEF08A', end_color='FEF08A', fill_type='solid')
-
-    thin_border = Border(
-        left=Side(style='thin', color='CBD5E1'),
-        right=Side(style='thin', color='CBD5E1'),
-        top=Side(style='thin', color='CBD5E1'),
-        bottom=Side(style='thin', color='CBD5E1')
-    )
-
-    # Título principal
-    ws.merge_cells('A1:H1')
-    ws['A1'] = "REPORTE DE CUADRE DE CAJA DIARIO"
-    ws['A1'].font = font_titulo
-    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
-
-    ws.merge_cells('A2:H2')
-    ws['A2'] = f"Fecha del Reporte: {fecha_filtro} | Generado el: {datetime.now().strftime('%d/%m/%Y %I:%M %p')}"
-    ws['A2'].font = font_subtitulo
-    ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
-
-    ws.row_dimensions[1].height = 28
-    ws.row_dimensions[2].height = 18
-
-    # Cabecera de la Tabla
-    headers = ["N° Venta", "Fecha y Hora", "Cliente", "Vendedor", "Método Pago", "Subtotal (S/)", "IGV (S/)", "Total (S/)"]
-    start_row = 4
-
-    for col_idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=start_row, column=col_idx, value=header)
-        cell.font = font_header
-        cell.fill = fill_header
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        cell.border = thin_border
-
-    ws.row_dimensions[start_row].height = 25
-
-    # Filas de Datos
-    curr_row = start_row + 1
-    for item in ventas_detalle:
-        ws.cell(row=curr_row, column=1, value=item['num']).alignment = Alignment(horizontal='center')
-        ws.cell(row=curr_row, column=2, value=item['fecha']).alignment = Alignment(horizontal='center')
-        ws.cell(row=curr_row, column=3, value=item['cliente'])
-        ws.cell(row=curr_row, column=4, value=item['vendedor'])
-        ws.cell(row=curr_row, column=5, value=item['metodo']).alignment = Alignment(horizontal='center')
-        
-        c_sub = ws.cell(row=curr_row, column=6, value=item['subtotal'])
-        c_sub.number_format = 'S/ #,##0.00'
-        
-        c_igv = ws.cell(row=curr_row, column=7, value=item['igv'])
-        c_igv.number_format = 'S/ #,##0.00'
-        
-        c_tot = ws.cell(row=curr_row, column=8, value=item['total'])
-        c_tot.number_format = 'S/ #,##0.00'
-
-        for c_idx in range(1, 9):
-            ws.cell(row=curr_row, column=c_idx).border = thin_border
-        
-        ws.row_dimensions[curr_row].height = 20
-        curr_row += 1
-
-    if not ventas_detalle:
-        ws.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=8)
-        c_empty = ws.cell(row=curr_row, column=1, value="No se registraron ventas en esta fecha.")
-        c_empty.alignment = Alignment(horizontal='center')
-        c_empty.font = font_subtitulo
-        curr_row += 1
-
-    # ── RESUMEN TOTALES AL PIE DE PÁGINA ──────────────────────────────────────
-    curr_row += 2  # Espacio en blanco
-
-    ws.merge_cells(start_row=curr_row, start_column=5, end_row=curr_row, end_column=8)
-    c_res_hdr = ws.cell(row=curr_row, column=5, value="RESUMEN DE CUADRE DE CAJA")
-    c_res_hdr.font = font_resumen_hdr
-    c_res_hdr.fill = fill_resumen_hdr
-    c_res_hdr.alignment = Alignment(horizontal='center', vertical='center')
-    ws.row_dimensions[curr_row].height = 22
-    curr_row += 1
-
-    resumen_filas = [
-        ("TOTAL EFECTIVO:", totales_pago['efectivo']),
-        ("TOTAL YAPE / PLIN:", totales_pago['yape']),
-        ("TOTAL TARJETA:", totales_pago['tarjeta']),
-    ]
-
-    if totales_pago['otros'] > 0:
-        resumen_filas.append(("OTROS MÉTODOS:", totales_pago['otros']))
-
-    for label, monto in resumen_filas:
-        ws.merge_cells(start_row=curr_row, start_column=5, end_row=curr_row, end_column=7)
-        c_lbl = ws.cell(row=curr_row, column=5, value=label)
-        c_lbl.font = font_bold
-        c_lbl.alignment = Alignment(horizontal='right', vertical='center')
-
-        c_val = ws.cell(row=curr_row, column=8, value=monto)
-        c_val.font = font_bold
-        c_val.number_format = 'S/ #,##0.00'
-        c_val.alignment = Alignment(horizontal='right', vertical='center')
-
-        ws.cell(row=curr_row, column=5).border = thin_border
-        ws.cell(row=curr_row, column=8).border = thin_border
-        ws.row_dimensions[curr_row].height = 20
-        curr_row += 1
-
-    # TOTAL GENERAL
-    ws.merge_cells(start_row=curr_row, start_column=5, end_row=curr_row, end_column=7)
-    c_tot_lbl = ws.cell(row=curr_row, column=5, value="TOTAL GENERAL CAJA:")
-    c_tot_lbl.font = font_bold
-    c_tot_lbl.fill = fill_total_final
-    c_tot_lbl.alignment = Alignment(horizontal='right', vertical='center')
-
-    c_tot_val = ws.cell(row=curr_row, column=8, value=totales_pago['total_general'])
-    c_tot_val.font = font_bold
-    c_tot_val.fill = fill_total_final
-    c_tot_val.number_format = 'S/ #,##0.00'
-    c_tot_val.alignment = Alignment(horizontal='right', vertical='center')
-
-    ws.cell(row=curr_row, column=5).border = thin_border
-    ws.cell(row=curr_row, column=8).border = thin_border
-    ws.row_dimensions[curr_row].height = 24
-
-    # Ajuste automático de ancho de columnas
-    for col in ws.columns:
-        max_len = 0
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            if cell.value:
-                val_str = str(cell.value)
-                if len(val_str) > max_len:
-                    max_len = len(val_str)
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
-
-    # Exportar a BytesIO
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    filename = f"Cuadre_Caja_{fecha_filtro}.xlsx"
-    return send_file(
-        output,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        as_attachment=True,
-        download_name=filename
-    )
-
+        if conexion:
+            conexion.rollback()
+        logger.error(f"Error generando plantilla Excel: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if conexion:
+            conexion.close()
 
 # ─── VISTA PRINCIPAL DEL PUNTO DE VENTA (POS) ─────────────────────────────────
 
@@ -3296,10 +3181,7 @@ def procesar_pago():
             venta_id = cursor.fetchone()[0]
 
             for item in items:
-                cursor.execute(
-    "UPDATE productos SET cantidad = GREATEST(COALESCE(cantidad, 0) - %s, 0) WHERE id = %s",
-    (item['cantidad'], item['id']),
-)
+                cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
 
         conexion.commit()
         conexion.close()
