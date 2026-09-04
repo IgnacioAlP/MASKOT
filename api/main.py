@@ -957,6 +957,257 @@ def scan_poll():
     scans = [s for s in RECENT_SCANS if s['timestamp'] > last_time]
     return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
 
+# ==========================================
+# HISTORIAL DE CLIENTES (COMPATIBILIDAD TOTAL)
+# ==========================================
+@app.route('/historial_clientes', endpoint='historial_clientes')
+@app.route('/historial-clientes')
+@app.route('/clientes/historial')
+def historial_clientes():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    tenant_id = session.get('tenant_id', 1)
+    
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
+    busqueda = request.args.get('busqueda', '').strip()
+    
+    filtros = {
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin,
+        'busqueda': busqueda
+    }
+    
+    historial_lista = []
+    total_citas_sum = 0
+    total_pedidos_sum = 0
+    total_gastado_sum = 0.0
+    conexion = None
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Verificar qué tablas existen en la base de datos
+            cursor.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_name IN ('clientes', 'usuarios', 'ventas');
+            """)
+            tables_raw = cursor.fetchall()
+            tablas_existentes = []
+            for t in tables_raw:
+                if isinstance(t, dict) or hasattr(t, 'get'):
+                    tablas_existentes.append(str(t.get('table_name', '')).lower())
+                elif hasattr(t, '__getitem__'):
+                    tablas_existentes.append(str(t[0]).lower())
+
+            # 2. Si existe la tabla 'clientes', consultar directamente de ella
+            if 'clientes' in tablas_existentes:
+                cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'clientes';")
+                cols_cli = [str(r['column_name'] if isinstance(r, dict) else r[0]).lower() for r in cursor.fetchall()]
+
+                col_id = "id" if "id" in cols_cli else "1"
+                col_nombre = next((c for c in ['nombre', 'cliente', 'nombre_completo', 'razon_social'] if c in cols_cli), "nombre")
+                col_email = "email" if "email" in cols_cli else "''"
+                col_telefono = next((c for c in ['telefono', 'celular', 'phone'] if c in cols_cli), "''")
+                col_created = next((c for c in ['created_at', 'fecha_registro', 'fecha_creacion'] if c in cols_cli), None)
+
+                expr_created = f"c.{col_created}" if col_created else "NULL"
+
+                condiciones = []
+                params = []
+
+                if 'tenant_id' in cols_cli:
+                    condiciones.append("(c.tenant_id = %s OR c.tenant_id IS NULL)")
+                    params.append(tenant_id)
+
+                if busqueda:
+                    condiciones.append(f"(c.{col_nombre}::text ILIKE %s OR COALESCE(c.{col_email}::text, '') ILIKE %s)")
+                    params.extend([f"%{busqueda}%", f"%{busqueda}%"])
+
+                where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
+
+                query = f"""
+                    SELECT 
+                        c.{col_id} AS id,
+                        COALESCE(c.{col_nombre}, 'Sin Nombre') AS nombre,
+                        COALESCE(c.{col_email}, 'No registrado') AS email,
+                        COALESCE(c.{col_telefono}, '') AS telefono,
+                        '' AS direccion,
+                        {expr_created} AS fecha_registro,
+                        0 AS total_citas,
+                        0 AS total_pedidos,
+                        0.00 AS total_gastado,
+                        NULL AS ultima_cita,
+                        NULL AS ultimo_pedido
+                    FROM clientes c
+                    {where_clause}
+                    ORDER BY c.{col_id} DESC
+                    LIMIT 200
+                """
+                cursor.execute(query, tuple(params))
+                rows = cursor.fetchall()
+
+                for r in rows:
+                    if isinstance(r, dict) or hasattr(r, 'get'):
+                        c_id = r.get('id', 0)
+                        c_nom = r.get('nombre', 'Sin Nombre')
+                        c_email = r.get('email', 'No registrado')
+                        c_tel = r.get('telefono', '')
+                        c_freg = r.get('fecha_registro')
+                        c_citas = int(r.get('total_citas') or 0)
+                        c_pedidos = int(r.get('total_pedidos') or 0)
+                        c_gastado = float(r.get('total_gastado') or 0.0)
+                        c_ucita = r.get('ultima_cita')
+                        c_upedido = r.get('ultimo_pedido')
+                    else:
+                        c_id = r[0] if len(r) > 0 else 0
+                        c_nom = r[1] if len(r) > 1 else 'Sin Nombre'
+                        c_email = r[2] if len(r) > 2 else 'No registrado'
+                        c_tel = r[3] if len(r) > 3 else ''
+                        c_freg = r[5] if len(r) > 5 else None
+                        c_citas = int(r[6]) if len(r) > 6 and r[6] is not None else 0
+                        c_pedidos = int(r[7]) if len(r) > 7 and r[7] is not None else 0
+                        c_gastado = float(r[8]) if len(r) > 8 and r[8] is not None else 0.0
+                        c_ucita = r[9] if len(r) > 9 else None
+                        c_upedido = r[10] if len(r) > 10 else None
+
+                    row_obj = {
+                        'id': c_id,
+                        'nombre': c_nom,
+                        'email': c_email,
+                        'telefono': c_tel,
+                        'fecha_registro': c_freg,
+                        'total_citas': c_citas,
+                        'total_pedidos': c_pedidos,
+                        'total_gastado': c_gastado,
+                        'ultima_cita': c_ucita,
+                        'ultimo_pedido': c_upedido,
+                        0: c_id,
+                        1: c_nom,
+                        2: c_email,
+                        3: c_tel,
+                        4: '',
+                        5: c_freg,
+                        6: c_citas,
+                        7: c_pedidos,
+                        8: c_gastado,
+                        9: c_ucita,
+                        10: c_upedido
+                    }
+                    historial_lista.append(row_obj)
+                    total_citas_sum += c_citas
+                    total_pedidos_sum += c_pedidos
+                    total_gastado_sum += c_gastado
+
+            # 3. Fallback: Agrupar por cliente desde la tabla 'ventas' si no hay tabla 'clientes'
+            elif 'ventas' in tablas_existentes:
+                cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'ventas';")
+                cols_v = [str(r['column_name'] if isinstance(r, dict) else r[0]).lower() for r in cursor.fetchall()]
+                
+                col_cli = next((c for c in ['cliente', 'cliente_nombre', 'nombre_cliente'] if c in cols_v), None)
+                col_fec = next((c for c in ['fecha', 'fecha_venta', 'created_at'] if c in cols_v), None)
+                col_tot = next((c for c in ['total', 'monto', 'monto_total'] if c in cols_v), None)
+
+                if col_cli:
+                    condiciones = []
+                    params = []
+
+                    if 'tenant_id' in cols_v:
+                        condiciones.append("(v.tenant_id = %s OR v.tenant_id IS NULL)")
+                        params.append(tenant_id)
+
+                    if busqueda:
+                        condiciones.append(f"v.{col_cli} ILIKE %s")
+                        params.append(f"%{busqueda}%")
+
+                    where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
+                    expr_tot = f"SUM(COALESCE(v.{col_tot}, 0.00))" if col_tot else "0.00"
+                    expr_max_fec = f"MAX(v.{col_fec})" if col_fec else "NULL"
+
+                    query = f"""
+                        SELECT 
+                            MIN(v.id) AS id,
+                            v.{col_cli} AS nombre,
+                            'cliente@veterinaria.com' AS email,
+                            '' AS telefono,
+                            COUNT(v.id) AS total_pedidos,
+                            {expr_tot} AS total_gastado,
+                            {expr_max_fec} AS ultimo_pedido
+                        FROM ventas v
+                        {where_clause}
+                        GROUP BY v.{col_cli}
+                        ORDER BY total_gastado DESC
+                        LIMIT 200
+                    """
+                    cursor.execute(query, tuple(params))
+                    rows = cursor.fetchall()
+
+                    for r in rows:
+                        if isinstance(r, dict) or hasattr(r, 'get'):
+                            c_id = r.get('id', 0)
+                            c_nom = r.get('nombre', 'Cliente General')
+                            c_email = r.get('email', 'No registrado')
+                            c_tel = r.get('telefono', '')
+                            c_pedidos = int(r.get('total_pedidos') or 0)
+                            c_gastado = float(r.get('total_gastado') or 0.0)
+                            c_upedido = r.get('ultimo_pedido')
+                        else:
+                            c_id = r[0] if len(r) > 0 else 0
+                            c_nom = r[1] if len(r) > 1 else 'Cliente General'
+                            c_email = r[2] if len(r) > 2 else 'No registrado'
+                            c_tel = r[3] if len(r) > 3 else ''
+                            c_pedidos = int(r[4]) if len(r) > 4 and r[4] is not None else 0
+                            c_gastado = float(r[5]) if len(r) > 5 and r[5] is not None else 0.0
+                            c_upedido = r[6] if len(r) > 6 else None
+
+                        row_obj = {
+                            'id': c_id,
+                            'nombre': c_nom,
+                            'email': c_email,
+                            'telefono': c_tel,
+                            'fecha_registro': None,
+                            'total_citas': 0,
+                            'total_pedidos': c_pedidos,
+                            'total_gastado': c_gastado,
+                            'ultima_cita': None,
+                            'ultimo_pedido': c_upedido,
+                            0: c_id,
+                            1: c_nom,
+                            2: c_email,
+                            3: c_tel,
+                            4: '',
+                            5: None,
+                            6: 0,
+                            7: c_pedidos,
+                            8: c_gastado,
+                            9: None,
+                            10: c_upedido
+                        }
+                        historial_lista.append(row_obj)
+                        total_pedidos_sum += c_pedidos
+                        total_gastado_sum += c_gastado
+
+    except Exception as e:
+        if conexion:
+            conexion.rollback()
+        print(f"❌ Error en historial_clientes: {e}")
+        traceback.print_exc()
+    finally:
+        if conexion:
+            conexion.close()
+
+    return render_template(
+        'historial_clientes.html', 
+        historial=historial_lista, 
+        clientes=historial_lista,
+        total_citas=total_citas_sum, 
+        total_pedidos=total_pedidos_sum, 
+        total_gastado=total_gastado_sum, 
+        filtros=filtros
+    )
 
 # ==========================================
 # HISTORIAL DE VENTAS (COMPATIBILIDAD TOTAL)
@@ -1139,7 +1390,7 @@ def historial_ventas():
     try:
         return render_template('historial_ventas.html', ventas=ventas_lista, servicios=ventas_lista, filtros=filtros)
     except Exception:
-        return render_template('historial_servicios.html', ventas=ventas_lista, servicios=ventas_lista, filtros=filtros)
+        return render_template('historial_clientes.html', ventas=ventas_lista, servicios=ventas_lista, filtros=filtros)
 
 # ─── VISTA Y GENERACIÓN DE TICKET DE VENTA ───────────────────────────────────
 
@@ -1226,7 +1477,7 @@ def ticket_venta(venta_id):
 
     if not venta:
         flash('La venta solicitada no existe o fue eliminada.', 'error')
-        return redirect(url_for('historial_servicios'))
+        return redirect(url_for('historial_clientes'))
 
     return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now())
 
