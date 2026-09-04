@@ -159,7 +159,7 @@ def days_until(value):
         value = value.date()
     
     if hasattr(value, '__sub__'):
-        today_d = date.today()
+        today_d = datetime.now(ZONA_HORARIA_PERU).date()
         delta = value - today_d
         return delta.days
     return 999
@@ -183,14 +183,14 @@ def utility_processor():
         return str(date_value)
     
     def today():
-        return date.today()
+        return datetime.now(ZONA_HORARIA_PERU).date()
     
     def today_string():
-        return date.today().strftime('%Y-%m-%d')
+        return datetime.now(ZONA_HORARIA_PERU).strftime('%Y-%m-%d')
     
     def days_difference(date1, date2=None):
         if date2 is None:
-            date2 = date.today()
+            date2 = datetime.now(ZONA_HORARIA_PERU).date()
         if isinstance(date1, str):
             try:
                 date1 = datetime.strptime(date1, '%Y-%m-%d').date()
@@ -209,7 +209,7 @@ def utility_processor():
             if isinstance(salida, str):
                 salida = datetime.strptime(salida.strip(), '%H:%M:%S').time() if ':' in salida else datetime.strptime(salida.strip(), '%I:%M %p').time()
             
-            today_date = date.today()
+            today_date = datetime.now(ZONA_HORARIA_PERU).date()
             entrada_dt = datetime.combine(today_date, entrada)
             salida_dt = datetime.combine(today_date, salida)
             
@@ -241,10 +241,10 @@ def cart_context():
 
 @app.context_processor
 def inject_global_datetime():
-    ahora = datetime.now()
+    ahora = datetime.now(ZONA_HORARIA_PERU)
     return {
         'momento_actual': ahora,
-        'today': date.today,
+        'today': lambda: ahora.date(),
         'now': ahora,
         'format_date': lambda d: d.strftime('%d/%m/%Y') if hasattr(d, 'strftime') else str(d)
     }
@@ -499,7 +499,7 @@ def exportar_cierre_diario():
             query = f"SELECT {col_id}"
             query += f", {col_total}" if col_total else ", 0 AS total"
             query += f", {col_metodo}" if col_metodo else ", 'Efectivo' AS metodo_pago"
-            query += f", {col_fecha}" if col_fecha else ", NOW() AS fecha"
+            query += f", {col_fecha}" if col_fecha else f", '{datetime.now(ZONA_HORARIA_PERU)}'::timestamp AS fecha"
             
             if col_fecha:
                 query += f" FROM ventas WHERE DATE({col_fecha}::text) = %s::date OR {col_fecha}::text LIKE %s || '%%' ORDER BY {col_id} ASC"
@@ -851,8 +851,59 @@ def procesar_venta_pos():
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
 
-        cliente_nombre = data.get('cliente_nombre') or request.form.get('cliente_nombre', 'Cliente General')
-        cliente_doc = data.get('cliente_documento') or request.form.get('cliente_documento', '')
+        conexion = obtener_conexion()
+
+        # ─── RESOLUCIÓN ROBUSTA DE CLIENTE SELECCIONADO O GENERAL ───
+        cliente_raw = data.get('cliente')
+        cliente_id = data.get('cliente_id') or request.form.get('cliente_id')
+        
+        cliente_nombre = ''
+        cliente_doc = ''
+
+        if isinstance(cliente_raw, dict):
+            cliente_nombre = (cliente_raw.get('nombre') or cliente_raw.get('cliente_nombre') or '').strip()
+            cliente_doc = (cliente_raw.get('documento') or cliente_raw.get('cliente_documento') or cliente_raw.get('doc') or '').strip()
+            if not cliente_id:
+                cliente_id = cliente_raw.get('id')
+        elif isinstance(cliente_raw, str):
+            cliente_nombre = cliente_raw.strip()
+
+        if not cliente_nombre:
+            cliente_nombre = (
+                data.get('cliente_nombre') or 
+                data.get('nombre_cliente') or 
+                data.get('clienteNombre') or 
+                request.form.get('cliente_nombre') or 
+                request.form.get('cliente') or 
+                ''
+            ).strip()
+
+        if not cliente_doc:
+            cliente_doc = (
+                data.get('cliente_documento') or 
+                data.get('cliente_doc') or 
+                data.get('documento') or 
+                request.form.get('cliente_documento') or 
+                request.form.get('documento') or 
+                ''
+            ).strip()
+
+        # Si viene cliente_id pero el nombre sigue vacío o es 'Cliente General', consultamos la BD
+        if cliente_id and (not cliente_nombre or cliente_nombre.lower() == 'cliente general'):
+            try:
+                with conexion.cursor() as cursor:
+                    cursor.execute("SELECT nombre, COALESCE(documento, '') FROM clientes WHERE id = %s", (int(cliente_id),))
+                    cli_db = cursor.fetchone()
+                    if cli_db:
+                        cliente_nombre = cli_db[0] or cliente_nombre
+                        if not cliente_doc:
+                            cliente_doc = cli_db[1] or ''
+            except Exception as ex_cli:
+                logger.warning(f"Error consultando cliente por ID {cliente_id}: {ex_cli}")
+
+        if not cliente_nombre:
+            cliente_nombre = 'Cliente General'
+
         metodo_pago = data.get('metodo_pago') or request.form.get('metodo_pago', 'efectivo')
         
         monto_recibido = float(data.get('monto_recibido') or request.form.get('monto_recibido', 0.0))
@@ -866,9 +917,11 @@ def procesar_venta_pos():
         tenant_id = session.get('tenant_id', 1)
         num_venta = f"VNT-{int(time.time())}"
         
+        # Marca de tiempo exacta de Perú para la venta
+        fecha_venta_actual = datetime.now(ZONA_HORARIA_PERU)
+        
         productos_json = json.dumps(items, ensure_ascii=False)
         
-        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO ventas (
@@ -876,10 +929,10 @@ def procesar_venta_pos():
                     vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
                 ) VALUES (
-                    %s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
                 ) RETURNING id
             """, (
-                num_venta, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
+                num_venta, fecha_venta_actual, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
                 subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
             ))
             
@@ -949,7 +1002,6 @@ def historial_clientes():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Cargar base de clientes
             cursor.execute("""
                 SELECT id, COALESCE(nombre, 'Sin Nombre') AS nombre, COALESCE(email, 'No registrado') AS email,
                        COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, created_at
@@ -967,7 +1019,6 @@ def historial_clientes():
                     'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
                 }
 
-            # 2. Agregar métricas dinámicas de VENTAS
             cursor.execute("""
                 SELECT cliente_nombre, COALESCE(total, 0.0), fecha_venta 
                 FROM ventas 
@@ -991,7 +1042,6 @@ def historial_clientes():
                 if v_fec and (not clientes_dict[key]['ultimo_pedido'] or v_fec > str(clientes_dict[key]['ultimo_pedido'])):
                     clientes_dict[key]['ultimo_pedido'] = v_fec
 
-            # 3. Agregar métricas dinámicas de CITAS
             cursor.execute("""
                 SELECT cliente_nombre, COALESCE(precio_total, 0.0), fecha 
                 FROM citas 
@@ -1062,7 +1112,7 @@ def historial_clientes():
 
 
 # ==============================================================================
-# 2. HISTORIAL DE ASISTENCIA DINÁMICO
+# 2. HISTORIAL DE ASISTENCIA DINÁMICO CON ZONA HORARIA PERÚ
 # ==============================================================================
 @app.route('/historial_asistencia', endpoint='historial_asistencia')
 @app.route('/historial-asistencia')
@@ -1137,7 +1187,7 @@ def historial_asistencia():
                 horas_trab = 0.0
                 if raw_ent and raw_sal:
                     try:
-                        dummy_d = date.today()
+                        dummy_d = datetime.now(ZONA_HORARIA_PERU).date()
                         dt_ent = datetime.combine(dummy_d, raw_ent)
                         dt_sal = datetime.combine(dummy_d, raw_sal)
                         delta = dt_sal - dt_ent
@@ -1175,7 +1225,7 @@ def historial_asistencia():
 
 
 # ==============================================================================
-# 3. HISTORIAL DE COMPRAS (VENTA DE PRODUCTOS SEPARADA E ITEMIZADA + ALIAS)
+# 3. HISTORIAL DE COMPRAS (COMPLETO CON ALIAS DE ATRIBUTOS Y SIN ERROR 500)
 # ==============================================================================
 @app.route('/historial_compras', endpoint='historial_compras')
 @app.route('/historial-compras')
@@ -1308,7 +1358,7 @@ def historial_compras():
 
 
 # ==============================================================================
-# 4. HISTORIAL DE SERVICIOS DINÁMICO (CITAS Y VENTAS POS + ALIAS)
+# 4. HISTORIAL DE SERVICIOS DINÁMICO
 # ==============================================================================
 @app.route('/historial_servicios', endpoint='historial_servicios')
 @app.route('/historial-servicios')
@@ -1332,7 +1382,6 @@ def historial_servicios():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Cargar servicios desde CITAS
             cond_citas = ["(c.tenant_id = %s OR c.tenant_id IS NULL)"]
             params_citas = [tenant_id]
 
@@ -1398,7 +1447,6 @@ def historial_servicios():
                     0: f"CITA-{c_id}", 1: c_fec, 2: c_cli, 3: c_masc, 4: s_nom, 5: prec_fmt, 6: s_est, 7: 'Cita Agendada'
                 })
 
-            # 2. Cargar servicios vendidos directamente en POS (VENTAS)
             col_fecha = obtener_columna_fecha(cursor)
             cond_v = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
             params_v = [tenant_id]
@@ -1661,7 +1709,7 @@ def ticket_venta(venta_id):
         flash('La venta solicitada no existe.', 'error')
         return redirect(url_for('historial_clientes'))
 
-    return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now())
+    return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now(ZONA_HORARIA_PERU))
 
 
 # ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
@@ -2458,7 +2506,7 @@ def eliminar_personal_permanente(target_id):
     return redirect(url_for('personal'))
 
 
-# ─── ASISTENCIA DEL PERSONAL ──────────────────────────────────────────────────
+# ─── ASISTENCIA DEL PERSONAL CON ZONA HORARIA DE PERÚ ────────────────────────
 
 def obtener_usuario_id_sesion():
     uid = session.get('usuario_id') or session.get('user_id') or session.get('id')
@@ -2493,6 +2541,9 @@ def asistencia():
     tenant_id = session.get('tenant_id', 1)
     usuario_id = obtener_usuario_id_sesion()
     rol = session.get('rol', 'empleado')
+    
+    # Fecha exacta hoy en Perú
+    hoy_peru = datetime.now(ZONA_HORARIA_PERU).date()
 
     if not usuario_id:
         flash('Sesión de usuario no válida.', 'error')
@@ -2511,9 +2562,9 @@ def asistencia():
                 SELECT a.id, TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada_fmt, TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida_fmt
                 FROM asistencia a
                 INNER JOIN personal p ON a.personal_id = p.id
-                WHERE p.usuario_id = %s AND a.fecha = CURRENT_DATE AND a.hora_salida IS NULL
+                WHERE p.usuario_id = %s AND a.fecha = %s AND a.hora_salida IS NULL
                 ORDER BY a.id DESC LIMIT 1
-            """, (usuario_id,))
+            """, (usuario_id, hoy_peru))
             a_row = cursor.fetchone()
             
             if a_row:
@@ -2527,9 +2578,9 @@ def asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND a.fecha = CURRENT_DATE
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND a.fecha = %s
                     ORDER BY a.hora_entrada DESC
-                """, (tenant_id,))
+                """, (tenant_id, hoy_peru))
             else:
                 cursor.execute("""
                     SELECT a.id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo, a.fecha,
@@ -2538,9 +2589,9 @@ def asistencia():
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s AND a.fecha = CURRENT_DATE
+                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s AND a.fecha = %s
                     ORDER BY a.hora_entrada DESC
-                """, (tenant_id, usuario_id))
+                """, (tenant_id, usuario_id, hoy_peru))
 
             for r in cursor.fetchall():
                 registros.append({
@@ -2581,6 +2632,10 @@ def marcar_asistencia():
 
 def _procesar_marcar_asistencia(usuario_id, tenant_id):
     try:
+        ahora_peru = datetime.now(ZONA_HORARIA_PERU)
+        fecha_hoy = ahora_peru.date()
+        hora_actual = ahora_peru.time()
+
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("SELECT id FROM personal WHERE usuario_id = %s ORDER BY id DESC LIMIT 1", (usuario_id,))
@@ -2596,19 +2651,19 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            cursor.execute("SELECT id, hora_salida FROM asistencia WHERE personal_id = %s AND fecha = CURRENT_DATE LIMIT 1", (personal_id,))
+            cursor.execute("SELECT id, hora_salida FROM asistencia WHERE personal_id = %s AND fecha = %s LIMIT 1", (personal_id, fecha_hoy))
             reg_hoy = cursor.fetchone()
 
             if not reg_hoy:
-                cursor.execute("INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id) VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)", (personal_id, tenant_id))
+                cursor.execute("INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id) VALUES (%s, %s, %s, %s)", (personal_id, fecha_hoy, hora_actual, tenant_id))
                 mensaje = 'Hora de entrada registrada correctamente.'
             else:
                 asistencia_id, hora_salida_existente = reg_hoy[0], reg_hoy[1]
                 if hora_salida_existente is None:
-                    cursor.execute("UPDATE asistencia SET hora_salida = CURRENT_TIME WHERE id = %s", (asistencia_id,))
+                    cursor.execute("UPDATE asistencia SET hora_salida = %s WHERE id = %s", (hora_actual, asistencia_id))
                     mensaje = 'Hora de salida registrada correctamente.'
                 else:
-                    cursor.execute("UPDATE asistencia SET hora_entrada = CURRENT_TIME, hora_salida = NULL WHERE id = %s", (asistencia_id,))
+                    cursor.execute("UPDATE asistencia SET hora_entrada = %s, hora_salida = NULL WHERE id = %s", (hora_actual, asistencia_id))
                     mensaje = 'Nueva hora de entrada registrada correctamente.'
 
         conexion.commit()
@@ -2636,7 +2691,7 @@ def citas():
         return redirect(url_for('dashboard'))
     
     tenant_id = session.get('tenant_id', 1)
-    hoy_str = date.today().strftime('%Y-%m-%d')
+    hoy_str = datetime.now(ZONA_HORARIA_PERU).strftime('%Y-%m-%d')
     fecha_filtro = request.args.get('fecha', default=hoy_str)
 
     citas_list = []
@@ -2833,7 +2888,7 @@ def ver_recibo_cita(cita_id):
         flash('Cita no encontrada.', 'error')
         return redirect(url_for('citas'))
 
-    return render_template('recibo_cita.html', cita=cita, momento_actual=datetime.now())
+    return render_template('recibo_cita.html', cita=cita, momento_actual=datetime.now(ZONA_HORARIA_PERU))
 
 
 @app.route('/cita/ticket/<int:cita_id>', endpoint='ticket_cita')
@@ -2872,7 +2927,7 @@ def ver_ticket_cita(cita_id):
         flash('Cita no encontrada.', 'error')
         return redirect(url_for('citas'))
 
-    return render_template('ticket_cita.html', cita=cita, momento_actual=datetime.now())
+    return render_template('ticket_cita.html', cita=cita, momento_actual=datetime.now(ZONA_HORARIA_PERU))
 
 
 @app.route('/cita/<int:cita_id>/editar', methods=['GET', 'POST'])
@@ -3159,6 +3214,7 @@ def procesar_pago():
         total_final = subtotal + igv
         tenant_id = session.get('tenant_id', 1)
         num_venta = f"VNT-{int(time.time())}"
+        fecha_actual = datetime.now(ZONA_HORARIA_PERU)
         productos_json = json.dumps(items, ensure_ascii=False)
 
         conexion = obtener_conexion()
@@ -3168,9 +3224,9 @@ def procesar_pago():
                     numero_venta, fecha_venta, cliente_nombre, cliente_documento,
                     vendedor_nombre, metodo_pago, subtotal, igv, total,
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (%s, NOW(), %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                ) VALUES (%s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
                 RETURNING id
-            """, (num_venta, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+            """, (num_venta, fecha_actual, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
             
             venta_id = cursor.fetchone()[0]
             for item in items:
