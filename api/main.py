@@ -2049,58 +2049,6 @@ def editar_cliente():
     return redirect(url_for('clientes'))
 
 
-@app.route('/historial_clientes', endpoint='historial_clientes')
-@app.route('/historial-clientes')
-def historial_clientes():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    tenant_id = session.get('tenant_id', 1)
-    clientes_lista = []
-
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                SELECT 
-                    id, 
-                    COALESCE(nombre, '') AS nombre, 
-                    COALESCE(email, '') AS email, 
-                    COALESCE(telefono, '') AS telefono, 
-                    COALESCE(direccion, '') AS direccion, 
-                    COALESCE(documento, '') AS documento
-                FROM clientes
-                WHERE (tenant_id = %s OR tenant_id IS NULL)
-                ORDER BY id DESC
-            """, (tenant_id,))
-            
-            rows = cursor.fetchall()
-            for r in rows:
-                if isinstance(r, dict):
-                    c_id, c_nom = r.get('id'), r.get('nombre', '')
-                    c_email, c_tel = r.get('email', ''), r.get('telefono', '')
-                    c_dir, c_doc = r.get('direccion', ''), r.get('documento', '')
-                else:
-                    c_id, c_nom, c_email, c_tel, c_dir, c_doc = r[0], r[1], r[2], r[3], r[4], r[5]
-
-                clientes_lista.append({
-                    'id': c_id,
-                    'nombre': str(c_nom or ''),
-                    'email': str(c_email or ''),
-                    'telefono': str(c_tel or ''),
-                    'direccion': str(c_dir or ''),
-                    'documento': str(c_doc or ''),
-                    0: c_id, 1: str(c_nom or ''), 2: str(c_email or ''),
-                    3: str(c_tel or ''), 4: str(c_dir or ''), 5: str(c_doc or '')
-                })
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error cargando historial de clientes desde DB: {e}")
-
-    return render_template('historial_clientes.html', clientes=clientes_lista, historial=clientes_lista)
-
-
 @app.route('/clientes/detalle', defaults={'cliente_id': None})
 @app.route('/clientes/detalle/<int:cliente_id>')
 @app.route('/clientes/<int:cliente_id>')
