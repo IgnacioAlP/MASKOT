@@ -3385,44 +3385,44 @@ def procesar_pago():
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # Buscar cliente previo
+            # 1. Buscar si el cliente ya existe por documento o email
             cursor.execute("""
-                SELECT id FROM clientes 
-                WHERE (email = %s OR documento = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                SELECT id, nombre FROM clientes 
+                WHERE (documento = %s OR email = %s) AND tenant_id = %s
                 LIMIT 1
-            """, (email, documento, tenant_id))
-            cli_row = cursor.fetchone()
-            cliente_id = cli_row[0] if cli_row else None
-
-            # Verificar si la columna cliente_id existe en la tabla ventas
-            cursor.execute("""
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'ventas' AND column_name = 'cliente_id'
-            """)
-            has_cliente_id = cursor.fetchone() is not None
-
-            if has_cliente_id:
-                cursor.execute("""
-                    INSERT INTO ventas (
-                        numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento,
-                        vendedor_nombre, metodo_pago, subtotal, igv, total,
-                        monto_recibido, cambio_entregado, productos, estado, tenant_id
-                    ) VALUES (%s, %s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
-                    RETURNING id
-                """, (num_venta, fecha_actual, cliente_id, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+            """, (documento, email, tenant_id))
+            
+            cliente_existente = cursor.fetchone()
+            
+            # 2. Asignar ID si existe, sino crear un nuevo cliente
+            if cliente_existente:
+                cliente_id = cliente_existente[0]
+                cliente_nombre_final = cliente_existente[1] # Usar el nombre registrado en DB
             else:
                 cursor.execute("""
-                    INSERT INTO ventas (
-                        numero_venta, fecha_venta, cliente_nombre, cliente_documento,
-                        vendedor_nombre, metodo_pago, subtotal, igv, total,
-                        monto_recibido, cambio_entregado, productos, estado, tenant_id
-                    ) VALUES (%s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                    INSERT INTO clientes (nombre, email, telefono, direccion, documento, tenant_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     RETURNING id
-                """, (num_venta, fecha_actual, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+                """, (nombre, email, telefono, direccion, documento, tenant_id))
+                cliente_id = cursor.fetchone()[0]
+                cliente_nombre_final = nombre
+
+            # 3. Insertar la venta vinculada de manera obligatoria al cliente_id
+            cursor.execute("""
+                INSERT INTO ventas (
+                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento,
+                    vendedor_nombre, metodo_pago, subtotal, igv, total,
+                    monto_recibido, cambio_entregado, productos, estado, tenant_id
+                ) VALUES (%s, %s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                RETURNING id
+            """, (
+                num_venta, fecha_actual, cliente_id, cliente_nombre_final, documento, 
+                metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id
+            ))
             
             venta_id = cursor.fetchone()[0]
 
-            # Descuenta el stock garantizando aislamiento por tenant
+            # 4. Descontar el stock garantizando aislamiento por tenant
             for item in items:
                 cursor.execute(
                     "UPDATE productos SET cantidad = GREATEST(cantidad - %s, 0) WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", 
