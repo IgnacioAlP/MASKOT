@@ -13,7 +13,7 @@ from openpyxl.utils import get_column_letter
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
-    session, flash, jsonify, send_from_directory, send_file,session,app
+    session, flash, jsonify, send_from_directory, send_file
 )
 from werkzeug.utils import secure_filename
 
@@ -1157,14 +1157,11 @@ def ticket_venta(venta_id):
 
     if not venta:
         flash('La venta solicitada no existe o fue eliminada.', 'error')
-        return redirect(url_for('historial_ventas'))
+        return redirect(url_for('historial_servicios'))
 
     return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now())
 
 
-# ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
-
-# ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
 
 # ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
 
