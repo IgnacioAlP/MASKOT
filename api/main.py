@@ -100,7 +100,6 @@ def _ensure_schema():
                     conn.commit()
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
 
-            # Permitir NULL en vendedor_nombre y vendedor_id
             for col in ['vendedor_nombre', 'vendedor_id']:
                 cursor.execute("""
                     SELECT is_nullable FROM information_schema.columns 
@@ -202,20 +201,20 @@ def utility_processor():
         return (date1 - date2).days
     
     def calculate_work_hours(entrada, salida):
-        if not entrada or not salida:
+        if not entrada or not salida or str(salida).lower() in ['en turno', '--:--']:
             return 0
         try:
             if isinstance(entrada, str):
-                entrada = datetime.strptime(entrada, '%H:%M:%S').time()
+                entrada = datetime.strptime(entrada.strip(), '%H:%M:%S').time() if ':' in entrada else datetime.strptime(entrada.strip(), '%I:%M %p').time()
             if isinstance(salida, str):
-                salida = datetime.strptime(salida, '%H:%M:%S').time()
+                salida = datetime.strptime(salida.strip(), '%H:%M:%S').time() if ':' in salida else datetime.strptime(salida.strip(), '%I:%M %p').time()
             
             today_date = date.today()
             entrada_dt = datetime.combine(today_date, entrada)
             salida_dt = datetime.combine(today_date, salida)
             
             delta = salida_dt - entrada_dt
-            return round(delta.total_seconds() / 3600, 1)
+            return max(0.0, round(delta.total_seconds() / 3600, 1))
         except Exception:
             return 0
     
@@ -343,7 +342,6 @@ def logout():
 
 # ─── DASHBOARD ───────────────────────────────────────────────────────────────
 
-
 def obtener_fecha_hoy_peru():
     return datetime.now(ZONA_HORARIA_PERU).strftime('%Y-%m-%d')
 
@@ -353,7 +351,6 @@ def inject_today():
 
 
 def obtener_columna_fecha(cursor):
-    """Detecta automáticamente el nombre de la columna de fecha en la tabla ventas."""
     cursor.execute("""
         SELECT column_name 
         FROM information_schema.columns 
@@ -403,7 +400,6 @@ def dashboard():
         try:
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
-                # Detección dinámica de columna de fecha
                 col_fecha = obtener_columna_fecha(cursor)
 
                 cursor.execute(f"""
@@ -492,17 +488,14 @@ def exportar_cierre_diario():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener los nombres reales de las columnas en la tabla ventas
             cursor.execute("SELECT * FROM ventas LIMIT 1;")
             colnames = [desc[0].lower() for desc in cursor.description]
 
-            # Detectar columnas dinámicamente
             col_id = next((c for c in ['id', 'id_venta', 'codigo'] if c in colnames), colnames[0])
             col_total = next((c for c in ['total', 'monto', 'monto_total', 'precio_total'] if c in colnames), None)
             col_metodo = next((c for c in ['metodo_pago', 'medio_pago', 'forma_pago', 'tipo_pago'] if c in colnames), None)
             col_fecha = next((c for c in ['fecha', 'fecha_venta', 'created_at', 'fecha_registro'] if c in colnames), None)
 
-            # Construir consulta SQL segura
             query = f"SELECT {col_id}"
             query += f", {col_total}" if col_total else ", 0 AS total"
             query += f", {col_metodo}" if col_metodo else ", 'Efectivo' AS metodo_pago"
@@ -517,7 +510,6 @@ def exportar_cierre_diario():
 
             registros = cursor.fetchall()
 
-        # 2. Generación del libro Excel
         wb = Workbook()
         ws = wb.active
         ws.title = f"Cierre {fecha_filtro}"
@@ -576,9 +568,8 @@ def exportar_cierre_diario():
             cell.fill = total_fill
             cell.border = border_thin
 
-        # Ajuste dinámico de ancho de columnas (ignora la fila 1 de título combinado)
         for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col[1:]) # Ignora el título A1:G1
+            max_len = max(len(str(cell.value or '')) for cell in col[1:])
             col_idx = col[0].column
             col_letter = get_column_letter(col_idx)
             ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
@@ -589,21 +580,12 @@ def exportar_cierre_diario():
 
         nombre_archivo = f"Cierre_Diario_{fecha_filtro}.xlsx"
 
-        # 3. Descarga compatible con cualquier versión de Flask
-        try:
-            return send_file(
-                output,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                download_name=nombre_archivo
-            )
-        except TypeError:
-            return send_file(
-                output,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                download_name=nombre_archivo
-            )
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=nombre_archivo
+        )
 
     except Exception as e:
         if conexion:
@@ -631,16 +613,15 @@ def punto_de_venta():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener SOLO productos de tipo 'venta' y activos
             cursor.execute("""
                 SELECT 
-                    id,                                           -- 0
-                    nombre,                                       -- 1
-                    COALESCE(precio, 0.00) AS precio,             -- 2
-                    COALESCE(cantidad, 0) AS cantidad,            -- 3
-                    COALESCE(codigo_barra, '') AS codigo_barra,   -- 4
-                    'General' AS categoria,                       -- 5
-                    COALESCE(imagen, '') AS imagen                -- 6
+                    id, 
+                    nombre, 
+                    COALESCE(precio, 0.00) AS precio, 
+                    COALESCE(cantidad, 0) AS cantidad, 
+                    COALESCE(codigo_barra, '') AS codigo_barra, 
+                    'General' AS categoria, 
+                    COALESCE(imagen, '') AS imagen 
                 FROM productos
                 WHERE (tenant_id = %s OR tenant_id IS NULL) 
                   AND COALESCE(activo, true) = true
@@ -651,12 +632,10 @@ def punto_de_venta():
             for r in cursor.fetchall():
                 p_id = r[0]
                 p_nom = r[1] or ''
-                
                 try:
                     p_prec = float(r[2])
                 except (ValueError, TypeError):
                     p_prec = 0.0
-                
                 try:
                     p_stk = int(r[3])
                 except (ValueError, TypeError):
@@ -675,16 +654,9 @@ def punto_de_venta():
                     'codigo_barra': p_code,
                     'categoria': p_cat,
                     'imagen': p_img,
-                    0: p_id,
-                    1: p_nom,
-                    2: p_prec,
-                    3: p_stk,
-                    4: p_code,
-                    5: p_cat,
-                    6: p_img
+                    0: p_id, 1: p_nom, 2: p_prec, 3: p_stk, 4: p_code, 5: p_cat, 6: p_img
                 })
 
-            # 2. Obtener servicios según la estructura de Supabase
             cursor.execute("""
                 SELECT 
                     id, 
@@ -711,11 +683,7 @@ def punto_de_venta():
                     'nombre': s_nom,
                     'precio': s_prec,
                     'duracion': s_dur,
-                    0: s_id,
-                    1: s_nom,
-                    2: s_prec,
-                    3: s_dur,
-                    5: True
+                    0: s_id, 1: s_nom, 2: s_prec, 3: s_dur, 5: True
                 })
 
         conexion.close()
@@ -724,7 +692,9 @@ def punto_de_venta():
 
     return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
 
+
 # ─── API BÚSQUEDA DE CLIENTES PARA EL POS ─────────────────────────────────────
+
 @app.route('/api/ventas/buscar-clientes')
 def api_buscar_clientes():
     if 'rol' not in session:
@@ -771,8 +741,7 @@ def api_buscar_clientes():
         logger.error(f"Error buscando clientes para POS: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
-# ─── API POS & BÚSQUEDA POR CÓDIGO DE BARRAS / NOMBRE ───────────────────────
+
 @app.route('/api/ventas/buscar-productos')
 def api_buscar_productos():
     q = request.args.get('q', '').strip()
@@ -825,6 +794,7 @@ def api_buscar_productos():
         logger.error(f"Error buscando productos POS: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @app.route('/api/ventas/validar-stock', methods=['POST'])
 def api_validar_stock():
     data = request.get_json(silent=True) or {}
@@ -852,8 +822,6 @@ def api_validar_stock():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
-# ─── PROCESAMIENTO DE VENTAS POS ─────────────────────────────────────────────
 
 @app.route('/ventas/procesar', methods=['POST'])
 def procesar_venta_pos():
@@ -917,7 +885,6 @@ def procesar_venta_pos():
             
             venta_id = cursor.fetchone()[0]
             
-            # Actualización de existencias en la columna 'cantidad' de la tabla productos
             for item in items:
                 pid = item.get('id')
                 cant = int(item.get('cantidad', item.get('qty', 1)))
@@ -957,9 +924,10 @@ def scan_poll():
     scans = [s for s in RECENT_SCANS if s['timestamp'] > last_time]
     return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
 
-# ==========================================
-# HISTORIAL DE CLIENTES (COMPATIBILIDAD TOTAL)
-# ==========================================
+
+# ==============================================================================
+# 1. HISTORIAL DE CLIENTES (AGREGACIÓN DINÁMICA DE MÉTRICAS)
+# ==============================================================================
 @app.route('/historial_clientes', endpoint='historial_clientes')
 @app.route('/historial-clientes')
 @app.route('/clientes/historial')
@@ -969,235 +937,116 @@ def historial_clientes():
         return redirect(url_for('dashboard'))
     
     tenant_id = session.get('tenant_id', 1)
-    
     fecha_inicio = request.args.get('fecha_inicio', '').strip()
     fecha_fin = request.args.get('fecha_fin', '').strip()
-    busqueda = request.args.get('busqueda', '').strip()
+    busqueda = request.args.get('busqueda', '').strip().lower()
     
-    filtros = {
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
-        'busqueda': busqueda
-    }
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'busqueda': busqueda}
     
-    historial_lista = []
-    total_citas_sum = 0
-    total_pedidos_sum = 0
-    total_gastado_sum = 0.0
+    clientes_dict = {}
     conexion = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Verificar qué tablas existen en la base de datos
+            # 1. Cargar base de clientes
             cursor.execute("""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_name IN ('clientes', 'usuarios', 'ventas');
-            """)
-            tables_raw = cursor.fetchall()
-            tablas_existentes = []
-            for t in tables_raw:
-                if isinstance(t, dict) or hasattr(t, 'get'):
-                    tablas_existentes.append(str(t.get('table_name', '')).lower())
-                elif hasattr(t, '__getitem__'):
-                    tablas_existentes.append(str(t[0]).lower())
+                SELECT id, COALESCE(nombre, 'Sin Nombre') AS nombre, COALESCE(email, 'No registrado') AS email,
+                       COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, created_at
+                FROM clientes
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                ORDER BY id DESC
+            """, (tenant_id,))
+            
+            for row in cursor.fetchall():
+                c_id, c_nom, c_email, c_tel, c_dir, c_freg = row[0], row[1], row[2], row[3], row[4], row[5]
+                key = c_nom.strip().lower()
+                clientes_dict[key] = {
+                    'id': c_id, 'nombre': c_nom, 'email': c_email, 'telefono': c_tel, 'direccion': c_dir,
+                    'fecha_registro': str(c_freg) if c_freg else None, 'total_citas': 0, 'total_pedidos': 0,
+                    'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
+                }
 
-            # 2. Si existe la tabla 'clientes', consultar directamente de ella
-            if 'clientes' in tablas_existentes:
-                cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'clientes';")
-                cols_cli = [str(r['column_name'] if isinstance(r, dict) else r[0]).lower() for r in cursor.fetchall()]
+            # 2. Agregar métricas dinámicas de VENTAS
+            cursor.execute("""
+                SELECT cliente_nombre, COALESCE(total, 0.0), fecha_venta 
+                FROM ventas 
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+            """, (tenant_id,))
+            for v_row in cursor.fetchall():
+                v_nom = (v_row[0] or 'Cliente General').strip()
+                v_tot = float(v_row[1] or 0.0)
+                v_fec = str(v_row[2]) if v_row[2] else None
+                key = v_nom.lower()
 
-                col_id = "id" if "id" in cols_cli else "1"
-                col_nombre = next((c for c in ['nombre', 'cliente', 'nombre_completo', 'razon_social'] if c in cols_cli), "nombre")
-                col_email = "email" if "email" in cols_cli else "''"
-                col_telefono = next((c for c in ['telefono', 'celular', 'phone'] if c in cols_cli), "''")
-                col_created = next((c for c in ['created_at', 'fecha_registro', 'fecha_creacion'] if c in cols_cli), None)
-
-                expr_created = f"c.{col_created}" if col_created else "NULL"
-
-                condiciones = []
-                params = []
-
-                if 'tenant_id' in cols_cli:
-                    condiciones.append("(c.tenant_id = %s OR c.tenant_id IS NULL)")
-                    params.append(tenant_id)
-
-                if busqueda:
-                    condiciones.append(f"(c.{col_nombre}::text ILIKE %s OR COALESCE(c.{col_email}::text, '') ILIKE %s)")
-                    params.extend([f"%{busqueda}%", f"%{busqueda}%"])
-
-                where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
-
-                query = f"""
-                    SELECT 
-                        c.{col_id} AS id,
-                        COALESCE(c.{col_nombre}, 'Sin Nombre') AS nombre,
-                        COALESCE(c.{col_email}, 'No registrado') AS email,
-                        COALESCE(c.{col_telefono}, '') AS telefono,
-                        '' AS direccion,
-                        {expr_created} AS fecha_registro,
-                        0 AS total_citas,
-                        0 AS total_pedidos,
-                        0.00 AS total_gastado,
-                        NULL AS ultima_cita,
-                        NULL AS ultimo_pedido
-                    FROM clientes c
-                    {where_clause}
-                    ORDER BY c.{col_id} DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, tuple(params))
-                rows = cursor.fetchall()
-
-                for r in rows:
-                    if isinstance(r, dict) or hasattr(r, 'get'):
-                        c_id = r.get('id', 0)
-                        c_nom = r.get('nombre', 'Sin Nombre')
-                        c_email = r.get('email', 'No registrado')
-                        c_tel = r.get('telefono', '')
-                        c_freg = r.get('fecha_registro')
-                        c_citas = int(r.get('total_citas') or 0)
-                        c_pedidos = int(r.get('total_pedidos') or 0)
-                        c_gastado = float(r.get('total_gastado') or 0.0)
-                        c_ucita = r.get('ultima_cita')
-                        c_upedido = r.get('ultimo_pedido')
-                    else:
-                        c_id = r[0] if len(r) > 0 else 0
-                        c_nom = r[1] if len(r) > 1 else 'Sin Nombre'
-                        c_email = r[2] if len(r) > 2 else 'No registrado'
-                        c_tel = r[3] if len(r) > 3 else ''
-                        c_freg = r[5] if len(r) > 5 else None
-                        c_citas = int(r[6]) if len(r) > 6 and r[6] is not None else 0
-                        c_pedidos = int(r[7]) if len(r) > 7 and r[7] is not None else 0
-                        c_gastado = float(r[8]) if len(r) > 8 and r[8] is not None else 0.0
-                        c_ucita = r[9] if len(r) > 9 else None
-                        c_upedido = r[10] if len(r) > 10 else None
-
-                    row_obj = {
-                        'id': c_id,
-                        'nombre': c_nom,
-                        'email': c_email,
-                        'telefono': c_tel,
-                        'fecha_registro': c_freg,
-                        'total_citas': c_citas,
-                        'total_pedidos': c_pedidos,
-                        'total_gastado': c_gastado,
-                        'ultima_cita': c_ucita,
-                        'ultimo_pedido': c_upedido,
-                        0: c_id,
-                        1: c_nom,
-                        2: c_email,
-                        3: c_tel,
-                        4: '',
-                        5: c_freg,
-                        6: c_citas,
-                        7: c_pedidos,
-                        8: c_gastado,
-                        9: c_ucita,
-                        10: c_upedido
+                if key not in clientes_dict:
+                    clientes_dict[key] = {
+                        'id': 0, 'nombre': v_nom, 'email': 'No registrado', 'telefono': '', 'direccion': '',
+                        'fecha_registro': v_fec, 'total_citas': 0, 'total_pedidos': 0,
+                        'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
                     }
-                    historial_lista.append(row_obj)
-                    total_citas_sum += c_citas
-                    total_pedidos_sum += c_pedidos
-                    total_gastado_sum += c_gastado
-
-            # 3. Fallback: Agrupar por cliente desde la tabla 'ventas' si no hay tabla 'clientes'
-            elif 'ventas' in tablas_existentes:
-                cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'ventas';")
-                cols_v = [str(r['column_name'] if isinstance(r, dict) else r[0]).lower() for r in cursor.fetchall()]
                 
-                col_cli = next((c for c in ['cliente', 'cliente_nombre', 'nombre_cliente'] if c in cols_v), None)
-                col_fec = next((c for c in ['fecha', 'fecha_venta', 'created_at'] if c in cols_v), None)
-                col_tot = next((c for c in ['total', 'monto', 'monto_total'] if c in cols_v), None)
+                clientes_dict[key]['total_pedidos'] += 1
+                clientes_dict[key]['total_gastado'] += v_tot
+                if v_fec and (not clientes_dict[key]['ultimo_pedido'] or v_fec > str(clientes_dict[key]['ultimo_pedido'])):
+                    clientes_dict[key]['ultimo_pedido'] = v_fec
 
-                if col_cli:
-                    condiciones = []
-                    params = []
+            # 3. Agregar métricas dinámicas de CITAS
+            cursor.execute("""
+                SELECT cliente_nombre, COALESCE(precio_total, 0.0), fecha 
+                FROM citas 
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+            """, (tenant_id,))
+            for c_row in cursor.fetchall():
+                c_nom = (c_row[0] or 'Cliente General').strip()
+                c_tot = float(c_row[1] or 0.0)
+                c_fec = str(c_row[2]) if c_row[2] else None
+                key = c_nom.lower()
 
-                    if 'tenant_id' in cols_v:
-                        condiciones.append("(v.tenant_id = %s OR v.tenant_id IS NULL)")
-                        params.append(tenant_id)
+                if key not in clientes_dict:
+                    clientes_dict[key] = {
+                        'id': 0, 'nombre': c_nom, 'email': 'No registrado', 'telefono': '', 'direccion': '',
+                        'fecha_registro': c_fec, 'total_citas': 0, 'total_pedidos': 0,
+                        'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
+                    }
 
-                    if busqueda:
-                        condiciones.append(f"v.{col_cli} ILIKE %s")
-                        params.append(f"%{busqueda}%")
-
-                    where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
-                    expr_tot = f"SUM(COALESCE(v.{col_tot}, 0.00))" if col_tot else "0.00"
-                    expr_max_fec = f"MAX(v.{col_fec})" if col_fec else "NULL"
-
-                    query = f"""
-                        SELECT 
-                            MIN(v.id) AS id,
-                            v.{col_cli} AS nombre,
-                            'cliente@veterinaria.com' AS email,
-                            '' AS telefono,
-                            COUNT(v.id) AS total_pedidos,
-                            {expr_tot} AS total_gastado,
-                            {expr_max_fec} AS ultimo_pedido
-                        FROM ventas v
-                        {where_clause}
-                        GROUP BY v.{col_cli}
-                        ORDER BY total_gastado DESC
-                        LIMIT 200
-                    """
-                    cursor.execute(query, tuple(params))
-                    rows = cursor.fetchall()
-
-                    for r in rows:
-                        if isinstance(r, dict) or hasattr(r, 'get'):
-                            c_id = r.get('id', 0)
-                            c_nom = r.get('nombre', 'Cliente General')
-                            c_email = r.get('email', 'No registrado')
-                            c_tel = r.get('telefono', '')
-                            c_pedidos = int(r.get('total_pedidos') or 0)
-                            c_gastado = float(r.get('total_gastado') or 0.0)
-                            c_upedido = r.get('ultimo_pedido')
-                        else:
-                            c_id = r[0] if len(r) > 0 else 0
-                            c_nom = r[1] if len(r) > 1 else 'Cliente General'
-                            c_email = r[2] if len(r) > 2 else 'No registrado'
-                            c_tel = r[3] if len(r) > 3 else ''
-                            c_pedidos = int(r[4]) if len(r) > 4 and r[4] is not None else 0
-                            c_gastado = float(r[5]) if len(r) > 5 and r[5] is not None else 0.0
-                            c_upedido = r[6] if len(r) > 6 else None
-
-                        row_obj = {
-                            'id': c_id,
-                            'nombre': c_nom,
-                            'email': c_email,
-                            'telefono': c_tel,
-                            'fecha_registro': None,
-                            'total_citas': 0,
-                            'total_pedidos': c_pedidos,
-                            'total_gastado': c_gastado,
-                            'ultima_cita': None,
-                            'ultimo_pedido': c_upedido,
-                            0: c_id,
-                            1: c_nom,
-                            2: c_email,
-                            3: c_tel,
-                            4: '',
-                            5: None,
-                            6: 0,
-                            7: c_pedidos,
-                            8: c_gastado,
-                            9: None,
-                            10: c_upedido
-                        }
-                        historial_lista.append(row_obj)
-                        total_pedidos_sum += c_pedidos
-                        total_gastado_sum += c_gastado
+                clientes_dict[key]['total_citas'] += 1
+                clientes_dict[key]['total_gastado'] += c_tot
+                if c_fec and (not clientes_dict[key]['ultima_cita'] or c_fec > str(clientes_dict[key]['ultima_cita'])):
+                    clientes_dict[key]['ultima_cita'] = c_fec
 
     except Exception as e:
         if conexion:
             conexion.rollback()
-        print(f"❌ Error en historial_clientes: {e}")
-        traceback.print_exc()
+        logger.error(f"Error cargando historial clientes: {e}")
     finally:
         if conexion:
             conexion.close()
+
+    historial_lista = []
+    total_citas_sum, total_pedidos_sum, total_gastado_sum = 0, 0, 0.0
+
+    for cli in clientes_dict.values():
+        if busqueda and (busqueda not in cli['nombre'].lower() and busqueda not in cli['email'].lower()):
+            continue
+
+        c_id, c_nom, c_email, c_tel = cli['id'], cli['nombre'], cli['email'], cli['telefono']
+        c_freg, c_citas, c_pedidos = cli['fecha_registro'], cli['total_citas'], cli['total_pedidos']
+        c_gastado, c_ucita, c_upedido = cli['total_gastado'], cli['ultima_cita'], cli['ultimo_pedido']
+
+        obj = {
+            'id': c_id, 'nombre': c_nom, 'email': c_email, 'telefono': c_tel, 'direccion': cli['direccion'],
+            'fecha_registro': c_freg, 'total_citas': c_citas, 'total_pedidos': c_pedidos,
+            'total_gastado': round(c_gastado, 2), 'ultima_cita': c_ucita, 'ultimo_pedido': c_upedido,
+            0: c_id, 1: c_nom, 2: c_email, 3: c_tel, 4: cli['direccion'], 5: c_freg,
+            6: c_citas, 7: c_pedidos, 8: round(c_gastado, 2), 9: c_ucita, 10: c_upedido
+        }
+        historial_lista.append(obj)
+        total_citas_sum += c_citas
+        total_pedidos_sum += c_pedidos
+        total_gastado_sum += c_gastado
+
+    historial_lista.sort(key=lambda x: x['total_gastado'], reverse=True)
 
     return render_template(
         'historial_clientes.html', 
@@ -1205,13 +1054,399 @@ def historial_clientes():
         clientes=historial_lista,
         total_citas=total_citas_sum, 
         total_pedidos=total_pedidos_sum, 
-        total_gastado=total_gastado_sum, 
+        total_gastado=round(total_gastado_sum, 2), 
         filtros=filtros
     )
 
-# ==========================================
-# HISTORIAL DE VENTAS (COMPATIBILIDAD TOTAL)
-# ==========================================
+
+# ==============================================================================
+# 2. HISTORIAL DE ASISTENCIA DINÁMICO
+# ==============================================================================
+@app.route('/historial_asistencia', endpoint='historial_asistencia')
+@app.route('/historial-asistencia')
+@app.route('/asistencia/historial')
+def historial_asistencia():
+    if 'rol' not in session:
+        return redirect(url_for('login'))
+        
+    tenant_id = session.get('tenant_id', 1)
+    usuario_id = obtener_usuario_id_sesion()
+    rol = session.get('rol', 'empleado')
+
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
+    busqueda = request.args.get('busqueda', '').strip().lower()
+
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'busqueda': busqueda}
+    registros = []
+    
+    total_horas_acumuladas = 0.0
+    empleados_presentes = 0
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            condiciones = ["(a.tenant_id = %s OR a.tenant_id IS NULL)"]
+            params = [tenant_id]
+
+            if rol not in ['admin', 'dueño']:
+                condiciones.append("p.usuario_id = %s")
+                params.append(usuario_id)
+
+            if fecha_inicio:
+                condiciones.append("a.fecha >= %s::date")
+                params.append(fecha_inicio)
+
+            if fecha_fin:
+                condiciones.append("a.fecha <= %s::date")
+                params.append(fecha_fin)
+
+            if busqueda:
+                condiciones.append("(LOWER(u.username) LIKE %s OR LOWER(COALESCE(p.cargo, '')) LIKE %s)")
+                params.extend([f"%{busqueda}%", f"%{busqueda}%"])
+
+            where_clause = " WHERE " + " AND ".join(condiciones)
+
+            query = f"""
+                SELECT 
+                    a.id,
+                    u.username,
+                    COALESCE(p.cargo, 'Empleado') AS cargo,
+                    a.fecha,
+                    TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
+                    TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
+                    a.hora_entrada AS raw_entrada,
+                    a.hora_salida AS raw_salida
+                FROM asistencia a
+                INNER JOIN personal p ON a.personal_id = p.id
+                INNER JOIN usuarios u ON p.usuario_id = u.id
+                {where_clause}
+                ORDER BY a.fecha DESC, a.hora_entrada DESC
+                LIMIT 300
+            """
+            cursor.execute(query, tuple(params))
+            rows = cursor.fetchall()
+
+            for r in rows:
+                a_id, u_nom, p_cargo, a_fec = r[0], r[1] or 'Empleado', r[2] or 'Empleado', str(r[3])
+                h_ent, h_sal = r[4] or '--:--', r[5] or 'En turno'
+                raw_ent, raw_sal = r[6], r[7]
+
+                horas_trab = 0.0
+                if raw_ent and raw_sal:
+                    try:
+                        dummy_d = date.today()
+                        dt_ent = datetime.combine(dummy_d, raw_ent)
+                        dt_sal = datetime.combine(dummy_d, raw_sal)
+                        delta = dt_sal - dt_ent
+                        horas_trab = max(0.0, round(delta.total_seconds() / 3600, 1))
+                    except Exception:
+                        horas_trab = 0.0
+
+                total_horas_acumuladas += horas_trab
+                if not raw_sal:
+                    empleados_presentes += 1
+
+                estado_str = 'completado' if raw_sal else 'presente'
+
+                item = {
+                    'id': a_id, 'usuario': u_nom, 'nombre': u_nom, 'username': u_nom, 'cargo': p_cargo,
+                    'fecha': a_fec, 'hora_entrada': h_ent, 'entrada': h_ent, 'hora_salida': h_sal, 'salida': h_sal,
+                    'horas_trabajadas': horas_trab, 'estado': estado_str,
+                    0: a_id, 1: u_nom, 2: p_cargo, 3: a_fec, 4: h_ent, 5: h_sal, 6: estado_str, 7: horas_trab
+                }
+                registros.append(item)
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error cargando historial de asistencia: {e}")
+
+    return render_template(
+        'historial_asistencia.html', 
+        historial=registros, 
+        registros=registros,
+        total_asistencias=len(registros),
+        total_horas=round(total_horas_acumuladas, 1),
+        empleados_presentes=empleados_presentes,
+        filtros=filtros
+    )
+
+
+# ==============================================================================
+# 3. HISTORIAL DE COMPRAS (VENTA DE PRODUCTOS SEPARADA E ITEMIZADA)
+# ==============================================================================
+@app.route('/historial_compras', endpoint='historial_compras')
+@app.route('/historial-compras')
+@app.route('/compras/historial')
+def historial_compras():
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño', 'empleado']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    tenant_id = session.get('tenant_id', 1)
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
+    busqueda = request.args.get('busqueda', '').strip().lower()
+
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'busqueda': busqueda}
+    compras_items = []
+    
+    unidades_totales = 0
+    monto_total_acumulado = 0.0
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            col_fecha = obtener_columna_fecha(cursor)
+            
+            condiciones = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
+            params = [tenant_id]
+
+            if fecha_inicio:
+                condiciones.append(f"DATE(v.{col_fecha}::text) >= %s::date")
+                params.append(fecha_inicio)
+
+            if fecha_fin:
+                condiciones.append(f"DATE(v.{col_fecha}::text) <= %s::date")
+                params.append(fecha_fin)
+
+            where_clause = " WHERE " + " AND ".join(condiciones)
+
+            query = f"""
+                SELECT 
+                    v.id,
+                    v.numero_venta,
+                    TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM') AS fecha_fmt,
+                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente,
+                    COALESCE(v.metodo_pago, 'efectivo') AS pago,
+                    v.productos
+                FROM ventas v
+                {where_clause}
+                ORDER BY v.{col_fecha} DESC
+                LIMIT 300
+            """
+            cursor.execute(query, tuple(params))
+            rows = cursor.fetchall()
+
+            for r in rows:
+                v_id, v_num, v_fec, v_cli, v_pago, raw_prod = r[0], r[1] or 'N/A', r[2] or '', r[3], r[4], r[5]
+                
+                if not raw_prod:
+                    continue
+
+                try:
+                    items = json.loads(raw_prod) if isinstance(raw_prod, str) else raw_prod
+                    if not isinstance(items, list):
+                        continue
+
+                    for item in items:
+                        p_id = item.get('id')
+                        p_nombre = item.get('nombre') or item.get('title') or 'Producto'
+                        
+                        # Excluir ítems de servicio
+                        if str(p_id).startswith('service_') or item.get('type') == 'service':
+                            continue
+
+                        cant = int(item.get('cantidad', item.get('qty', 1)))
+                        precio = float(item.get('precio', item.get('precio_unitario', 0.0)))
+                        subtotal = cant * precio
+
+                        if busqueda and (busqueda not in p_nombre.lower() and busqueda not in v_cli.lower() and busqueda not in str(v_num).lower()):
+                            continue
+
+                        unidades_totales += cant
+                        monto_total_acumulado += subtotal
+
+                        compras_items.append({
+                            'venta_id': v_id,
+                            'numero_comprobante': v_num,
+                            'fecha': v_fec,
+                            'cliente_nombre': v_cli,
+                            'producto_id': p_id,
+                            'producto_nombre': p_nombre,
+                            'cantidad': cant,
+                            'precio_unitario': precio,
+                            'subtotal': round(subtotal, 2),
+                            'metodo_pago': v_pago,
+                            0: v_id, 1: v_num, 2: v_fec, 3: v_cli, 4: p_nombre, 5: cant, 6: precio, 7: round(subtotal, 2), 8: v_pago
+                        })
+                except Exception as ex_json:
+                    logger.warning(f"Error procesando JSON de productos para venta {v_id}: {ex_json}")
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando historial de compras: {e}")
+
+    estadisticas = {
+        'total_compras': len(compras_items),
+        'unidades_totales': unidades_totales,
+        'monto_total': round(monto_total_acumulado, 2)
+    }
+
+    return render_template('historial_compras.html', compras=compras_items, estadisticas=estadisticas, filtros=filtros)
+
+
+# ==============================================================================
+# 4. HISTORIAL DE SERVICIOS DINÁMICO (CITAS Y VENTAS POS)
+# ==============================================================================
+@app.route('/historial_servicios', endpoint='historial_servicios')
+@app.route('/historial-servicios')
+@app.route('/servicios/historial')
+def historial_servicios():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    tenant_id = session.get('tenant_id', 1)
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
+    busqueda = request.args.get('busqueda', '').strip().lower()
+
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'busqueda': busqueda}
+    servicios_historial = []
+    
+    monto_total_servicios = 0.0
+    servicios_completados = 0
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            # 1. Cargar servicios desde CITAS
+            cond_citas = ["(c.tenant_id = %s OR c.tenant_id IS NULL)"]
+            params_citas = [tenant_id]
+
+            if fecha_inicio:
+                cond_citas.append("c.fecha >= %s::date")
+                params_citas.append(fecha_inicio)
+
+            if fecha_fin:
+                cond_citas.append("c.fecha <= %s::date")
+                params_citas.append(fecha_fin)
+
+            where_citas = " WHERE " + " AND ".join(cond_citas)
+
+            query_citas = f"""
+                SELECT 
+                    c.id,
+                    TO_CHAR(c.fecha, 'DD/MM/YYYY') AS fecha_fmt,
+                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt,
+                    COALESCE(c.cliente_nombre, 'Cliente General') AS cliente,
+                    COALESCE(c.mascota_nombre, '-') AS mascota,
+                    COALESCE(s.nombre, 'Servicio General') AS servicio,
+                    COALESCE(c.precio_total, 0.0) AS precio,
+                    COALESCE(c.estado::text, 'pendiente') AS estado
+                FROM citas c
+                LEFT JOIN servicios s ON c.servicio_id = s.id
+                {where_citas}
+                ORDER BY c.fecha DESC, c.hora DESC
+            """
+            cursor.execute(query_citas, tuple(params_citas))
+            
+            for r in cursor.fetchall():
+                c_id, c_fec, c_hor, c_cli, c_masc, s_nom, s_prec, s_est = r[0], r[1], r[2], r[3], r[4], r[5], float(r[6] or 0), str(r[7]).lower()
+
+                if busqueda and (busqueda not in s_nom.lower() and busqueda not in c_cli.lower() and busqueda not in c_masc.lower()):
+                    continue
+
+                monto_total_servicios += s_prec
+                if s_est in ['completada', 'completado', 'confirmada']:
+                    servicios_completados += 1
+
+                servicios_historial.append({
+                    'id': f"CITA-{c_id}",
+                    'fecha': c_fec,
+                    'hora': c_hor,
+                    'cliente_nombre': c_cli,
+                    'mascota_nombre': c_masc,
+                    'servicio_nombre': s_nom,
+                    'precio': round(s_prec, 2),
+                    'estado': s_est,
+                    'origen': 'Cita Agendada',
+                    0: f"CITA-{c_id}", 1: c_fec, 2: c_cli, 3: c_masc, 4: s_nom, 5: round(s_prec, 2), 6: s_est, 7: 'Cita Agendada'
+                })
+
+            # 2. Cargar servicios vendidos directamente en POS (VENTAS)
+            col_fecha = obtener_columna_fecha(cursor)
+            cond_v = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
+            params_v = [tenant_id]
+
+            if fecha_inicio:
+                cond_v.append(f"DATE(v.{col_fecha}::text) >= %s::date")
+                params_v.append(fecha_inicio)
+
+            if fecha_fin:
+                cond_v.append(f"DATE(v.{col_fecha}::text) <= %s::date")
+                params_v.append(fecha_fin)
+
+            where_v = " WHERE " + " AND ".join(cond_v)
+
+            query_v = f"""
+                SELECT 
+                    v.id,
+                    TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY') AS fecha_fmt,
+                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente,
+                    v.productos
+                FROM ventas v
+                {where_v}
+            """
+            cursor.execute(query_v, tuple(params_v))
+            
+            for r in cursor.fetchall():
+                v_id, v_fec, v_cli, raw_prod = r[0], r[1], r[2], r[3]
+                if not raw_prod:
+                    continue
+
+                try:
+                    items = json.loads(raw_prod) if isinstance(raw_prod, str) else raw_prod
+                    if not isinstance(items, list):
+                        continue
+
+                    for item in items:
+                        p_id = item.get('id')
+                        p_nom = item.get('nombre') or item.get('title') or 'Servicio POS'
+
+                        if str(p_id).startswith('service_') or item.get('type') == 'service':
+                            prec = float(item.get('precio', item.get('precio_unitario', 0.0)))
+                            cant = int(item.get('cantidad', item.get('qty', 1)))
+                            total_s = prec * cant
+
+                            if busqueda and (busqueda not in p_nom.lower() and busqueda not in v_cli.lower()):
+                                continue
+
+                            monto_total_servicios += total_s
+                            servicios_completados += 1
+
+                            servicios_historial.append({
+                                'id': f"POS-{v_id}",
+                                'fecha': v_fec,
+                                'hora': '--:--',
+                                'cliente_nombre': v_cli,
+                                'mascota_nombre': '-',
+                                'servicio_nombre': p_nom,
+                                'precio': round(total_s, 2),
+                                'estado': 'completado',
+                                'origen': 'Punto de Venta',
+                                0: f"POS-{v_id}", 1: v_fec, 2: v_cli, 3: '-', 4: p_nom, 5: round(total_s, 2), 6: 'completado', 7: 'Punto de Venta'
+                            })
+                except Exception:
+                    pass
+
+        conexion.close()
+    except Exception as e:
+        logger.error(f"Error consultando historial de servicios: {e}")
+
+    estadisticas = {
+        'total_servicios': len(servicios_historial),
+        'monto_total': round(monto_total_servicios, 2),
+        'servicios_completados': servicios_completados
+    }
+
+    return render_template('historial_servicios.html', servicios=servicios_historial, estadisticas=estadisticas, filtros=filtros)
+
+
+# ==============================================================================
+# HISTORIAL DE VENTAS GENERALES
+# ==============================================================================
 @app.route('/historial_ventas', endpoint='historial_ventas')
 @app.route('/historial-ventas')
 @app.route('/ventas/historial')
@@ -1221,168 +1456,76 @@ def historial_ventas():
         return redirect(url_for('dashboard'))
     
     tenant_id = session.get('tenant_id', 1)
-    
     fecha_inicio = request.args.get('fecha_inicio', '').strip()
     fecha_fin = request.args.get('fecha_fin', '').strip()
-    busqueda = request.args.get('busqueda', '').strip()
+    busqueda = request.args.get('busqueda', '').strip().lower()
     
-    filtros = {
-        'fecha_inicio': fecha_inicio,
-        'fecha_fin': fecha_fin,
-        'busqueda': busqueda
-    }
-    
+    filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'busqueda': busqueda}
     ventas_lista = []
     conexion = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener lista de columnas reales de la tabla 'ventas' (compatible con Tuple/DictCursor)
-            columnas = []
-            try:
-                cursor.execute("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'ventas';
-                """)
-                col_rows = cursor.fetchall()
-                for r in col_rows:
-                    if isinstance(r, dict) or hasattr(r, 'get'):
-                        columnas.append(str(r.get('column_name', '')).lower())
-                    elif hasattr(r, '__getitem__'):
-                        columnas.append(str(r[0]).lower())
-            except Exception as e_col:
-                print(f"⚠️ Aviso al consultar information_schema: {e_col}")
+            col_fecha = obtener_columna_fecha(cursor)
 
-            # Fallback en caso de que information_schema no devuelva resultados
-            if not columnas:
-                try:
-                    cursor.execute("SELECT * FROM ventas LIMIT 0;")
-                    if cursor.description:
-                        columnas = [desc[0].lower() for desc in cursor.description]
-                except Exception as e_desc:
-                    print(f"⚠️ Aviso en fallback SELECT LIMIT 0: {e_desc}")
+            condiciones = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
+            params = [tenant_id]
 
-            # 2. Determinar columna de fecha disponible
-            col_fecha = next((c for c in ['fecha', 'fecha_venta', 'created_at', 'fecha_registro'] if c in columnas), None)
-            
-            # 3. Construir expresiones SELECT utilizando únicamente columnas existentes
-            select_id = "v.id" if 'id' in columnas else "1"
-            
-            comp_cols = [f"v.{c}::text" for c in ['nro_boleta', 'numero_venta', 'comprobante', 'nro_comprobante', 'codigo'] if c in columnas]
-            select_comp = f"COALESCE({', '.join(comp_cols)}, 'N/A')" if comp_cols else "'N/A'"
-
-            cli_cols = [f"v.{c}::text" for c in ['cliente', 'cliente_nombre', 'nombre_cliente', 'comprador'] if c in columnas]
-            select_cli = f"COALESCE({', '.join(cli_cols)}, 'Cliente General')" if cli_cols else "'Cliente General'"
-
-            serv_cols = [f"v.{c}::text" for c in ['servicio_descripcion', 'descripcion', 'concepto', 'producto', 'servicio'] if c in columnas]
-            select_serv = f"COALESCE({', '.join(serv_cols)}, 'Venta General')" if serv_cols else "'Venta General'"
-
-            pers_cols = [f"v.{c}::text" for c in ['vendedor_nombre', 'vendedor', 'personal', 'usuario'] if c in columnas]
-            select_pers = f"COALESCE({', '.join(pers_cols)}, 'Atendido')" if pers_cols else "'Atendido'"
-
-            pago_cols = [f"v.{c}::text" for c in ['metodo_pago', 'forma_pago', 'pago'] if c in columnas]
-            select_pago = f"COALESCE({', '.join(pago_cols)}, 'efectivo')" if pago_cols else "'efectivo'"
-
-            tot_cols = [f"v.{c}" for c in ['total', 'monto_total', 'monto', 'precio_total'] if c in columnas]
-            select_tot = f"COALESCE({tot_cols[0]}, 0.00)" if tot_cols else "0.00"
-
-            select_estado = "COALESCE(v.estado::text, 'completado')" if 'estado' in columnas else "'completado'"
-
-            select_fecha = f"TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM')" if col_fecha else "'01/01/2026 12:00 AM'"
-            order_by = f"ORDER BY v.{col_fecha} DESC" if col_fecha else ("ORDER BY v.id DESC" if 'id' in columnas else "")
-
-            # 4. Construir cláusula WHERE
-            condiciones = []
-            params = []
-
-            if 'tenant_id' in columnas:
-                condiciones.append("(v.tenant_id = %s OR v.tenant_id IS NULL)")
-                params.append(tenant_id)
-
-            if fecha_inicio and col_fecha:
+            if fecha_inicio:
                 condiciones.append(f"DATE(v.{col_fecha}::text) >= %s::date")
                 params.append(fecha_inicio)
 
-            if fecha_fin and col_fecha:
+            if fecha_fin:
                 condiciones.append(f"DATE(v.{col_fecha}::text) <= %s::date")
                 params.append(fecha_fin)
 
             if busqueda:
-                searchable = [c for c in ['cliente', 'cliente_nombre', 'nombre_cliente', 'servicio_descripcion', 'descripcion', 'nro_boleta', 'numero_venta', 'comprobante'] if c in columnas]
-                if searchable:
-                    busq_conds = [f"COALESCE(v.{c}::text, '') ILIKE %s" for c in searchable]
-                    condiciones.append(f"({' OR '.join(busq_conds)})")
-                    params.extend([f"%{busqueda}%"] * len(searchable))
+                condiciones.append("(COALESCE(v.cliente_nombre, '') ILIKE %s OR COALESCE(v.numero_venta, '') ILIKE %s)")
+                params.extend([f"%{busqueda}%", f"%{busqueda}%"])
 
-            where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
+            where_clause = " WHERE " + " AND ".join(condiciones)
 
-            # 5. Ejecutar la consulta SQL
             query = f"""
                 SELECT 
-                    {select_id} AS id,
-                    {select_comp} AS comprobante,
-                    {select_fecha} AS fecha,
-                    {select_cli} AS cliente,
-                    {select_serv} AS servicio,
-                    {select_pers} AS personal,
-                    {select_pago} AS pago,
-                    {select_tot} AS total,
-                    {select_estado} AS estado
+                    v.id,
+                    COALESCE(v.numero_venta, 'N/A') AS comprobante,
+                    TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM') AS fecha,
+                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente,
+                    'Venta General' AS servicio,
+                    COALESCE(v.vendedor_nombre, 'Atendido') AS personal,
+                    COALESCE(v.metodo_pago, 'efectivo') AS pago,
+                    COALESCE(v.total, 0.00) AS total,
+                    COALESCE(v.estado::text, 'completado') AS estado
                 FROM ventas v
                 {where_clause}
-                {order_by}
+                ORDER BY v.{col_fecha} DESC
                 LIMIT 200
             """
 
             cursor.execute(query, tuple(params))
             rows = cursor.fetchall()
 
-            # 6. Mapeo adaptativo de resultados (compatible con Dict/Tuple)
             for r in rows:
-                if isinstance(r, dict) or hasattr(r, 'get'):
-                    v_id = r.get('id', 0)
-                    v_num = r.get('comprobante') or 'N/A'
-                    v_fecha = r.get('fecha') or ''
-                    v_cliente = r.get('cliente') or 'Cliente General'
-                    v_servicio = r.get('servicio') or 'Venta General'
-                    v_personal = r.get('personal') or 'Atendido'
-                    v_pago = r.get('pago') or 'efectivo'
-                    v_total_raw = r.get('total')
-                    v_estado_raw = r.get('estado') or 'completado'
-                else:
-                    v_id = r[0] if len(r) > 0 else 0
-                    v_num = r[1] if len(r) > 1 and r[1] else 'N/A'
-                    v_fecha = r[2] if len(r) > 2 and r[2] else ''
-                    v_cliente = r[3] if len(r) > 3 and r[3] else 'Cliente General'
-                    v_servicio = r[4] if len(r) > 4 and r[4] else 'Venta General'
-                    v_personal = r[5] if len(r) > 5 and r[5] else 'Atendido'
-                    v_pago = r[6] if len(r) > 6 and r[6] else 'efectivo'
-                    v_total_raw = r[7] if len(r) > 7 else 0.0
-                    v_estado_raw = r[8] if len(r) > 8 and r[8] else 'completado'
-
-                v_total = float(v_total_raw) if v_total_raw is not None else 0.0
-                v_estado_str = str(v_estado_raw).lower()
+                v_id, v_num, v_fec, v_cli, v_serv, v_pers, v_pago, v_tot, v_est = r[0], r[1], r[2], r[3], r[4], r[5], r[6], float(r[7] or 0), str(r[8]).lower()
 
                 ventas_lista.append({
                     'id': v_id,
                     'numero_comprobante': v_num,
-                    'fecha': str(v_fecha),
-                    'cliente_nombre': v_cliente,
-                    'servicio_descripcion': v_servicio,
-                    'personal': v_personal,
+                    'fecha': str(v_fec),
+                    'cliente_nombre': v_cli,
+                    'servicio_descripcion': v_serv,
+                    'personal': v_pers,
                     'metodo_pago': v_pago,
-                    'total': v_total,
-                    'estado': v_estado_str,
-                    0: v_id, 1: v_num, 2: str(v_fecha), 3: v_cliente, 4: v_servicio, 5: v_personal, 6: v_pago, 7: v_total, 8: v_estado_str
+                    'total': v_tot,
+                    'estado': v_est,
+                    0: v_id, 1: v_num, 2: str(v_fec), 3: v_cli, 4: v_serv, 5: v_pers, 6: v_pago, 7: v_tot, 8: v_est
                 })
 
     except Exception as e:
         if conexion:
             conexion.rollback()
-        print(f"❌ Error en historial_ventas: {e}")
-        traceback.print_exc()
+        logger.error(f"Error en historial_ventas: {e}")
     finally:
         if conexion:
             conexion.close()
@@ -1391,6 +1534,7 @@ def historial_ventas():
         return render_template('historial_ventas.html', ventas=ventas_lista, servicios=ventas_lista, filtros=filtros)
     except Exception:
         return render_template('historial_clientes.html', ventas=ventas_lista, servicios=ventas_lista, filtros=filtros)
+
 
 # ─── VISTA Y GENERACIÓN DE TICKET DE VENTA ───────────────────────────────────
 
@@ -1409,20 +1553,20 @@ def ticket_venta(venta_id):
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT 
-                    v.id,                                                 -- 0
-                    v.numero_venta,                                       -- 1
-                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,-- 2
-                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente, -- 3
-                    COALESCE(v.cliente_documento, '-') AS doc,            -- 4
-                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,    -- 5
-                    COALESCE(v.metodo_pago, 'Efectivo') AS pago,          -- 6
-                    COALESCE(v.subtotal, 0.00) AS subtotal,               -- 7
-                    COALESCE(v.igv, 0.00) AS igv,                         -- 8
-                    COALESCE(v.total, 0.00) AS total,                     -- 9
-                    COALESCE(v.monto_recibido, 0.00) AS recibido,         -- 10
-                    COALESCE(v.cambio_entregado, 0.00) AS cambio,         -- 11
-                    COALESCE(v.estado::text, 'completada') AS estado,     -- 12
-                    v.productos                                           -- 13 (JSON/Text)
+                    v.id,
+                    v.numero_venta,
+                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,
+                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente,
+                    COALESCE(v.cliente_documento, '-') AS doc,
+                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,
+                    COALESCE(v.metodo_pago, 'Efectivo') AS pago,
+                    COALESCE(v.subtotal, 0.00) AS subtotal,
+                    COALESCE(v.igv, 0.00) AS igv,
+                    COALESCE(v.total, 0.00) AS total,
+                    COALESCE(v.monto_recibido, 0.00) AS recibido,
+                    COALESCE(v.cambio_entregado, 0.00) AS cambio,
+                    COALESCE(v.estado::text, 'completada') AS estado,
+                    v.productos
                 FROM ventas v
                 WHERE v.id = %s AND (v.tenant_id = %s OR v.tenant_id IS NULL)
             """, (venta_id, tenant_id))
@@ -1436,26 +1580,15 @@ def ticket_venta(venta_id):
                 cambio_f = float(r[11]) if r[11] is not None else 0.0
 
                 venta = {
-                    'id': r[0],
-                    'numero_venta': r[1],
-                    'fecha_venta': r[2],
-                    'cliente_nombre': r[3],
-                    'cliente_documento': r[4],
-                    'vendedor_nombre': r[5],
-                    'metodo_pago': r[6],
-                    'subtotal': subtotal_f,
-                    'igv': igv_f,
-                    'total': total_f,
-                    'monto_recibido': recibido_f,
-                    'cambio_entregado': cambio_f,
-                    'estado': str(r[12]).lower(),
-                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5],
-                    6: r[6], 7: subtotal_f, 8: igv_f, 9: total_f, 10: recibido_f, 11: cambio_f, 12: str(r[12]).lower()
+                    'id': r[0], 'numero_venta': r[1], 'fecha_venta': r[2], 'cliente_nombre': r[3],
+                    'cliente_documento': r[4], 'vendedor_nombre': r[5], 'metodo_pago': r[6],
+                    'subtotal': subtotal_f, 'igv': igv_f, 'total': total_f,
+                    'monto_recibido': recibido_f, 'cambio_entregado': cambio_f, 'estado': str(r[12]).lower(),
+                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5], 6: r[6],
+                    7: subtotal_f, 8: igv_f, 9: total_f, 10: recibido_f, 11: cambio_f, 12: str(r[12]).lower()
                 }
 
                 raw_productos = r[13]
-
-                # Decodificación directa del campo JSON 'productos' guardado en la venta
                 if raw_productos:
                     try:
                         p_list = json.loads(raw_productos) if isinstance(raw_productos, str) else raw_productos
@@ -1464,9 +1597,7 @@ def ticket_venta(venta_id):
                             pu = float(p.get('precio', p.get('precio_unitario', 0.0)))
                             items.append({
                                 'nombre': p.get('nombre', p.get('title', 'Producto / Servicio')),
-                                'cantidad': cant,
-                                'precio_unitario': pu,
-                                'subtotal': cant * pu
+                                'cantidad': cant, 'precio_unitario': pu, 'subtotal': cant * pu
                             })
                     except Exception as ex_json:
                         logger.warning(f"No se pudo decodificar JSON de productos para venta {venta_id}: {ex_json}")
@@ -1476,11 +1607,10 @@ def ticket_venta(venta_id):
         logger.error(f"Error generando ticket para venta ID={venta_id}: {e}")
 
     if not venta:
-        flash('La venta solicitada no existe o fue eliminada.', 'error')
+        flash('La venta solicitada no existe.', 'error')
         return redirect(url_for('historial_clientes'))
 
     return render_template('ticket_venta.html', venta=venta, items=items, momento_actual=datetime.now())
-
 
 
 # ─── INVENTARIO & ALMACÉN ───────────────────────────────────────────────────
@@ -1505,20 +1635,15 @@ def almacen():
 
     if request.method == 'POST':
         try:
-            raw_id = (request.form.get('id') or 
-                      request.form.get('producto_id') or 
-                      request.form.get('edit_id') or 
-                      request.form.get('id_producto') or '').strip()
+            raw_id = (request.form.get('id') or request.form.get('producto_id') or 
+                      request.form.get('edit_id') or request.form.get('id_producto') or '').strip()
             
             producto_id = int(raw_id) if raw_id and raw_id.isdigit() else None
-
             nombre = request.form.get('nombre', '').strip()
             codigo_barra = request.form.get('codigo_barra', '').strip() or None
             
-            tipo = (request.form.get('tipo') or 
-                    request.form.get('tipo_producto') or 
-                    request.form.get('tipo_item') or 
-                    request.form.get('edit_tipo') or '').strip().lower()
+            tipo = (request.form.get('tipo') or request.form.get('tipo_producto') or 
+                    request.form.get('tipo_item') or request.form.get('edit_tipo') or '').strip().lower()
 
             precio_raw = request.form.get('precio', '').strip()
             precio = float(precio_raw) if precio_raw else 0.0
@@ -1526,9 +1651,7 @@ def almacen():
             cantidad_raw = request.form.get('stock', request.form.get('cantidad', '')).strip()
             cantidad = int(cantidad_raw) if cantidad_raw else 0
 
-            stk_min_raw = (request.form.get('stock_minimo') or 
-                           request.form.get('cant_min') or 
-                           request.form.get('stock_min') or '').strip()
+            stk_min_raw = (request.form.get('stock_minimo') or request.form.get('cant_min') or request.form.get('stock_min') or '').strip()
             stock_minimo = int(stk_min_raw) if stk_min_raw and stk_min_raw.isdigit() else 5
 
             conexion = obtener_conexion()
@@ -1537,7 +1660,6 @@ def almacen():
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
 
-                # Validación de código de barras único
                 if codigo_barra:
                     if producto_id:
                         cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s AND id != %s", (codigo_barra, producto_id))
@@ -1546,8 +1668,7 @@ def almacen():
                     
                     existente = cursor.fetchone()
                     if existente:
-                        nombre_duplicado = existente[0]
-                        flash(f'No se puede guardar: El código de barras "{codigo_barra}" ya pertenece al producto "{nombre_duplicado}".', 'error')
+                        flash(f'No se puede guardar: El código de barras "{codigo_barra}" pertenece a "{existente[0]}".', 'error')
                         conexion.close()
                         return redirect(url_for('almacen'))
 
@@ -1557,7 +1678,6 @@ def almacen():
                         res_tipo = cursor.fetchone()
                         if res_tipo and res_tipo[0]:
                             tipo = str(res_tipo[0]).strip().lower()
-                    
                     if not tipo:
                         tipo = 'stock'
 
@@ -1567,12 +1687,8 @@ def almacen():
                         WHERE id = %s
                     """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, producto_id))
                     
-                    if cursor.rowcount > 0:
-                        mensaje = f'Producto "{nombre}" actualizado correctamente.'
-                        categoria = 'success'
-                    else:
-                        mensaje = f'No se encontró el producto con ID {producto_id}.'
-                        categoria = 'warning'
+                    mensaje = f'Producto "{nombre}" actualizado correctamente.' if cursor.rowcount > 0 else f'Producto ID {producto_id} no encontrado.'
+                    categoria = 'success' if cursor.rowcount > 0 else 'warning'
                 else:
                     if not tipo:
                         tipo = 'stock'
@@ -1586,14 +1702,12 @@ def almacen():
 
             conexion.commit()
             conexion.close()
-
             flash(mensaje, categoria)
         except Exception as e:
             logger.error(f"Error procesando producto en almacén: {e}")
-            flash(f'Error al procesar el producto: {e}', 'error')
+            flash(f'Error al procesar producto: {e}', 'error')
         return redirect(url_for('almacen'))
 
-    # ─── LÓGICA DE FILTRADO Y CONSULTA DE ALMACÉN ─────────────────────────────
     tipo_filtro = request.args.get('tipo', '').strip().lower()
     productos_lista = []
 
@@ -1604,10 +1718,7 @@ def almacen():
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
 
-            sql_query = """
-                SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra 
-                FROM productos 
-            """
+            sql_query = "SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra FROM productos "
 
             if tipo_filtro == 'stock':
                 sql_query += " WHERE LOWER(COALESCE(tipo::text, 'stock')) = 'stock' "
@@ -1617,41 +1728,20 @@ def almacen():
             sql_query += " ORDER BY id ASC "
 
             cursor.execute(sql_query)
-            rows = cursor.fetchall()
-            
-            for r in rows:
-                p_id = r[0]
-                nombre = r[1] or ''
+            for r in cursor.fetchall():
+                p_id, nombre = r[0], r[1] or ''
                 tipo = str(r[2]).strip().lower() if r[2] is not None else 'stock'
                 cantidad = int(r[3]) if r[3] is not None else 0
                 precio = float(r[4]) if r[4] is not None else 0.0
                 stock_minimo = int(r[5]) if r[5] is not None else 5
-                fecha_venc = r[6]
-                imagen = r[7] or ''
-                codigo_barra = r[8] or ''
+                fecha_venc, imagen, codigo_barra = r[6], r[7] or '', r[8] or ''
 
-                item = {
-                    'id': p_id,
-                    'nombre': nombre,
-                    'tipo': tipo,
-                    'cantidad': cantidad,
-                    'stock': cantidad,
-                    'precio': precio,
-                    'stock_minimo': stock_minimo,
-                    'fecha_vencimiento': fecha_venc,
-                    'imagen': imagen,
-                    'codigo_barra': codigo_barra,
-                    0: p_id,
-                    1: nombre,
-                    2: tipo,
-                    3: cantidad,
-                    4: precio,
-                    5: stock_minimo,
-                    6: fecha_venc,
-                    7: imagen,
-                    8: codigo_barra
-                }
-                productos_lista.append(item)
+                productos_lista.append({
+                    'id': p_id, 'nombre': nombre, 'tipo': tipo, 'cantidad': cantidad, 'stock': cantidad,
+                    'precio': precio, 'stock_minimo': stock_minimo, 'fecha_vencimiento': fecha_venc,
+                    'imagen': imagen, 'codigo_barra': codigo_barra,
+                    0: p_id, 1: nombre, 2: tipo, 3: cantidad, 4: precio, 5: stock_minimo, 6: fecha_venc, 7: imagen, 8: codigo_barra
+                })
         conexion.close()
     except Exception as e:
         logger.error(f"Error consultando productos en almacén: {e}")
@@ -1692,50 +1782,28 @@ def servicios():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    id, 
-                    nombre, 
-                    COALESCE(descripcion, '') AS descripcion, 
-                    COALESCE(precio, 0.00) AS precio, 
-                    COALESCE(duracion, 30) AS duracion, 
-                    COALESCE(activo, true) AS activo
+                SELECT id, nombre, COALESCE(descripcion, '') AS descripcion, 
+                       COALESCE(precio, 0.00) AS precio, COALESCE(duracion, 30) AS duracion, 
+                       COALESCE(activo, true) AS activo
                 FROM servicios
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
                 ORDER BY nombre ASC
             """, (tenant_id,))
             
-            rows = cursor.fetchall()
-            for s in rows:
-                if isinstance(s, dict):
-                    s_id, s_nom, s_desc = s.get('id'), s.get('nombre'), s.get('descripcion')
-                    raw_prec, raw_dur, s_act = s.get('precio'), s.get('duracion'), s.get('activo')
-                else:
-                    s_id, s_nom, s_desc = s[0], s[1], s[2]
-                    raw_prec, raw_dur, s_act = s[3], s[4], s[5]
-
-                try:
-                    s_prec = float(raw_prec) if raw_prec is not None else 0.0
-                except (ValueError, TypeError):
-                    s_prec = 0.0
-
-                try:
-                    s_dur = int(raw_dur) if raw_dur is not None else 30
-                except (ValueError, TypeError):
-                    s_dur = 30
+            for s in cursor.fetchall():
+                s_id, s_nom, s_desc = s[0], s[1], s[2]
+                s_prec = float(s[3]) if s[3] is not None else 0.0
+                s_dur = int(s[4]) if s[4] is not None else 30
+                s_act = bool(s[5])
 
                 servicios_lista.append({
-                    'id': s_id,
-                    'nombre': str(s_nom or ''),
-                    'descripcion': str(s_desc or ''),
-                    'precio': s_prec,
-                    'duracion': s_dur,
-                    'duracion_minutos': s_dur,
-                    'activo': bool(s_act),
-                    0: s_id, 1: str(s_nom or ''), 2: str(s_desc or ''), 3: s_prec, 4: s_dur, 5: bool(s_act)
+                    'id': s_id, 'nombre': str(s_nom or ''), 'descripcion': str(s_desc or ''),
+                    'precio': s_prec, 'duracion': s_dur, 'duracion_minutos': s_dur, 'activo': s_act,
+                    0: s_id, 1: str(s_nom or ''), 2: str(s_desc or ''), 3: s_prec, 4: s_dur, 5: s_act
                 })
         conexion.close()
     except Exception as e:
-        logger.error(f"Error consultando servicios desde DB: {e}")
+        logger.error(f"Error consultando servicios: {e}")
 
     return render_template('servicios.html', servicios=servicios_lista)
 
@@ -1746,19 +1814,10 @@ def agregar_servicio():
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
     try:
         tenant_id = session.get('tenant_id', 1)
-        
         nombre = request.form.get('nombre', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
-        
-        try:
-            precio = float(request.form.get('precio', 0.0))
-        except (ValueError, TypeError):
-            precio = 0.0
-
-        try:
-            duracion = int(request.form.get('duracion', 30))
-        except (ValueError, TypeError):
-            duracion = 30
+        precio = float(request.form.get('precio', 0.0) or 0.0)
+        duracion = int(request.form.get('duracion', 30) or 30)
 
         if not nombre:
             flash('El nombre del servicio es obligatorio.', 'warning')
@@ -1787,22 +1846,13 @@ def editar_servicio():
         return jsonify({'success': False, 'error': 'No autorizado'}), 403
     try:
         tenant_id = session.get('tenant_id', 1)
-
         raw_id = request.form.get('servicio_id') or request.form.get('id')
         servicio_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
         
         nombre = request.form.get('nombre', '').strip()
         descripcion = request.form.get('descripcion', '').strip()
-        
-        try:
-            precio = float(request.form.get('precio', 0.0))
-        except (ValueError, TypeError):
-            precio = 0.0
-
-        try:
-            duracion = int(request.form.get('duracion', 30))
-        except (ValueError, TypeError):
-            duracion = 30
+        precio = float(request.form.get('precio', 0.0) or 0.0)
+        duracion = int(request.form.get('duracion', 30) or 30)
 
         if not servicio_id or not nombre:
             flash('Datos incompletos para actualizar el servicio.', 'error')
@@ -1833,12 +1883,11 @@ def cambiar_estado_servicio():
     try:
         tenant_id = session.get('tenant_id', 1)
         data = request.get_json(silent=True) or {}
-        
         servicio_id = data.get('servicio_id') or data.get('id')
         activo = data.get('activo', True)
         
         if not servicio_id:
-            return jsonify({'success': False, 'error': 'ID de servicio no especificado'}), 400
+            return jsonify({'success': False, 'error': 'ID no especificado'}), 400
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
@@ -1850,12 +1899,11 @@ def cambiar_estado_servicio():
         conexion.commit()
         conexion.close()
         
-        return jsonify({'success': True, 'message': 'Estado del servicio actualizado correctamente.'})
+        return jsonify({'success': True, 'message': 'Estado actualizado.'})
     except Exception as e:
         logger.error(f"Error al cambiar estado del servicio: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ─── CLIENTES & MASCOTAS ─────────────────────────────────────────────────────
 
 # ─── CLIENTES & MASCOTAS ─────────────────────────────────────────────────────
 
@@ -1873,51 +1921,26 @@ def clientes():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    id, 
-                    COALESCE(nombre, '') AS nombre, 
-                    COALESCE(email, '') AS email, 
-                    COALESCE(telefono, '') AS telefono, 
-                    COALESCE(direccion, '') AS direccion, 
-                    COALESCE(documento, '') AS documento,
-                    COALESCE(activo, true) AS activo
+                SELECT id, COALESCE(nombre, '') AS nombre, COALESCE(email, '') AS email, 
+                       COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, 
+                       COALESCE(documento, '') AS documento, COALESCE(activo, true) AS activo
                 FROM clientes
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
                 ORDER BY id DESC
             """, (tenant_id,))
             
-            rows = cursor.fetchall()
-            for r in rows:
-                if isinstance(r, dict):
-                    c_id = r.get('id')
-                    c_nom = r.get('nombre', '')
-                    c_email = r.get('email', '')
-                    c_tel = r.get('telefono', '')
-                    c_dir = r.get('direccion', '')
-                    c_doc = r.get('documento', '')
-                    c_act = r.get('activo', True)
-                else:
-                    c_id, c_nom, c_email, c_tel, c_dir, c_doc, c_act = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
-
+            for r in cursor.fetchall():
+                c_id, c_nom, c_email, c_tel, c_dir, c_doc, c_act = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
                 clientes_lista.append({
-                    'id': c_id,
-                    'nombre': str(c_nom or ''),
-                    'email': str(c_email or ''),
-                    'telefono': str(c_tel or ''),
-                    'direccion': str(c_dir or ''),
-                    'documento': str(c_doc or ''),
-                    'activo': bool(c_act),
-                    0: c_id, 
-                    1: str(c_nom or ''), 
-                    2: str(c_email or ''), 
-                    3: str(c_tel or ''), 
-                    4: str(c_dir or ''), 
-                    5: str(c_doc or ''),
-                    6: bool(c_act)
+                    'id': c_id, 'nombre': str(c_nom or ''), 'email': str(c_email or ''),
+                    'telefono': str(c_tel or ''), 'direccion': str(c_dir or ''),
+                    'documento': str(c_doc or ''), 'activo': bool(c_act),
+                    0: c_id, 1: str(c_nom or ''), 2: str(c_email or ''), 
+                    3: str(c_tel or ''), 4: str(c_dir or ''), 5: str(c_doc or ''), 6: bool(c_act)
                 })
         conexion.close()
     except Exception as e:
-        logger.error(f"Error cargando clientes desde DB: {e}")
+        logger.error(f"Error cargando clientes: {e}")
         
     return render_template('clientes.html', clientes=clientes_lista)
 
@@ -1948,12 +1971,12 @@ def crear_cliente():
 
         nombre = get_field('nombre', 'cliente_nombre')
         email = get_field('email', 'correo')
-        telefono = get_field('telefono', 'celular', 'phone')
-        direccion = get_field('direccion', 'dir')
-        documento = get_field('documento', 'doc', 'dni', 'ruc')
+        telefono = get_field('telefono', 'celular')
+        direccion = get_field('direccion')
+        documento = get_field('documento', 'dni', 'ruc')
 
         if not nombre or not email:
-            msg = 'El nombre y el correo electrónico son obligatorios.'
+            msg = 'Nombre y correo son obligatorios.'
             if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': msg}), 400
             flash(msg, 'warning')
@@ -2065,7 +2088,7 @@ def detalle_cliente(cliente_id):
 
     if not cliente_id:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'error': 'ID de cliente no especificado'}), 400
+            return jsonify({'success': False, 'error': 'ID no especificado'}), 400
         flash('No se especificó un cliente válido.', 'warning')
         return redirect(url_for('clientes'))
 
@@ -2077,56 +2100,32 @@ def detalle_cliente(cliente_id):
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    id, 
-                    COALESCE(nombre, '') AS nombre, 
-                    COALESCE(email, '') AS email, 
-                    COALESCE(telefono, '') AS telefono, 
-                    COALESCE(direccion, '') AS direccion, 
-                    COALESCE(documento, '') AS documento,
-                    COALESCE(activo, true) AS activo
+                SELECT id, COALESCE(nombre, '') AS nombre, COALESCE(email, '') AS email, 
+                       COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, 
+                       COALESCE(documento, '') AS documento, COALESCE(activo, true) AS activo
                 FROM clientes
                 WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
             """, (cliente_id, tenant_id))
             
             r = cursor.fetchone()
             if r:
-                if isinstance(r, dict):
-                    cliente = {
-                        'id': r.get('id'),
-                        'nombre': r.get('nombre', ''),
-                        'email': r.get('email', ''),
-                        'telefono': r.get('telefono', ''),
-                        'direccion': r.get('direccion', ''),
-                        'documento': r.get('documento', ''),
-                        'activo': r.get('activo', True),
-                        0: r.get('id'), 1: r.get('nombre', ''), 2: r.get('email', ''),
-                        3: r.get('telefono', ''), 4: r.get('direccion', ''), 5: r.get('documento', '')
-                    }
-                else:
-                    cliente = {
-                        'id': r[0], 'nombre': r[1], 'email': r[2],
-                        'telefono': r[3], 'direccion': r[4], 'documento': r[5], 'activo': r[6],
-                        0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5]
-                    }
+                cliente = {
+                    'id': r[0], 'nombre': r[1], 'email': r[2], 'telefono': r[3],
+                    'direccion': r[4], 'documento': r[5], 'activo': r[6],
+                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5]
+                }
 
-            try:
-                cursor.execute("""
-                    SELECT id, nombre, COALESCE(especie, '') AS especie, COALESCE(raza, '') AS raza
-                    FROM mascotas
-                    WHERE cliente_id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                """, (cliente_id, tenant_id))
-                for m in cursor.fetchall():
-                    if isinstance(m, dict):
-                        mascotas_lista.append(m)
-                    else:
-                        mascotas_lista.append({'id': m[0], 'nombre': m[1], 'especie': m[2], 'raza': m[3]})
-            except Exception:
-                pass
+            cursor.execute("""
+                SELECT id, nombre, COALESCE(especie, '') AS especie, COALESCE(raza, '') AS raza
+                FROM mascotas
+                WHERE cliente_id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (cliente_id, tenant_id))
+            for m in cursor.fetchall():
+                mascotas_lista.append({'id': m[0], 'nombre': m[1], 'especie': m[2], 'raza': m[3]})
 
         conexion.close()
     except Exception as e:
-        logger.error(f"Error consultando detalle de cliente {cliente_id}: {e}")
+        logger.error(f"Error consultando detalle cliente {cliente_id}: {e}")
 
     if not cliente:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -2180,7 +2179,6 @@ def personal():
             raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id')
             target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
 
-            # Desactivar empleado respetando el tenant
             if 'eliminar' in request.form or get_param('accion') in ['desactivar', 'eliminar']:
                 if target_id:
                     conexion = obtener_conexion()
@@ -2193,45 +2191,16 @@ def personal():
                         """, (target_id, target_id, tenant_id))
                         res = cursor.fetchone()
                         if res and res[0]:
-                            cursor.execute("""
-                                UPDATE usuarios 
-                                SET activo = false 
-                                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                            """, (res[0], tenant_id))
+                            cursor.execute("UPDATE usuarios SET activo = false WHERE id = %s", (res[0],))
                     conexion.commit()
                     conexion.close()
                     flash('Empleado desactivado correctamente.', 'success')
                     return redirect(url_for('personal'))
 
-            # Reactivar empleado respetando el tenant
-            if 'reactivar' in request.form or get_param('accion') in ['reactivar']:
-                if target_id:
-                    conexion = obtener_conexion()
-                    with conexion.cursor() as cursor:
-                        cursor.execute("""
-                            UPDATE personal 
-                            SET activo = true 
-                            WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
-                            RETURNING usuario_id
-                        """, (target_id, target_id, tenant_id))
-                        res = cursor.fetchone()
-                        if res and res[0]:
-                            cursor.execute("""
-                                UPDATE usuarios 
-                                SET activo = true 
-                                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                            """, (res[0], tenant_id))
-                    conexion.commit()
-                    conexion.close()
-                    flash('Empleado reactivado correctamente.', 'success')
-                    return redirect(url_for('personal'))
-
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
             rol = get_param('rol', default='empleado').lower()
-            
-            roles_validos = ['cliente', 'dueño', 'admin', 'empleado', 'superadmin']
-            rol_final = rol if rol in roles_validos else 'empleado'
+            rol_final = rol if rol in ['cliente', 'dueño', 'admin', 'empleado', 'superadmin'] else 'empleado'
 
             salario_raw = get_param('salario', 'sueldo')
             salario = float(salario_raw) if salario_raw else 0.0
@@ -2249,8 +2218,7 @@ def personal():
                     if p_row:
                         p_id, usuario_id = p_row[0], p_row[1]
                         cursor.execute("""
-                            UPDATE personal 
-                            SET cargo = %s, salario = %s 
+                            UPDATE personal SET cargo = %s, salario = %s 
                             WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
                         """, (cargo, salario, p_id, tenant_id))
                     else:
@@ -2262,22 +2230,15 @@ def personal():
 
                     if usuario_id and username:
                         cursor.execute("""
-                            UPDATE usuarios 
-                            SET username = %s, rol = %s::rol_usuario_enum 
+                            UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum 
                             WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
                         """, (username, rol_final, usuario_id, tenant_id))
-                    elif usuario_id and rol:
-                        cursor.execute("""
-                            UPDATE usuarios 
-                            SET rol = %s::rol_usuario_enum 
-                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                        """, (rol_final, usuario_id, tenant_id))
 
                     mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
                     if not username:
                         conexion.close()
-                        msg = 'El nombre de usuario es obligatorio para registrar un nuevo empleado.'
+                        msg = 'El nombre de usuario es obligatorio.'
                         if request.is_json:
                             return jsonify({'success': False, 'error': msg}), 400
                         flash(msg, 'warning')
@@ -2308,7 +2269,7 @@ def personal():
 
             flash(mensaje, 'success')
         except Exception as e:
-            logger.error(f"Error procesando personal (POST): {e}")
+            logger.error(f"Error procesando personal: {e}")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
                 return jsonify({'success': False, 'error': str(e)}), 500
             flash(f'Error al procesar personal: {e}', 'error')
@@ -2321,75 +2282,34 @@ def personal():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Filtrado estricto de personal por tenant_id
             cursor.execute("""
-                SELECT 
-                    p.id AS personal_id,
-                    u.username,
-                    COALESCE(p.cargo, 'Empleado') AS cargo,
-                    u.rol,
-                    COALESCE(p.salario, 0.00) AS salario,
-                    COALESCE(p.activo, true) AS activo,
-                    u.id AS usuario_id
+                SELECT p.id AS personal_id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo,
+                       u.rol, COALESCE(p.salario, 0.00) AS salario, COALESCE(p.activo, true) AS activo, u.id AS usuario_id
                 FROM personal p
                 INNER JOIN usuarios u ON p.usuario_id = u.id
                 WHERE (p.tenant_id = %s OR p.tenant_id IS NULL)
-                  AND (u.tenant_id = %s OR u.tenant_id IS NULL)
                 ORDER BY p.id ASC
-            """, (tenant_id, tenant_id))
+            """, (tenant_id,))
             
-            rows = cursor.fetchall()
-            for r in rows:
-                p_id = r[0]
-                username = r[1] or 'Sin Usuario'
-                cargo = r[2] or 'Empleado'
-                rol = str(r[3]) if r[3] else 'empleado'
-                salario = float(r[4]) if r[4] is not None else 0.0
-                activo_bool = bool(r[5])
-                activo_int = 1 if activo_bool else 0
-                usuario_id = r[6]
+            for r in cursor.fetchall():
+                p_id, username, cargo, rol, salario, activo_bool, usuario_id = r[0], r[1] or 'Sin Usuario', r[2] or 'Empleado', str(r[3]), float(r[4] or 0), bool(r[5]), r[6]
                 estado_str = 'Activo' if activo_bool else 'Inactivo'
 
-                item = {
-                    'id': p_id,
-                    'personal_id': p_id,
-                    'usuario': username,
-                    'nombre': username,
-                    'username': username,
-                    'cargo': cargo,
-                    'rol': rol,
-                    'salario': salario,
-                    'sueldo': salario,
-                    'activo': activo_int,
-                    'estado': estado_str,
-                    'usuario_id': usuario_id,
-                    0: p_id,
-                    1: usuario_id,
-                    2: username,
-                    3: cargo,
-                    4: salario,
-                    5: activo_int,
-                    6: rol,
-                    7: estado_str
-                }
-                empleados_lista.append(item)
+                empleados_lista.append({
+                    'id': p_id, 'personal_id': p_id, 'usuario': username, 'nombre': username, 'username': username,
+                    'cargo': cargo, 'rol': rol, 'salario': salario, 'sueldo': salario, 'activo': 1 if activo_bool else 0,
+                    'estado': estado_str, 'usuario_id': usuario_id,
+                    0: p_id, 1: usuario_id, 2: username, 3: cargo, 4: salario, 5: 1 if activo_bool else 0, 6: rol, 7: estado_str
+                })
 
-            # Filtrado estricto de usuarios por tenant_id
             cursor.execute("""
                 SELECT id, username, rol, COALESCE(activo, true) 
                 FROM usuarios 
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
                 ORDER BY id ASC
             """, (tenant_id,))
-            
             for u in cursor.fetchall():
-                usuarios_lista.append({
-                    'id': u[0],
-                    'username': u[1],
-                    'rol': str(u[2]),
-                    'activo': u[3],
-                    0: u[0], 1: u[1], 2: str(u[2]), 3: u[3]
-                })
+                usuarios_lista.append({'id': u[0], 'username': u[1], 'rol': str(u[2]), 'activo': u[3], 0: u[0], 1: u[1], 2: str(u[2]), 3: u[3]})
 
         conexion.close()
     except Exception as e:
@@ -2397,13 +2317,7 @@ def personal():
 
     puede_modificar = session.get('rol') in ['admin', 'dueño']
 
-    return render_template(
-        'personal.html', 
-        empleados=empleados_lista, 
-        personal=empleados_lista, 
-        usuarios=usuarios_lista, 
-        puede_modificar=puede_modificar
-    )
+    return render_template('personal.html', empleados=empleados_lista, personal=empleados_lista, usuarios=usuarios_lista, puede_modificar=puede_modificar)
 
 
 @app.route('/personal/toggle-estado/<int:target_id>', methods=['POST'])
@@ -2418,29 +2332,17 @@ def toggle_estado_personal(target_id):
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                UPDATE personal
-                SET activo = NOT COALESCE(activo, true)
+                UPDATE personal SET activo = NOT COALESCE(activo, true)
                 WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
                 RETURNING usuario_id, activo
             """, (target_id, target_id, tenant_id))
             
             res = cursor.fetchone()
-            
-            if res:
-                usuario_id, nuevo_estado = res[0], res[1]
-                if usuario_id:
-                    cursor.execute("""
-                        UPDATE usuarios 
-                        SET activo = %s 
-                        WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                    """, (nuevo_estado, usuario_id, tenant_id))
+            if res and res[0]:
+                cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (res[1], res[0]))
+                nuevo_estado = res[1]
             else:
-                cursor.execute("""
-                    UPDATE usuarios
-                    SET activo = NOT COALESCE(activo, true)
-                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                    RETURNING activo
-                """, (target_id, tenant_id))
+                cursor.execute("UPDATE usuarios SET activo = NOT COALESCE(activo, true) WHERE id = %s RETURNING activo", (target_id,))
                 res_u = cursor.fetchone()
                 if not res_u:
                     conexion.close()
@@ -2475,37 +2377,17 @@ def eliminar_personal_permanente(target_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Obtener IDs asociados
-            cursor.execute("""
-                SELECT p.id AS personal_id, u.id AS usuario_id 
-                FROM usuarios u
-                LEFT JOIN personal p ON p.usuario_id = u.id
-                WHERE u.id = %s OR p.id = %s
-            """, (target_id, target_id))
-            
+            cursor.execute("SELECT p.id AS personal_id, u.id AS usuario_id FROM usuarios u LEFT JOIN personal p ON p.usuario_id = u.id WHERE u.id = %s OR p.id = %s", (target_id, target_id))
             row = cursor.fetchone()
             personal_id = row[0] if row else None
             usuario_id = row[1] if row else target_id
 
-            # 2. Borrar asistencias
             if personal_id:
                 cursor.execute("DELETE FROM asistencia WHERE personal_id = %s", (personal_id,))
 
             if usuario_id:
-                cursor.execute("""
-                    DELETE FROM asistencia 
-                    WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s)
-                """, (usuario_id,))
-
-                # 3. Borrar ventas y compras asociadas al vendedor
+                cursor.execute("DELETE FROM asistencia WHERE personal_id IN (SELECT id FROM personal WHERE usuario_id = %s)", (usuario_id,))
                 cursor.execute("DELETE FROM ventas WHERE vendedor_id = %s", (usuario_id,))
-                
-                try:
-                    cursor.execute("DELETE FROM compras WHERE vendedor_id = %s", (usuario_id,))
-                except Exception:
-                    pass
-
-                # 4. Borrar personal y usuario
                 cursor.execute("DELETE FROM personal WHERE usuario_id = %s", (usuario_id,))
                 cursor.execute("DELETE FROM usuarios WHERE id = %s", (usuario_id,))
 
@@ -2513,16 +2395,17 @@ def eliminar_personal_permanente(target_id):
         conexion.close()
 
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': 'Usuario y todo su historial eliminados permanentemente.'})
+            return jsonify({'success': True, 'message': 'Usuario y su historial eliminados.'})
 
-        flash('Usuario y todos sus registros asociados fueron eliminados permanentemente.', 'success')
+        flash('Usuario eliminado permanentemente.', 'success')
     except Exception as e:
-        logger.error(f"Error eliminando usuario/personal: {e}")
+        logger.error(f"Error eliminando personal: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
-        flash(f'Error al eliminar permanentemente: {e}', 'error')
+        flash(f'Error al eliminar: {e}', 'error')
 
     return redirect(url_for('personal'))
+
 
 # ─── ASISTENCIA DEL PERSONAL ──────────────────────────────────────────────────
 
@@ -2574,10 +2457,7 @@ def asistencia():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    a.id, 
-                    TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada_fmt, 
-                    TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida_fmt
+                SELECT a.id, TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada_fmt, TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida_fmt
                 FROM asistencia a
                 INNER JOIN personal p ON a.personal_id = p.id
                 WHERE p.usuario_id = %s AND a.fecha = CURRENT_DATE AND a.hora_salida IS NULL
@@ -2586,24 +2466,13 @@ def asistencia():
             a_row = cursor.fetchone()
             
             if a_row:
-                asistencia_actual = {
-                    'id': a_row[0],
-                    'hora_entrada': a_row[1],
-                    'hora_salida': a_row[2],
-                    'estado': 'presente',
-                    0: a_row[0], 1: a_row[1], 2: a_row[2], 3: 'presente'
-                }
+                asistencia_actual = {'id': a_row[0], 'hora_entrada': a_row[1], 'hora_salida': a_row[2], 'estado': 'presente'}
 
             if rol in ['admin', 'dueño']:
                 cursor.execute("""
-                    SELECT 
-                        a.id,
-                        u.username,
-                        COALESCE(p.cargo, 'Empleado') AS cargo,
-                        a.fecha,
-                        TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
-                        TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
+                    SELECT a.id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo, a.fecha,
+                           TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada, TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
+                           CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
@@ -2612,14 +2481,9 @@ def asistencia():
                 """, (tenant_id,))
             else:
                 cursor.execute("""
-                    SELECT 
-                        a.id,
-                        u.username,
-                        COALESCE(p.cargo, 'Empleado') AS cargo,
-                        a.fecha,
-                        TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
-                        TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
+                    SELECT a.id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo, a.fecha,
+                           TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada, TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
+                           CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
                     FROM asistencia a
                     INNER JOIN personal p ON a.personal_id = p.id
                     INNER JOIN usuarios u ON p.usuario_id = u.id
@@ -2628,33 +2492,18 @@ def asistencia():
                 """, (tenant_id, usuario_id))
 
             for r in cursor.fetchall():
-                item = {
-                    'id': r[0],
-                    'usuario': r[1] or 'Empleado',
-                    'nombre': r[1] or 'Empleado',
-                    'username': r[1] or 'Empleado',
-                    'cargo': r[2] or 'Empleado',
-                    'fecha': str(r[3]),
-                    'hora_entrada': r[4] or '--:--',
-                    'entrada': r[4] or '--:--',
-                    'hora_salida': r[5] or 'En turno',
-                    'salida': r[5] or 'En turno',
-                    'estado': r[6],
+                registros.append({
+                    'id': r[0], 'usuario': r[1] or 'Empleado', 'nombre': r[1] or 'Empleado', 'username': r[1] or 'Empleado',
+                    'cargo': r[2] or 'Empleado', 'fecha': str(r[3]), 'hora_entrada': r[4] or '--:--', 'entrada': r[4] or '--:--',
+                    'hora_salida': r[5] or 'En turno', 'salida': r[5] or 'En turno', 'estado': r[6],
                     0: r[0], 1: r[1], 2: r[2], 3: str(r[3]), 4: r[4] or '--:--', 5: r[5] or 'En turno', 6: r[6]
-                }
-                registros.append(item)
+                })
 
         conexion.close()
     except Exception as e:
-        logger.error(f"Error cargando registros de asistencia: {e}")
+        logger.error(f"Error cargando asistencia: {e}")
 
-    return render_template(
-        'asistencia.html', 
-        registros=registros, 
-        historial=registros,
-        asistencia=asistencia_actual, 
-        asistencia_actual=asistencia_actual
-    )
+    return render_template('asistencia.html', registros=registros, historial=registros, asistencia=asistencia_actual, asistencia_actual=asistencia_actual)
 
 
 @app.route('/asistencia/marcar', methods=['GET', 'POST'])
@@ -2673,7 +2522,7 @@ def marcar_asistencia():
     usuario_id = obtener_usuario_id_sesion()
     
     if not usuario_id:
-        msg = 'Sesión no válida. Por favor inicia sesión nuevamente.'
+        msg = 'Sesión no válida.'
         return jsonify({'success': False, 'error': msg}) if request.is_json else (flash(msg, 'error') or redirect(url_for('login')))
 
     return _procesar_marcar_asistencia(usuario_id, tenant_id)
@@ -2696,37 +2545,19 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
                 """, (usuario_id, tenant_id))
                 personal_id = cursor.fetchone()[0]
 
-            cursor.execute("""
-                SELECT id, hora_salida 
-                FROM asistencia 
-                WHERE personal_id = %s AND fecha = CURRENT_DATE 
-                LIMIT 1
-            """, (personal_id,))
+            cursor.execute("SELECT id, hora_salida FROM asistencia WHERE personal_id = %s AND fecha = CURRENT_DATE LIMIT 1", (personal_id,))
             reg_hoy = cursor.fetchone()
 
             if not reg_hoy:
-                cursor.execute("""
-                    INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id)
-                    VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)
-                """, (personal_id, tenant_id))
+                cursor.execute("INSERT INTO asistencia (personal_id, fecha, hora_entrada, tenant_id) VALUES (%s, CURRENT_DATE, CURRENT_TIME, %s)", (personal_id, tenant_id))
                 mensaje = 'Hora de entrada registrada correctamente.'
             else:
-                asistencia_id = reg_hoy[0]
-                hora_salida_existente = reg_hoy[1]
-
+                asistencia_id, hora_salida_existente = reg_hoy[0], reg_hoy[1]
                 if hora_salida_existente is None:
-                    cursor.execute("""
-                        UPDATE asistencia 
-                        SET hora_salida = CURRENT_TIME 
-                        WHERE id = %s
-                    """, (asistencia_id,))
+                    cursor.execute("UPDATE asistencia SET hora_salida = CURRENT_TIME WHERE id = %s", (asistencia_id,))
                     mensaje = 'Hora de salida registrada correctamente.'
                 else:
-                    cursor.execute("""
-                        UPDATE asistencia 
-                        SET hora_entrada = CURRENT_TIME, hora_salida = NULL 
-                        WHERE id = %s
-                    """, (asistencia_id,))
+                    cursor.execute("UPDATE asistencia SET hora_entrada = CURRENT_TIME, hora_salida = NULL WHERE id = %s", (asistencia_id,))
                     mensaje = 'Nueva hora de entrada registrada correctamente.'
 
         conexion.commit()
@@ -2740,82 +2571,9 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
         logger.error(f"Error registrando asistencia: {e}")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': str(e)}), 500
-        flash('Error al registrar la asistencia.', 'error')
+        flash('Error al registrar asistencia.', 'error')
 
     return redirect(url_for('asistencia'))
-
-
-@app.route('/historial_asistencia', endpoint='historial_asistencia')
-@app.route('/historial-asistencia')
-def historial_asistencia():
-    if 'rol' not in session:
-        return redirect(url_for('login'))
-        
-    tenant_id = session.get('tenant_id', 1)
-    usuario_id = obtener_usuario_id_sesion()
-    rol = session.get('rol', 'empleado')
-    registros = []
-
-    try:
-        conexion = obtener_conexion()
-        with conexion.cursor() as cursor:
-            if rol in ['admin', 'dueño']:
-                cursor.execute("""
-                    SELECT 
-                        a.id,
-                        u.username,
-                        COALESCE(p.cargo, 'Empleado') AS cargo,
-                        a.fecha,
-                        TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
-                        TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
-                    FROM asistencia a
-                    INNER JOIN personal p ON a.personal_id = p.id
-                    INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL)
-                    ORDER BY a.fecha DESC, a.hora_entrada DESC
-                    LIMIT 200
-                """, (tenant_id,))
-            else:
-                cursor.execute("""
-                    SELECT 
-                        a.id,
-                        u.username,
-                        COALESCE(p.cargo, 'Empleado') AS cargo,
-                        a.fecha,
-                        TO_CHAR(a.hora_entrada, 'HH12:MI AM') AS entrada,
-                        TO_CHAR(a.hora_salida, 'HH12:MI AM') AS salida,
-                        CASE WHEN a.hora_salida IS NOT NULL THEN 'completado' ELSE 'presente' END AS estado
-                    FROM asistencia a
-                    INNER JOIN personal p ON a.personal_id = p.id
-                    INNER JOIN usuarios u ON p.usuario_id = u.id
-                    WHERE (a.tenant_id = %s OR a.tenant_id IS NULL) AND p.usuario_id = %s
-                    ORDER BY a.fecha DESC, a.hora_entrada DESC
-                    LIMIT 100
-                """, (tenant_id, usuario_id))
-
-            for r in cursor.fetchall():
-                item = {
-                    'id': r[0],
-                    'usuario': r[1] or 'Empleado',
-                    'nombre': r[1] or 'Empleado',
-                    'username': r[1] or 'Empleado',
-                    'cargo': r[2] or 'Empleado',
-                    'fecha': str(r[3]),
-                    'hora_entrada': r[4] or '--:--',
-                    'entrada': r[4] or '--:--',
-                    'hora_salida': r[5] or 'En turno',
-                    'salida': r[5] or 'En turno',
-                    'estado': r[6],
-                    0: r[0], 1: r[1], 2: r[2], 3: str(r[3]), 4: r[4] or '--:--', 5: r[5] or 'En turno', 6: r[6]
-                }
-                registros.append(item)
-
-        conexion.close()
-    except Exception as e:
-        logger.error(f"Error cargando historial de asistencia: {e}")
-
-    return render_template('historial_asistencia.html', historial=registros, registros=registros)
 
 
 # ─── MÓDULO DE GESTIÓN DE CITAS ───────────────────────────────────────────────
@@ -2827,13 +2585,8 @@ def citas():
         return redirect(url_for('dashboard'))
     
     tenant_id = session.get('tenant_id', 1)
-    
     hoy_str = date.today().strftime('%Y-%m-%d')
     fecha_filtro = request.args.get('fecha', default=hoy_str)
-    
-    # Validar que no se puedan ver citas pasadas
-    if fecha_filtro < hoy_str:
-        fecha_filtro = hoy_str
 
     citas_list = []
     servicios_lista = []
@@ -2842,19 +2595,9 @@ def citas():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    c.id,                                           -- 0
-                    c.cliente_nombre,                               -- 1
-                    COALESCE(c.cliente_email, c.cliente_telefono),  -- 2
-                    c.cliente_telefono,                             -- 3
-                    TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt,      -- 4
-                    c.estado,                                       -- 5
-                    COALESCE(s.nombre, 'Servicio General') AS s_nom, -- 6
-                    c.mascota_nombre,                               -- 7
-                    c.mascota_especie,                              -- 8
-                    COALESCE(c.precio_total, 0.00) AS precio,       -- 9
-                    c.fecha,                                        -- 10
-                    c.observaciones                                 -- 11
+                SELECT c.id, c.cliente_nombre, COALESCE(c.cliente_email, c.cliente_telefono), c.cliente_telefono,
+                       TO_CHAR(c.hora, 'HH12:MI AM') AS hora_fmt, c.estado, COALESCE(s.nombre, 'Servicio General') AS s_nom,
+                       c.mascota_nombre, c.mascota_especie, COALESCE(c.precio_total, 0.00) AS precio, c.fecha, c.observaciones
                 FROM citas c
                 LEFT JOIN servicios s ON c.servicio_id = s.id
                 WHERE c.tenant_id = %s AND c.fecha = %s
@@ -2862,49 +2605,18 @@ def citas():
             """, (tenant_id, fecha_filtro))
             
             for r in cursor.fetchall():
-                c_id = r[0]
-                c_nombre = r[1] or ''
-                c_contacto = r[2] or ''
-                c_tel = r[3] or ''
-                c_hora = r[4] or ''
-                c_estado = str(r[5]).lower() if r[5] else 'pendiente'
-                s_nombre = r[6]
-                m_nombre = r[7] or ''
-                m_especie = r[8] or ''
-                c_precio = float(r[9]) if r[9] is not None else 0.0
-                c_fecha = str(r[10]) if r[10] else ''
-                c_obs = r[11] or ''
-
-                item = {
-                    'id': c_id,
-                    'cliente_nombre': c_nombre,
-                    'cliente_email': c_contacto,
-                    'cliente_telefono': c_tel,
-                    'hora': c_hora,
-                    'estado': c_estado,
-                    'servicio_nombre': s_nombre,
-                    'mascota_nombre': m_nombre,
-                    'mascota_especie': m_especie,
-                    'precio_total': c_precio,
-                    'fecha': c_fecha,
-                    'observaciones': c_obs,
-                    0: c_id, 1: c_nombre, 2: c_contacto, 3: c_tel, 4: c_hora, 5: c_estado,
-                    6: s_nombre, 7: m_nombre, 8: m_especie, 9: c_precio, 10: c_fecha, 11: c_obs
-                }
-                citas_list.append(item)
-
-            cursor.execute("""
-                SELECT id, nombre, precio, duracion, max_citas_dia, COALESCE(activo, true)
-                FROM servicios
-                WHERE tenant_id = %s
-                ORDER BY nombre ASC
-            """, (tenant_id,))
-            
-            for s in cursor.fetchall():
-                servicios_lista.append({
-                    'id': s[0], 'nombre': s[1], 'precio': float(s[2]) if s[2] else 0.0,
-                    0: s[0], 1: s[1], 2: float(s[2]) if s[2] else 0.0, 5: bool(s[5])
+                citas_list.append({
+                    'id': r[0], 'cliente_nombre': r[1] or '', 'cliente_email': r[2] or '', 'cliente_telefono': r[3] or '',
+                    'hora': r[4] or '', 'estado': str(r[5]).lower() if r[5] else 'pendiente', 'servicio_nombre': r[6],
+                    'mascota_nombre': r[7] or '', 'mascota_especie': r[8] or '', 'precio_total': float(r[9] or 0),
+                    'fecha': str(r[10]) if r[10] else '', 'observaciones': r[11] or '',
+                    0: r[0], 1: r[1] or '', 2: r[2] or '', 3: r[3] or '', 4: r[4] or '', 5: str(r[5]).lower() if r[5] else 'pendiente',
+                    6: r[6], 7: r[7] or '', 8: r[8] or '', 9: float(r[9] or 0), 10: str(r[10]) if r[10] else '', 11: r[11] or ''
                 })
+
+            cursor.execute("SELECT id, nombre, precio, duracion, max_citas_dia, COALESCE(activo, true) FROM servicios WHERE tenant_id = %s ORDER BY nombre ASC", (tenant_id,))
+            for s in cursor.fetchall():
+                servicios_lista.append({'id': s[0], 'nombre': s[1], 'precio': float(s[2]) if s[2] else 0.0, 0: s[0], 1: s[1], 2: float(s[2]) if s[2] else 0.0, 5: bool(s[5])})
 
         conexion.close()
     except Exception as e:
@@ -2917,7 +2629,6 @@ def citas():
 def agendar_cita():
     try:
         tenant_id = session.get('tenant_id', 1)
-
         nombre = request.form.get('cliente_nombre', '').strip()
         email = request.form.get('cliente_email', '').strip() or None
         telefono = request.form.get('cliente_telefono', '').strip() or None
@@ -2931,7 +2642,6 @@ def agendar_cita():
             servicio_id_raw = request.form.getlist('servicio_id[]')[0]
             
         servicio_id = int(servicio_id_raw) if servicio_id_raw and str(servicio_id_raw).isdigit() else None
-
         mascota_nombre = request.form.get('mascota_nombre', '').strip() or None
         mascota_especie = request.form.get('mascota_especie', 'perro').strip() or 'perro'
         
@@ -2944,7 +2654,7 @@ def agendar_cita():
         observaciones = " | ".join(obs_partes) if obs_partes else None
 
         if not nombre or not fecha or not hora or not servicio_id or not mascota_nombre:
-            flash('Por favor completa todos los campos obligatorios (*).', 'error')
+            flash('Por favor completa todos los campos obligatorios.', 'error')
             return redirect(request.referrer or url_for('citas'))
 
         conexion = obtener_conexion()
@@ -2969,7 +2679,7 @@ def agendar_cita():
         flash('Cita agendada exitosamente.', 'success')
     except Exception as e:
         logger.error(f"Error al agendar cita: {e}")
-        flash(f'Error al agendar la cita: {str(e)}', 'error')
+        flash(f'Error al agendar cita: {str(e)}', 'error')
 
     return redirect(request.referrer or url_for('citas'))
 
@@ -2983,32 +2693,22 @@ def cambiar_estado_cita(cita_id):
     try:
         tenant_id = session.get('tenant_id', 1)
         data = request.get_json(silent=True) or {}
-        
         nuevo_estado = (data.get('status') or data.get('estado') or request.form.get('estado') or '').strip().lower()
         motivo = (data.get('motivo') or request.form.get('motivo') or '').strip()
 
-        estados_validos = ['pendiente', 'confirmada', 'en_progreso', 'completada', 'cancelada']
-        if not nuevo_estado or nuevo_estado not in estados_validos:
-            return jsonify({'success': False, 'error': 'Estado no válido'}), 400
+        if nuevo_estado not in ['pendiente', 'confirmada', 'en_progreso', 'completada', 'cancelada']:
+            return jsonify({'success': False, 'error': 'Estado inválido'}), 400
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("UPDATE citas SET estado = %s::estado_cita_enum WHERE id = %s AND tenant_id = %s", (nuevo_estado, cita_id, tenant_id))
-
             if motivo:
-                cursor.execute("""
-                    UPDATE citas 
-                    SET observaciones = CASE 
-                        WHEN observaciones IS NULL OR observaciones = '' THEN %s
-                        ELSE observaciones || ' | ' || %s
-                    END
-                    WHERE id = %s AND tenant_id = %s
-                """, (f"Motivo: {motivo}", f"Motivo: {motivo}", cita_id, tenant_id))
+                cursor.execute("UPDATE citas SET observaciones = COALESCE(observaciones, '') || %s WHERE id = %s AND tenant_id = %s", (f" | Motivo: {motivo}", cita_id, tenant_id))
 
         conexion.commit()
         conexion.close()
 
-        return jsonify({'success': True, 'message': f'Estado de cita actualizado a {nuevo_estado}.'})
+        return jsonify({'success': True, 'message': f'Estado actualizado a {nuevo_estado}.'})
     except Exception as e:
         logger.error(f"Error cambiando estado de cita: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -3030,11 +2730,7 @@ def reprogramar_cita(cita_id):
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("""
-                UPDATE citas 
-                SET fecha = %s, hora = %s
-                WHERE id = %s AND tenant_id = %s
-            """, (nueva_fecha, nueva_hora, cita_id, tenant_id))
+            cursor.execute("UPDATE citas SET fecha = %s, hora = %s WHERE id = %s AND tenant_id = %s", (nueva_fecha, nueva_hora, cita_id, tenant_id))
 
         conexion.commit()
         conexion.close()
@@ -3060,11 +2756,10 @@ def ver_recibo_cita(cita_id):
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
-                    TO_CHAR(c.fecha, 'YYYY-MM-DD'), TO_CHAR(c.hora, 'HH12:MI AM'), COALESCE(c.mascota_nombre, ''),
-                    COALESCE(c.mascota_especie, 'perro'), COALESCE(c.observaciones, ''), COALESCE(c.precio_total, 0.00),
-                    COALESCE(c.estado, 'pendiente'), COALESCE(s.nombre, 'Servicio General'), COALESCE(s.precio, 0.00)
+                SELECT c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
+                       TO_CHAR(c.fecha, 'YYYY-MM-DD'), TO_CHAR(c.hora, 'HH12:MI AM'), COALESCE(c.mascota_nombre, ''),
+                       COALESCE(c.mascota_especie, 'perro'), COALESCE(c.observaciones, ''), COALESCE(c.precio_total, 0.00),
+                       COALESCE(c.estado, 'pendiente'), COALESCE(s.nombre, 'Servicio General'), COALESCE(s.precio, 0.00)
                 FROM citas c
                 LEFT JOIN servicios s ON c.servicio_id = s.id
                 WHERE c.id = %s AND c.tenant_id = %s
@@ -3075,18 +2770,16 @@ def ver_recibo_cita(cita_id):
                 cita = {
                     'id': r[0], 'cliente_nombre': r[1] or 'Cliente General', 'cliente_email': r[2], 'cliente_telefono': r[3],
                     'fecha': r[4] or '', 'hora': r[5] or '', 'mascota_nombre': r[6], 'mascota_especie': r[7],
-                    'observaciones': r[8], 'precio_total': float(r[9]) if r[9] is not None else 0.0, 'estado': str(r[10]).lower(),
-                    'servicio_nombre': r[11], 'servicio_precio': float(r[12]) if r[12] is not None else 0.0,
-                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5],
-                    6: r[6], 7: r[7], 8: r[8], 9: float(r[9]) if r[9] else 0.0, 10: str(r[10]).lower(),
-                    11: r[11], 12: float(r[12]) if r[12] else 0.0
+                    'observaciones': r[8], 'precio_total': float(r[9] or 0), 'estado': str(r[10]).lower(),
+                    'servicio_nombre': r[11], 'servicio_precio': float(r[12] or 0),
+                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5], 6: r[6], 7: r[7], 8: r[8], 9: float(r[9] or 0), 10: str(r[10]).lower()
                 }
         conexion.close()
     except Exception as e:
-        logger.error(f"Error generando recibo de cita ID={cita_id}: {e}")
+        logger.error(f"Error recibo cita ID={cita_id}: {e}")
 
     if not cita:
-        flash('La cita solicitada no existe o no se encontró en el sistema.', 'error')
+        flash('Cita no encontrada.', 'error')
         return redirect(url_for('citas'))
 
     return render_template('recibo_cita.html', cita=cita, momento_actual=datetime.now())
@@ -3105,33 +2798,27 @@ def ver_ticket_cita(cita_id):
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT 
-                    c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
-                    TO_CHAR(c.fecha, 'YYYY-MM-DD'), TO_CHAR(c.hora, 'HH12:MI AM'), COALESCE(c.mascota_nombre, ''),
-                    COALESCE(c.mascota_especie, 'perro'), COALESCE(c.observaciones, ''), COALESCE(c.precio_total, 0.00),
-                    COALESCE(c.estado, 'pendiente'), COALESCE(s.nombre, 'Servicio General')
+                SELECT c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
+                       TO_CHAR(c.fecha, 'YYYY-MM-DD'), TO_CHAR(c.hora, 'HH12:MI AM'), COALESCE(c.mascota_nombre, ''),
+                       COALESCE(c.mascota_especie, 'perro'), COALESCE(c.observaciones, ''), COALESCE(c.precio_total, 0.00),
+                       COALESCE(c.estado, 'pendiente'), COALESCE(s.nombre, 'Servicio General')
                 FROM citas c
                 LEFT JOIN servicios s ON c.servicio_id = s.id
                 WHERE c.id = %s AND c.tenant_id = %s
             """, (cita_id, tenant_id))
-            
             r = cursor.fetchone()
             if r:
                 cita = {
                     'id': r[0], 'cliente_nombre': r[1] or 'Cliente General', 'cliente_email': r[2], 'cliente_telefono': r[3],
                     'fecha': r[4] or '', 'hora': r[5] or '', 'mascota_nombre': r[6], 'mascota_especie': r[7],
-                    'observaciones': r[8], 'precio_total': float(r[9]) if r[9] else 0.0, 'estado': str(r[10]).lower(),
-                    'servicio_nombre': r[11],
-                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5],
-                    6: r[6], 7: r[7], 8: r[8], 9: float(r[9]) if r[9] else 0.0,
-                    10: str(r[10]).lower(), 11: r[11]
+                    'observaciones': r[8], 'precio_total': float(r[9] or 0), 'estado': str(r[10]).lower(), 'servicio_nombre': r[11]
                 }
         conexion.close()
     except Exception as e:
-        logger.error(f"Error generando ticket de cita ID={cita_id}: {e}")
+        logger.error(f"Error ticket cita ID={cita_id}: {e}")
 
     if not cita:
-        flash('La cita solicitada no existe.', 'error')
+        flash('Cita no encontrada.', 'error')
         return redirect(url_for('citas'))
 
     return render_template('ticket_cita.html', cita=cita, momento_actual=datetime.now())
@@ -3158,8 +2845,7 @@ def editar_cita(cita_id):
             with conexion.cursor() as cursor:
                 cursor.execute("""
                     UPDATE citas 
-                    SET cliente_nombre = %s, fecha = %s, hora = %s, servicio_id = %s,
-                        mascota_nombre = %s, observaciones = %s
+                    SET cliente_nombre = %s, fecha = %s, hora = %s, servicio_id = %s, mascota_nombre = %s, observaciones = %s
                     WHERE id = %s AND tenant_id = %s
                 """, (nombre, fecha, hora, servicio_id, mascota_nombre, observaciones, cita_id, tenant_id))
             conexion.commit()
@@ -3185,8 +2871,6 @@ def eliminar_cita(cita_id):
         tenant_id = session.get('tenant_id', 1)
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("DELETE FROM citas_mascotas WHERE cita_id = %s AND tenant_id = %s", (cita_id, tenant_id))
-            cursor.execute("DELETE FROM citas_servicios WHERE cita_id = %s AND tenant_id = %s", (cita_id, tenant_id))
             cursor.execute("DELETE FROM citas WHERE id = %s AND tenant_id = %s", (cita_id, tenant_id))
         conexion.commit()
         conexion.close()
@@ -3207,28 +2891,6 @@ def compras():
     
     lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
     return render_template('compras.html', compras=lista)
-
-
-@app.route('/historial_compras', endpoint='historial_compras')
-@app.route('/historial-compras')
-def historial_compras():
-    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    lista = compras_controlador.obtener_compras() if hasattr(compras_controlador, 'obtener_compras') else []
-    monto_total = 0.0
-    for c in lista:
-        try:
-            monto_total += float(c[3] if isinstance(c, (list, tuple)) and len(c) > 3 else getattr(c, 'total', 0))
-        except Exception:
-            pass
-            
-    estadisticas = {
-        'total_compras': len(lista),
-        'monto_total': monto_total
-    }
-    return render_template('historial_compras.html', compras=lista, estadisticas=estadisticas)
 
 
 # ─── CARRITO Y PAGO E-COMMERCE ───────────────────────────────────────────────
@@ -3264,11 +2926,7 @@ def ver_carrito():
                     'id': f'service_{servicio_id}',
                     'nombre': f"🏥 {servicio[1]} (Servicio)",
                     'descripcion': servicio[2] if len(servicio) > 2 else 'Servicio veterinario',
-                    'precio_unitario': precio_unitario,
-                    'qty': qty,
-                    'subtotal': subtotal,
-                    'type': 'service',
-                    'imagen': None
+                    'precio_unitario': precio_unitario, 'qty': qty, 'subtotal': subtotal, 'type': 'service', 'imagen': None
                 })
                 total_qty += qty
                 total_price += subtotal
@@ -3292,14 +2950,8 @@ def ver_carrito():
                 subtotal = precio_unitario * qty
                 
                 items.append({
-                    'id': pid,
-                    'nombre': producto[1],
-                    'imagen': producto[7] if len(producto) > 7 else None,
-                    'precio_unitario': precio_unitario,
-                    'qty': qty,
-                    'subtotal': subtotal,
-                    'stock': stock,
-                    'type': 'product'
+                    'id': pid, 'nombre': producto[1], 'imagen': producto[7] if len(producto) > 7 else None,
+                    'precio_unitario': precio_unitario, 'qty': qty, 'subtotal': subtotal, 'stock': stock, 'type': 'product'
                 })
                 total_qty += qty
                 total_price += subtotal
@@ -3333,17 +2985,14 @@ def agregar_al_carrito():
     cart = _get_cart()
     key = str(producto_id)
     existing = int(cart.get(key, {}).get('qty', 0))
-    new_qty = existing + cantidad
-    if new_qty > stock:
-        new_qty = stock
-        flash(f'Se ajustó la cantidad al stock disponible ({stock}).', 'info')
+    new_qty = min(existing + cantidad, stock)
 
     cart[key] = {'qty': new_qty}
     _save_cart(cart)
 
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     total_qty = sum(int(v.get('qty', 0)) for v in session.get('cart', {}).values())
-    message = f'Producto "{producto[1]}" agregado al carrito. Cantidad: {new_qty}'
+    message = f'Producto "{producto[1]}" agregado al carrito.'
     if is_ajax:
         return jsonify({'success': True, 'message': message, 'cart_count': total_qty})
 
@@ -3360,12 +3009,11 @@ def carrito_eliminar():
 
     cart = _get_cart()
     key = str(producto_id)
-    
     if key in cart:
         del cart[key]
         _save_cart(cart)
         return 'OK', 200
-    return 'Error: Producto no encontrado en carrito', 404
+    return 'Error: Producto no encontrado', 404
 
 
 @app.route('/carrito/actualizar', methods=['POST'])
@@ -3383,10 +3031,7 @@ def carrito_actualizar():
     cart = _get_cart()
     key = str(producto_id)
     stock = int(producto[3] or 0)
-    if cantidad > stock:
-        cantidad = stock
-    
-    cart[key] = {'qty': cantidad}
+    cart[key] = {'qty': min(cantidad, stock)}
     _save_cart(cart)
     return 'OK', 200
 
@@ -3412,12 +3057,8 @@ def checkout():
         precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
         subtotal_item = precio_unitario * qty
         items.append({
-            'id': pid,
-            'nombre': producto[1],
-            'imagen': producto[7] if len(producto) > 7 else None,
-            'qty': qty,
-            'precio_unitario': precio_unitario,
-            'subtotal': subtotal_item
+            'id': pid, 'nombre': producto[1], 'imagen': producto[7] if len(producto) > 7 else None,
+            'qty': qty, 'precio_unitario': precio_unitario, 'subtotal': subtotal_item
         })
         subtotal += subtotal_item
     
@@ -3460,13 +3101,7 @@ def procesar_pago():
             qty = int(data.get('qty', 0))
             precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
             subtotal_item = precio_unitario * qty
-            items.append({
-                'id': pid,
-                'nombre': producto[1],
-                'cantidad': qty,
-                'precio': precio_unitario,
-                'subtotal': subtotal_item
-            })
+            items.append({'id': pid, 'nombre': producto[1], 'cantidad': qty, 'precio': precio_unitario, 'subtotal': subtotal_item})
             subtotal += subtotal_item
         
         igv = round(subtotal * 0.18, 2)
@@ -3482,26 +3117,24 @@ def procesar_pago():
                     numero_venta, fecha_venta, cliente_nombre, cliente_documento,
                     vendedor_nombre, metodo_pago, subtotal, igv, total,
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (
-                    %s, NOW(), %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s
-                ) RETURNING id
+                ) VALUES (%s, NOW(), %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                RETURNING id
             """, (num_venta, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
             
             venta_id = cursor.fetchone()[0]
-
             for item in items:
-                cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
+                cursor.execute("UPDATE productos SET cantidad = GREATEST(cantidad - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
 
         conexion.commit()
         conexion.close()
 
         session.pop('cart', None)
-        flash('¡Pago y pedido procesados exitosamente!', 'success')
+        flash('¡Pago procesado exitosamente!', 'success')
         return redirect(url_for('index'))
         
     except Exception as e:
         logger.error(f"Error procesando pago e-commerce: {e}")
-        flash(f'Hubo un error procesando tu pago: {str(e)}', 'error')
+        flash(f'Error procesando tu pago: {str(e)}', 'error')
         return redirect(url_for('checkout'))
 
 
@@ -3549,12 +3182,8 @@ def crear_tenant():
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute(
-                "INSERT INTO tenants (nombre, slug) VALUES (%s, %s) RETURNING id", 
-                (nombre, slug)
-            )
-            res = cursor.fetchone()
-            tenant_id = res[0] if res else None
+            cursor.execute("INSERT INTO tenants (nombre, slug) VALUES (%s, %s) RETURNING id", (nombre, slug))
+            tenant_id = cursor.fetchone()[0]
             
             hashed = hash_password(admin_password)
             cursor.execute(
