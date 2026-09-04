@@ -838,212 +838,104 @@ def api_validar_stock():
 
 
 @app.route('/ventas/procesar', methods=['POST'])
-def procesar_venta_pos():
+def procesar_venta():
     if 'rol' not in session:
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
-    
+
     try:
         data = request.get_json(silent=True) or {}
         
-        items = data.get('items') or data.get('productos') or data.get('cart')
-        if not items and request.form.get('items'):
-            try:
-                items = json.loads(request.form.get('items'))
-            except Exception:
-                items = []
-                
-        if not items and request.form.get('cart'):
-            try:
-                items = json.loads(request.form.get('cart'))
-            except Exception:
-                items = []
-
-        if not items:
-            cart = session.get('cart', {})
-            items = [{'id': k, 'cantidad': v.get('qty', 1), 'precio': 0.0} for k, v in cart.items()]
-        
+        # 1. Obtener productos del carrito
+        items = data.get('items') or data.get('productos') or []
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
 
+        # 2. Capturar Cliente (ID y Nombre)
+        cliente_id_raw = data.get('cliente_id') or data.get('id_cliente')
+        cliente_nombre_raw = (
+            data.get('cliente_nombre') or 
+            data.get('nombre_cliente') or 
+            data.get('client_name') or 
+            data.get('cliente')
+        )
+
+        # Asignar ID si es un número entero válido
+        cliente_id = int(cliente_id_raw) if (cliente_id_raw and str(cliente_id_raw).isdigit()) else None
+
+        # Capturar el texto ingresado (evita que se fuerce a 'Cliente General')
+        if isinstance(cliente_nombre_raw, str) and cliente_nombre_raw.strip():
+            cliente_nombre = cliente_nombre_raw.strip()
+        else:
+            cliente_nombre = 'Cliente General'
+
         conexion = obtener_conexion()
-
-        # ─── PARSEO Y AUTO-REGISTRO DE CLIENTES ─────────────────────────────
-        client_raw = data.get('cliente') or request.form.get('cliente')
-        
-        cid_raw = (
-            data.get('cliente_id') or data.get('id_cliente') or data.get('clienteId') or data.get('id_cliente_pos') or
-            request.form.get('cliente_id') or request.form.get('id_cliente') or request.form.get('clienteId')
-        )
-        
-        cnombre_raw = (
-            data.get('cliente_nombre') or data.get('nombre_cliente') or data.get('clienteNombre') or data.get('nombre') or
-            request.form.get('cliente_nombre') or request.form.get('nombre_cliente') or request.form.get('clienteNombre') or request.form.get('nombre') or ''
-        )
-        
-        cdoc_raw = (
-            data.get('cliente_documento') or data.get('cliente_doc') or data.get('documento') or data.get('doc') or data.get('dni') or
-            request.form.get('cliente_documento') or request.form.get('cliente_doc') or request.form.get('documento') or request.form.get('doc') or request.form.get('dni') or ''
-        )
-
-        cemail_raw = (
-            data.get('cliente_email') or data.get('email') or data.get('correo') or
-            request.form.get('cliente_email') or request.form.get('email') or request.form.get('correo') or ''
-        )
-
-        if isinstance(client_raw, dict):
-            if not cid_raw:
-                cid_raw = client_raw.get('id') or client_raw.get('cliente_id') or client_raw.get('id_cliente') or client_raw.get('value')
-            if not cnombre_raw:
-                cnombre_raw = client_raw.get('nombre') or client_raw.get('cliente_nombre') or client_raw.get('nombre_cliente') or client_raw.get('label') or client_raw.get('text') or ''
-            if not cdoc_raw:
-                cdoc_raw = client_raw.get('documento') or client_raw.get('cliente_documento') or client_raw.get('doc') or client_raw.get('dni') or ''
-            if not cemail_raw:
-                cemail_raw = client_raw.get('email') or client_raw.get('correo') or ''
-        elif isinstance(client_raw, (int, float)):
-            if not cid_raw:
-                cid_raw = int(client_raw)
-        elif isinstance(client_raw, str) and client_raw.strip():
-            val = client_raw.strip()
-            if val.isdigit():
-                if not cid_raw:
-                    cid_raw = int(val)
-            elif val.lower() != 'cliente general':
-                if not cnombre_raw:
-                    cnombre_raw = val
-
-        cliente_id = int(str(cid_raw).strip()) if (cid_raw is not None and str(cid_raw).strip().isdigit()) else None
-        cliente_nombre = str(cnombre_raw).strip() if cnombre_raw else ''
-        cliente_doc = str(cdoc_raw).strip() if cdoc_raw else ''
-        cliente_email = str(cemail_raw).strip() if cemail_raw else ''
-
         tenant_id = session.get('tenant_id', 1)
 
         with conexion.cursor() as cursor:
-            # 1. Verificar si existe por ID
+            # Si hay un ID de cliente válido, confirmar los datos en la BD
             if cliente_id:
-                cursor.execute("""
-                    SELECT id, nombre, COALESCE(documento, '') 
-                    FROM clientes 
-                    WHERE id = %s
-                """, (cliente_id,))
+                cursor.execute("SELECT id, nombre FROM clientes WHERE id = %s", (cliente_id,))
                 cli_db = cursor.fetchone()
-                if cli_db:
-                    cliente_id = cli_db[0]
-                    cliente_nombre = cli_db[1] or cliente_nombre
-                    if not cliente_doc:
-                        cliente_doc = cli_db[2] or ''
-            
-            # 2. Verificar por nombre si no hubo ID
-            if (not cliente_id) and cliente_nombre and cliente_nombre.lower() != 'cliente general':
-                cursor.execute("""
-                    SELECT id, nombre, COALESCE(documento, '') 
-                    FROM clientes 
-                    WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) AND (tenant_id = %s OR tenant_id IS NULL)
-                    LIMIT 1
-                """, (cliente_nombre, tenant_id))
+                if cli_db and cli_db[1]:
+                    cliente_nombre = cli_db[1]
+            # Si no hay ID pero sí un nombre escrito, verificar si coincide con algún cliente registrado
+            elif cliente_nombre.lower() != 'cliente general':
+                cursor.execute(
+                    "SELECT id, nombre FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) LIMIT 1", 
+                    (cliente_nombre,)
+                )
                 cli_db = cursor.fetchone()
                 if cli_db:
                     cliente_id = cli_db[0]
                     cliente_nombre = cli_db[1]
-                    if not cliente_doc:
-                        cliente_doc = cli_db[2] or ''
-                else:
-                    # Crear automáticamente en la tabla `clientes` generando un email único de respaldo
-                    if not cliente_email:
-                        clean_n = ''.join(e for e in cliente_nombre if e.isalnum()).lower()
-                        cliente_email = f"{clean_n}_{int(time.time())}_{random.randint(100,999)}@cliente.local"
 
-                    try:
-                        cursor.execute("""
-                            INSERT INTO clientes (nombre, email, documento, activo, tenant_id)
-                            VALUES (%s, %s, %s, true, %s)
-                            RETURNING id, nombre, COALESCE(documento, '')
-                        """, (cliente_nombre, cliente_email, cliente_doc, tenant_id))
-                        new_cli = cursor.fetchone()
-                        cliente_id = new_cli[0]
-                        cliente_nombre = new_cli[1]
-                        cliente_doc = new_cli[2] or cliente_doc
-                    except Exception as ex_ins:
-                        conexion.rollback()
-                        logger.warning(f"Error auto-creando cliente en tabla clientes: {ex_ins}")
+            # 3. Datos económicos de la venta
+            subtotal = float(data.get('subtotal', 0.0))
+            igv = float(data.get('igv', 0.0))
+            total = float(data.get('total', 0.0))
+            monto_recibido = float(data.get('monto_recibido', total))
+            cambio = float(data.get('cambio', 0.0))
+            metodo_pago = data.get('metodo_pago', 'efectivo')
 
-        if not cliente_nombre:
-            cliente_nombre = 'Cliente General'
+            vendedor_id = session.get('usuario_id') or session.get('user_id')
+            vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
+            num_venta = f"VNT-{int(time.time())}"
+            fecha_actual = datetime.now(ZONA_HORARIA_PERU)
+            productos_json = json.dumps(items, ensure_ascii=False)
 
-        metodo_pago = data.get('metodo_pago') or request.form.get('metodo_pago', 'efectivo')
-        
-        monto_recibido = float(data.get('monto_recibido') or request.form.get('monto_recibido', 0.0))
-        subtotal = float(data.get('subtotal') or request.form.get('subtotal', 0.0))
-        igv = float(data.get('igv') or request.form.get('igv', 0.0))
-        total = float(data.get('total') or request.form.get('total', 0.0))
-        cambio = float(data.get('cambio') or request.form.get('cambio', 0.0))
-
-        vendedor_id = session.get('usuario_id') or session.get('user_id')
-        vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
-        num_venta = f"VNT-{int(time.time())}"
-        
-        fecha_venta_actual = datetime.now(ZONA_HORARIA_PERU)
-        productos_json = json.dumps(items, ensure_ascii=False)
-        
-        with conexion.cursor() as cursor:
-            # Comprobar si existe la columna cliente_id en ventas
+            # 4. Registrar la venta en la BD forzando el cliente_nombre capturado
             cursor.execute("""
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'ventas' AND column_name = 'cliente_id'
-            """)
-            has_cliente_id = cursor.fetchone() is not None
+                INSERT INTO ventas (
+                    numero_venta, fecha_venta, cliente_id, cliente_nombre, 
+                    vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
+                    monto_recibido, cambio_entregado, productos, estado, tenant_id
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                ) RETURNING id
+            """, (
+                num_venta, fecha_actual, cliente_id, cliente_nombre,
+                vendedor_id, vendedor_nombre, metodo_pago,
+                subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
+            ))
 
-            if has_cliente_id:
-                cursor.execute("""
-                    INSERT INTO ventas (
-                        numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento, 
-                        vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
-                        monto_recibido, cambio_entregado, productos, estado, tenant_id
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
-                    ) RETURNING id
-                """, (
-                    num_venta, fecha_venta_actual, cliente_id, cliente_nombre, cliente_doc, 
-                    vendedor_id, vendedor_nombre, metodo_pago,
-                    subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
-                ))
-            else:
-                cursor.execute("""
-                    INSERT INTO ventas (
-                        numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
-                        vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
-                        monto_recibido, cambio_entregado, productos, estado, tenant_id
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
-                    ) RETURNING id
-                """, (
-                    num_venta, fecha_venta_actual, cliente_nombre, cliente_doc, 
-                    vendedor_id, vendedor_nombre, metodo_pago,
-                    subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
-                ))
-            
             venta_id = cursor.fetchone()[0]
-            
+
+            # Descontar el stock de los productos vendidos
             for item in items:
                 pid = item.get('id')
-                cant = int(item.get('cantidad', item.get('qty', 1)))
+                cant = int(item.get('cantidad', 1))
                 if pid and str(pid).isdigit():
-                    cursor.execute("""
-                        UPDATE productos 
-                        SET cantidad = GREATEST(COALESCE(cantidad, 0) - %s, 0) 
-                        WHERE id = %s
-                    """, (cant, int(pid)))
-                
+                    cursor.execute("UPDATE productos SET cantidad = GREATEST(COALESCE(cantidad, 0) - %s, 0) WHERE id = %s", (cant, int(pid)))
+
         conexion.commit()
         conexion.close()
-        
-        session.pop('cart', None)
-        ticket_url = url_for('ticket_venta', venta_id=venta_id) if 'ticket_venta' in app.view_functions else f"/venta/ticket/{venta_id}"
-        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
-    except Exception as e:
-        logger.error(f"Error procesando venta POS: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
+        ticket_url = f"/venta/ticket/{venta_id}"
+        return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': ticket_url})
+
+    except Exception as e:
+        logger.error(f"Error procesando venta: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/ventas/scan-push', methods=['POST'])
 def scan_push():
