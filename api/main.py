@@ -2399,15 +2399,6 @@ def detalle_cliente(cliente_id):
 
     return render_template('detalle_cliente.html', cliente=cliente, mascotas=mascotas_lista)
 
-@app.route('/mascotas')
-def mascotas():
-    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
-        flash('Acceso denegado.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    lista = mascotas_controlador.obtener_mascotas() if hasattr(mascotas_controlador, 'obtener_mascotas') else []
-    return render_template('mascotas.html', mascotas=lista)
-
 
 # ─── GESTIÓN DE PERSONAL Y USUARIOS ──────────────────────────────────────────
 
