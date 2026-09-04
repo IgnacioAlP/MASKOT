@@ -4,7 +4,7 @@ import json
 import time
 import logging
 import hashlib
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from functools import wraps
 import io
 from openpyxl import Workbook
@@ -12,7 +12,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
-    session, flash, jsonify, send_from_directory, send_file
+    session, flash, jsonify, send_from_directory, send_file,session,app
 )
 from werkzeug.utils import secure_filename
 
@@ -38,6 +38,7 @@ from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # MASKOT/api
 ROOT_DIR = os.path.dirname(BASE_DIR)                   # MASKOT
+ZONA_HORARIA_PERU = timezone(timedelta(hours=-5))
 
 app = Flask(
     __name__,
@@ -339,18 +340,30 @@ def logout():
 
 
 # ─── DASHBOARD ───────────────────────────────────────────────────────────────
+
+
+def obtener_fecha_hoy_peru():
+    """Retorna la fecha actual en formato YYYY-MM-DD según la hora de Perú."""
+    return datetime.now(ZONA_HORARIA_PERU).strftime('%Y-%m-%d')
+
+# Registrar la función en Jinja2 para que {{ today_string() }} en las plantillas dé la fecha exacta de Perú
+@app.context_processor
+def inject_today():
+    return dict(today_string=obtener_fecha_hoy_peru)
+
+
 @app.route('/dashboard')
 def dashboard():
     if 'rol' not in session:
         return redirect(url_for('login'))
     
     rol = session['rol']
-    hoy = date.today().strftime('%Y-%m-%d')
+    # Se utiliza la fecha ajustada a Perú (UTC-5)
+    hoy = obtener_fecha_hoy_peru()
     
     citas_hoy = []
     alertas_fidelizacion = []
     
-    # Estructura por defecto para evitar errores en Jinja2
     cuadre_hoy = {
         'cantidad_ventas': 0,
         'efectivo': 0.0,
@@ -379,7 +392,7 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
 
-        # Cálculo de ventas del día corrigiendo "metodo_pago"
+        # Consulta SQL convertida explícitamente a la zona horaria de Perú
         conexion = None
         try:
             conexion = obtener_conexion()
@@ -392,8 +405,9 @@ def dashboard():
                         COALESCE(SUM(CASE WHEN LOWER(metodo_pago) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
                         COALESCE(SUM(CASE WHEN LOWER(metodo_pago) IN ('tarjeta', 'bbva', 'pos', 'qr bbva', 'benapay') THEN total ELSE 0 END), 0) AS total_tarjeta
                     FROM ventas
-                    WHERE DATE(fecha) = %s
-                """, (hoy,))
+                    WHERE DATE(fecha AT TIME ZONE 'UTC' AT TIME ZONE 'America/Lima') = %s
+                       OR DATE(fecha) = %s
+                """, (hoy, hoy))
                 res = cursor.fetchone()
                 if res:
                     cant = int(res[0])
@@ -463,39 +477,41 @@ def dashboard():
                            totales_dia=totales_dia, 
                            cuadre_hoy=cuadre_hoy)
 
+
+@app.route('/exportar-cuadre-excel', methods=['GET'])
 @app.route('/exportar-cierre-diario', methods=['GET'])
 def exportar_cierre_diario():
-    fecha_filtro = request.args.get('fecha', date.today().strftime('%Y-%m-%d'))
+    fecha_filtro = request.args.get('fecha') or obtener_fecha_hoy_peru()
     conexion = None
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Obtiene el desglose detallado idéntico a las columnas del reporte físico
             cursor.execute("""
                 SELECT 
-                    servicio_descripcion,
-                    cliente_mascota,
-                    tamano,
-                    monto_total,
-                    efectivo,
-                    yape,
-                    qr_bbva,
-                    bbvapay,
-                    medio_pago,
-                    promocion,
-                    fecha_prox_bano,
-                    nro_boleta_factura
-                FROM detalle_servicios_diarios
-                WHERE DATE(fecha) = %s
-                ORDER BY id ASC
-            """, (fecha_filtro,))
+                    COALESCE(v.servicio_descripcion, 'Venta General') AS servicio,
+                    COALESCE(v.cliente, 'Cliente Varios') AS cliente,
+                    'Mediano' AS tamano,
+                    COALESCE(v.total, 0) AS total,
+                    CASE WHEN LOWER(v.metodo_pago) = 'efectivo' THEN v.total ELSE 0 END AS efectivo,
+                    CASE WHEN LOWER(v.metodo_pago) IN ('yape', 'plin') THEN v.total ELSE 0 END AS yape,
+                    CASE WHEN LOWER(v.metodo_pago) = 'qr bbva' THEN v.total ELSE 0 END AS qr_bbva,
+                    CASE WHEN LOWER(v.metodo_pago) = 'benapay' THEN v.total ELSE 0 END AS benapay,
+                    v.metodo_pago,
+                    '' AS promocion,
+                    '' AS fecha_prox_bano,
+                    COALESCE(v.nro_boleta, '') AS boleta
+                FROM ventas v
+                WHERE DATE(v.fecha AT TIME ZONE 'UTC' AT TIME ZONE 'America/Lima') = %s
+                   OR DATE(v.fecha) = %s
+                ORDER BY v.id ASC
+            """, (fecha_filtro, fecha_filtro))
             registros = cursor.fetchall()
 
         wb = Workbook()
         ws = wb.active
         ws.title = f"Cierre {fecha_filtro}"
 
-        # Fila de fecha del reporte
+        # Encabezado con fecha
         ws.merge_cells("A1:M1")
         ws["A1"] = f"FECHA: {fecha_filtro}"
         ws["A1"].font = Font(bold=True, size=11)
@@ -503,13 +519,13 @@ def exportar_cierre_diario():
 
         headers = [
             "N°", "DESCRIPCION DEL SERVICIO", "CLIENTE", "TAMAÑO", "TOTAL A RENDIR",
-            "EFECTIVO S/", "YAPE", "QR BBVA", "BBVAPAY", "MEDIO PAGO",
+            "EFECTIVO S/", "YAPE", "QR BBVA", "BENAPAY", "MEDIO PAGO",
             "PROMOCIÓN", "FECHA PROX. BAÑO", "N° BOLETA FACTURA"
         ]
         ws.append(headers)
 
         header_font = Font(bold=True, color="000000", size=9)
-        header_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid") # Tono naranja claro
+        header_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
         border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
         for col_idx, header in enumerate(headers, 1):
@@ -537,27 +553,20 @@ def exportar_cierre_diario():
             total_tarjeta_qr += qr_val
 
             line = [
-                idx,
-                row[0] or "",
-                row[1] or "",
-                row[2] or "Mediano",
+                idx, row[0], row[1], row[2],
                 f"S/ {monto:.2f}" if monto else "",
                 f"S/ {efec:.2f}" if efec else "",
                 f"S/ {yape_val:.2f}" if yape_val else "",
                 f"S/ {float(row[6]):.2f}" if row[6] else "",
                 f"S/ {float(row[7]):.2f}" if row[7] else "",
-                row[8] or "",
-                row[9] or "",
-                str(row[10]) if row[10] else "",
-                row[11] or ""
+                row[8] or "", row[9] or "", row[10] or "", row[11] or ""
             ]
             ws.append(line)
             
             for col_idx in range(1, 14):
-                cell = ws.cell(row=row_start + idx - 1, column=col_idx)
-                cell.border = border_thin
+                ws.cell(row=row_start + idx - 1, column=col_idx).border = border_thin
 
-        # Fila Final de Consolidados y Totales
+        # Fila de Totales
         totales_row = [
             "TOTALES", "", "", "",
             f"S/ {total_rendir:.2f}",
@@ -571,7 +580,7 @@ def exportar_cierre_diario():
         last_row = ws.max_row
         ws.merge_cells(start_row=last_row, start_column=1, end_row=last_row, end_column=4)
         
-        total_font = Font(bold=True, color="000000", size=10)
+        total_font = Font(bold=True, size=10)
         total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
         
         for col_idx in range(1, 14):
@@ -580,7 +589,6 @@ def exportar_cierre_diario():
             cell.fill = total_fill
             cell.border = border_thin
 
-        # Ajuste dinámico de columnas
         for col in ws.columns:
             max_len = max(len(str(cell.value or '')) for cell in col)
             col_letter = col[0].column_letter
@@ -600,7 +608,7 @@ def exportar_cierre_diario():
     except Exception as e:
         if conexion:
             conexion.rollback()
-        logger.error(f"Error generando plantilla Excel: {e}")
+        logger.error(f"Error generando reporte de cierre: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conexion:
