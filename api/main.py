@@ -3340,105 +3340,111 @@ def checkout():
     return render_template('checkout.html', items=items, total=subtotal, igv=igv, total_final=total_final)
 
 
-@app.route('/procesar-pago', methods=['POST'])
-def procesar_pago():
-    cart = _get_cart()
-    if not cart:
-        flash('Tu carrito está vacío', 'warning')
-        return redirect(url_for('ver_carrito'))
-    
-    nombre = request.form.get('nombre', '').strip()
-    email = request.form.get('email', '').strip()
-    telefono = request.form.get('telefono', '').strip()
-    direccion = request.form.get('direccion', '').strip()
-    documento = request.form.get('documento', '').strip()
-    metodo_pago = request.form.get('metodo_pago', 'efectivo').strip()
-    
-    if not all([nombre, email, telefono, direccion, metodo_pago]):
-        flash('Por favor completa todos los campos obligatorios.', 'error')
-        return redirect(url_for('checkout'))
+@app.route('/ventas/procesar', methods=['POST'])
+def procesar_venta_pos():
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'Sesión no válida'}), 401
 
-    items = []
-    subtotal = 0.0
-    for id_str, data in cart.items():
-        try:
-            pid = int(id_str)
-        except Exception:
-            continue
-        
-        producto = productos_controlador.obtener_producto_por_id(pid) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
-        if not producto:
-            continue
-        qty = int(data.get('qty', 0))
-        precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
-        subtotal_item = precio_unitario * qty
-        items.append({'id': pid, 'nombre': producto[1], 'cantidad': qty, 'precio': precio_unitario, 'subtotal': subtotal_item})
-        subtotal += subtotal_item
-    
-    igv = round(subtotal * 0.18, 2)
-    total_final = subtotal + igv
+    data = request.get_json() or {}
     tenant_id = session.get('tenant_id', 1)
-    num_venta = f"VNT-{int(time.time())}"
-    fecha_actual = datetime.now(ZONA_HORARIA_PERU)
-    productos_json = json.dumps(items, ensure_ascii=False)
+    
+    # 1. Obtener datos del cliente enviados desde el POS
+    raw_cliente_id = data.get('cliente_id') or data.get('id_cliente')
+    cliente_nombre_input = (data.get('cliente_nombre') or data.get('nombre_cliente') or '').strip()
+
+    final_cliente_id = None
+    final_cliente_nombre = 'Cliente General'
+    final_cliente_doc = None
 
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            # 1. Buscar si el cliente ya existe por documento o email
-            cursor.execute("""
-                SELECT id, nombre FROM clientes 
-                WHERE (documento = %s OR email = %s) AND tenant_id = %s
-                LIMIT 1
-            """, (documento, email, tenant_id))
-            
-            cliente_existente = cursor.fetchone()
-            
-            # 2. Asignar ID si existe, sino crear un nuevo cliente
-            if cliente_existente:
-                cliente_id = cliente_existente[0]
-                cliente_nombre_final = cliente_existente[1] # Usar el nombre registrado en DB
-            else:
+            # 2. Si se envió un ID, verificar que el cliente exista en la base de datos
+            if raw_cliente_id and str(raw_cliente_id).isdigit():
                 cursor.execute("""
-                    INSERT INTO clientes (nombre, email, telefono, direccion, documento, tenant_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                """, (nombre, email, telefono, direccion, documento, tenant_id))
-                cliente_id = cursor.fetchone()[0]
-                cliente_nombre_final = nombre
+                    SELECT id, nombre, documento 
+                    FROM clientes 
+                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL) AND activo = TRUE
+                """, (int(raw_cliente_id), tenant_id))
+                
+                cli = cursor.fetchone()
+                if cli:
+                    final_cliente_id = cli[0]
+                    final_cliente_nombre = cli[1]
+                    final_cliente_doc = cli[2]
 
-            # 3. Insertar la venta vinculada de manera obligatoria al cliente_id
+            # 3. Si no vino ID pero escribieron un nombre distinto a 'Cliente General', buscar por nombre exacto
+            elif cliente_nombre_input and cliente_nombre_input.lower() != 'cliente general':
+                cursor.execute("""
+                    SELECT id, nombre, documento 
+                    FROM clientes 
+                    WHERE LOWER(nombre) = LOWER(%s) AND (tenant_id = %s OR tenant_id IS NULL) AND activo = TRUE
+                    LIMIT 1
+                """, (cliente_nombre_input, tenant_id))
+                
+                cli = cursor.fetchone()
+                if cli:
+                    final_cliente_id = cli[0]
+                    final_cliente_nombre = cli[1]
+                    final_cliente_doc = cli[2]
+                else:
+                    # Si el nombre no existe en la BD, se asigna como nombre del comprobante pero SIN crear fila en clientes
+                    final_cliente_nombre = cliente_nombre_input
+
+            # 4. Generar número de venta único
+            num_venta = f"VNT-{int(time.time())}"
+            fecha_actual = datetime.now(ZONA_HORARIA_PERU)
+            productos_json = json.dumps(data.get('productos', []), ensure_ascii=False)
+
+            # 5. Insertar la venta (final_cliente_id será NULL si es Cliente General)
             cursor.execute("""
                 INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento,
-                    vendedor_nombre, metodo_pago, subtotal, igv, total,
-                    monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (%s, %s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
-                RETURNING id
+                    numero_venta, fecha_venta, vendedor_id, vendedor_nombre,
+                    cliente_id, cliente_nombre, cliente_documento,
+                    productos, subtotal, igv, total, metodo_pago,
+                    monto_recibido, cambio_entregado, estado, tenant_id
+                ) VALUES (
+                    %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s, %s, %s,
+                    %s, %s, 'completada'::estado_venta_enum, %s
+                ) RETURNING id
             """, (
-                num_venta, fecha_actual, cliente_id, cliente_nombre_final, documento, 
-                metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id
+                num_venta,
+                fecha_actual,
+                session.get('usuario_id'),
+                session.get('username', 'Cajero'),
+                final_cliente_id,  # Si es None, PostgreSQL inserta NULL automáticamente
+                final_cliente_nombre,
+                final_cliente_doc,
+                productos_json,
+                data.get('subtotal', 0),
+                data.get('igv', 0),
+                data.get('total', 0),
+                data.get('metodo_pago', 'efectivo'),
+                data.get('monto_recibido', 0),
+                data.get('cambio_entregado', 0),
+                tenant_id
             ))
-            
+
             venta_id = cursor.fetchone()[0]
 
-            # 4. Descontar el stock garantizando aislamiento por tenant
-            for item in items:
-                cursor.execute(
-                    "UPDATE productos SET cantidad = GREATEST(cantidad - %s, 0) WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", 
-                    (item['cantidad'], item['id'], tenant_id)
-                )
+            # 6. Descontar stock de los productos vendidos
+            for prod in data.get('productos', []):
+                if prod.get('tipo') != 'servicio' and prod.get('id'):
+                    cursor.execute("""
+                        UPDATE productos 
+                        SET cantidad = GREATEST(cantidad - %s, 0) 
+                        WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                    """, (prod.get('cantidad', 1), prod.get('id'), tenant_id))
 
         conexion.commit()
-        session.pop('cart', None)
-        flash('¡Pago procesado exitosamente!', 'success')
-        return redirect(url_for('index'))
+        return jsonify({'success': True, 'venta_id': venta_id, 'numero_venta': num_venta})
 
     except Exception as e:
         conexion.rollback()
-        logger.error(f"Error procesando pago e-commerce: {e}")
-        flash(f'Error procesando tu pago: {str(e)}', 'error')
-        return redirect(url_for('checkout'))
+        logger.error(f"Error procesando venta POS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         conexion.close()
 
