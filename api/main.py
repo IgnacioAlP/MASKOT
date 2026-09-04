@@ -490,20 +490,32 @@ def exportar_cierre_diario():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            col_fecha = obtener_columna_fecha(cursor)
+            # 1. Obtener los nombres reales de las columnas en la tabla ventas
+            cursor.execute("SELECT * FROM ventas LIMIT 1;")
+            colnames = [desc[0].lower() for desc in cursor.description]
 
-            cursor.execute(f"""
-                SELECT 
-                    id,
-                    COALESCE(total, 0) AS total,
-                    COALESCE(metodo_pago, 'Efectivo') AS metodo_pago,
-                    {col_fecha}
-                FROM ventas
-                WHERE DATE({col_fecha}) = %s::date OR {col_fecha}::text LIKE %s || '%%'
-                ORDER BY id ASC
-            """, (fecha_filtro, fecha_filtro))
+            # Detectar columnas dinámicamente
+            col_id = next((c for c in ['id', 'id_venta', 'codigo'] if c in colnames), colnames[0])
+            col_total = next((c for c in ['total', 'monto', 'monto_total', 'precio_total'] if c in colnames), None)
+            col_metodo = next((c for c in ['metodo_pago', 'medio_pago', 'forma_pago', 'tipo_pago'] if c in colnames), None)
+            col_fecha = next((c for c in ['fecha', 'fecha_venta', 'created_at', 'fecha_registro'] if c in colnames), None)
+
+            # Construir consulta SQL segura
+            query = f"SELECT {col_id}"
+            query += f", {col_total}" if col_total else ", 0 AS total"
+            query += f", {col_metodo}" if col_metodo else ", 'Efectivo' AS metodo_pago"
+            query += f", {col_fecha}" if col_fecha else ", NOW() AS fecha"
+            
+            if col_fecha:
+                query += f" FROM ventas WHERE DATE({col_fecha}::text) = %s::date OR {col_fecha}::text LIKE %s || '%%' ORDER BY {col_id} ASC"
+                cursor.execute(query, (fecha_filtro, fecha_filtro))
+            else:
+                query += f" FROM ventas ORDER BY {col_id} ASC"
+                cursor.execute(query)
+
             registros = cursor.fetchall()
 
+        # 2. Generación del libro Excel
         wb = Workbook()
         ws = wb.active
         ws.title = f"Cierre {fecha_filtro}"
@@ -571,18 +583,29 @@ def exportar_cierre_diario():
         wb.save(output)
         output.seek(0)
 
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name=f"Cierre_Diario_{fecha_filtro}.xlsx"
-        )
+        nombre_archivo = f"Cierre_Diario_{fecha_filtro}.xlsx"
+
+        # 3. Descarga compatible con cualquier versión de Flask
+        try:
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=nombre_archivo
+            )
+        except TypeError:
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=nombre_archivo
+            )
 
     except Exception as e:
         if conexion:
             conexion.rollback()
         logger.error(f"Error generando reporte de cierre: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return f"Error al generar Excel: {str(e)}", 500
     finally:
         if conexion:
             conexion.close()
