@@ -22,20 +22,9 @@
                     </h2>
                     <p style="margin: 5px 0 0 0; color: #64748b; font-size: 0.9rem;">
                         Ventas totales registradas hoy ({{ cuadre_hoy.cantidad_ventas if cuadre_hoy and
-                        cuadre_hoy.cantidad_ventas else 0 }}
-                        transacciones)
+                        cuadre_hoy.cantidad_ventas else 0 }} transacciones)
                     </p>
                 </div>
-                <form action="{{ url_for('exportar_cierre_diario') }}" method="GET"
-                    style="display: flex; gap: 10px; align-items: center;">
-                    <input type="date" name="fecha" value="{{ today_string() if today_string is defined else '' }}"
-                        class="form-control" style="padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px;"
-                        required>
-                    <button type="submit" class="btn"
-                        style="background-color: #10b981; color: white; padding: 8px 16px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-file-excel"></i> Exportar Excel
-                    </button>
-                </form>
             </div>
 
             <div
@@ -63,72 +52,18 @@
             </div>
         </div>
 
-        <!-- Nueva Tarjeta: Cuadre de Caja Final del Día -->
-        <div class="cuadre-caja-final-card"
-            style="background: #f1f5f9; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #cbd5e1; border-top: 4px solid #0f172a;">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
-                <div>
-                    <h2
-                        style="margin: 0; font-size: 1.25rem; color: #0f172a; display: flex; align-items: center; gap: 10px;">
-                        <i class="fas fa-calculator"></i> Cuadre de Caja Final del Día
-                    </h2>
-                    <p style="margin: 5px 0 0 0; color: #475569; font-size: 0.88rem;">
-                        Consolidado definitivo para cierre de turno y rendición a administración.
-                    </p>
-                </div>
-                <span class="badge"
-                    style="background-color: #0f172a; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">
-                    Cierre Diario
-                </span>
-            </div>
-
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                <div
-                    style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-                    <i class="fas fa-coins" style="color: #16a34a; font-size: 1.5rem; margin-bottom: 5px;"></i>
-                    <span
-                        style="display: block; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total
-                        Efectivo</span>
-                    <h4 style="margin: 5px 0 0 0; color: #0f172a; font-size: 1.3rem;">S/ {{
-                        "%.2f"|format(totales_dia.total_efectivo if totales_dia else (cuadre_hoy.efectivo if cuadre_hoy
-                        else 0.0)) }}</h4>
-                </div>
-                <div
-                    style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-                    <i class="fas fa-mobile-alt" style="color: #7c3aed; font-size: 1.5rem; margin-bottom: 5px;"></i>
-                    <span
-                        style="display: block; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total
-                        Yape / Digital</span>
-                    <h4 style="margin: 5px 0 0 0; color: #0f172a; font-size: 1.3rem;">S/ {{
-                        "%.2f"|format(totales_dia.total_yape if totales_dia else (cuadre_hoy.yape if cuadre_hoy else
-                        0.0)) }}</h4>
-                </div>
-                <div
-                    style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-                    <i class="fas fa-credit-card" style="color: #2563eb; font-size: 1.5rem; margin-bottom: 5px;"></i>
-                    <span
-                        style="display: block; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Total
-                        Tarjeta / POS</span>
-                    <h4 style="margin: 5px 0 0 0; color: #0f172a; font-size: 1.3rem;">S/ {{
-                        "%.2f"|format(totales_dia.total_tarjeta if totales_dia else (cuadre_hoy.tarjeta if cuadre_hoy
-                        else 0.0)) }}</h4>
-                </div>
-                <div style="background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; color: white;">
-                    <i class="fas fa-wallet" style="color: #38bdf8; font-size: 1.5rem; margin-bottom: 5px;"></i>
-                    <span
-                        style="display: block; font-size: 0.8rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Total
-                        General en Soles</span>
-                    <h4 style="margin: 5px 0 0 0; color: #38bdf8; font-size: 1.3rem;">S/ {{
-                        "%.2f"|format(totales_dia.total_soles if totales_dia else (cuadre_hoy.total if cuadre_hoy else
-                        0.0)) }}</h4>
-                </div>
-            </div>
-        </div>
-
+        <!-- Acciones Rápidas -->
         <div class="quick-actions">
             <h2><i class="fas fa-bolt"></i> Acciones Rápidas</h2>
             <div class="actions-grid">
+                <!-- Card Nueva: Cuadre de caja fin del día -->
+                <a href="{{ url_for('exportar_cierre_diario') }}" class="action-card"
+                    style="border-left: 4px solid #10b981;">
+                    <i class="fas fa-file-excel" style="color: #10b981;"></i>
+                    <h3>Cuadre Caja Fin del Día</h3>
+                    <p>Exportar informe a Excel</p>
+                </a>
+
                 {% if session.rol in ['admin', 'empleado'] %}
                 <a href="{{ url_for('citas') }}" class="action-card">
                     <i class="fas fa-calendar-check"></i>
@@ -165,6 +100,7 @@
             </div>
         </div>
 
+        <!-- Citas Programadas -->
         <div class="citas-hoy-dashboard" style="margin-top: 30px;">
             <h2><i class="fas fa-calendar-day"></i> Citas Programadas para Hoy</h2>
             {% if citas_hoy %}
