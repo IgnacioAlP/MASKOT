@@ -83,8 +83,12 @@ def _ensure_schema():
         ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_barra VARCHAR(100) DEFAULT NULL"),
         ("productos", "stock_minimo", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5"),
         ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
+        ("clientes",  "documento",   "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS documento VARCHAR(50) DEFAULT NULL"),
         ("ventas",    "tenant_id",   "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
+        ("ventas",    "cliente_id",  "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente_id INT DEFAULT NULL"),
+        ("ventas",    "cliente_documento", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS cliente_documento VARCHAR(50) DEFAULT NULL"),
         ("ventas",    "vendedor_id", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_id INT DEFAULT NULL"),
+        ("ventas",    "vendedor_nombre", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_nombre VARCHAR(100) DEFAULT NULL"),
         ("ventas",    "productos",   "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS productos TEXT DEFAULT '[]'"),
     ]
     try:
@@ -100,7 +104,7 @@ def _ensure_schema():
                     conn.commit()
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
 
-            for col in ['vendedor_nombre', 'vendedor_id']:
+            for col in ['vendedor_nombre', 'vendedor_id', 'cliente_id', 'cliente_nombre']:
                 cursor.execute("""
                     SELECT is_nullable FROM information_schema.columns 
                     WHERE table_name = 'ventas' AND column_name = %s
@@ -355,11 +359,17 @@ def obtener_columna_fecha(cursor):
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_name = 'ventas' 
-          AND column_name IN ('fecha', 'fecha_venta', 'created_at', 'fecha_registro', 'fecha_creacion', 'fechahora')
+          AND column_name IN ('fecha_venta', 'fecha', 'created_at', 'fecha_registro', 'fecha_creacion', 'fechahora')
+        ORDER BY CASE column_name
+            WHEN 'fecha_venta' THEN 1
+            WHEN 'fecha' THEN 2
+            WHEN 'created_at' THEN 3
+            ELSE 4
+        END
         LIMIT 1;
     """)
     res = cursor.fetchone()
-    return res[0] if res else 'created_at'
+    return res[0] if res else 'fecha_venta'
 
 
 @app.route('/dashboard')
@@ -488,25 +498,14 @@ def exportar_cierre_diario():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT * FROM ventas LIMIT 1;")
-            colnames = [desc[0].lower() for desc in cursor.description]
-
-            col_id = next((c for c in ['id', 'id_venta', 'codigo'] if c in colnames), colnames[0])
-            col_total = next((c for c in ['total', 'monto', 'monto_total', 'precio_total'] if c in colnames), None)
-            col_metodo = next((c for c in ['metodo_pago', 'medio_pago', 'forma_pago', 'tipo_pago'] if c in colnames), None)
-            col_fecha = next((c for c in ['fecha', 'fecha_venta', 'created_at', 'fecha_registro'] if c in colnames), None)
-
-            query = f"SELECT {col_id}"
-            query += f", {col_total}" if col_total else ", 0 AS total"
-            query += f", {col_metodo}" if col_metodo else ", 'Efectivo' AS metodo_pago"
-            query += f", {col_fecha}" if col_fecha else f", '{datetime.now(ZONA_HORARIA_PERU)}'::timestamp AS fecha"
+            col_fecha = obtener_columna_fecha(cursor)
             
-            if col_fecha:
-                query += f" FROM ventas WHERE DATE({col_fecha}::text) = %s::date OR {col_fecha}::text LIKE %s || '%%' ORDER BY {col_id} ASC"
-                cursor.execute(query, (fecha_filtro, fecha_filtro))
-            else:
-                query += f" FROM ventas ORDER BY {col_id} ASC"
-                cursor.execute(query)
+            cursor.execute(f"""
+                SELECT id, COALESCE(total, 0.0) AS total, COALESCE(metodo_pago, 'efectivo') AS metodo, {col_fecha} AS fecha
+                FROM ventas
+                WHERE DATE({col_fecha}::text) = %s::date OR {col_fecha}::text LIKE %s || '%%'
+                ORDER BY id ASC
+            """, (fecha_filtro, fecha_filtro))
 
             registros = cursor.fetchall()
 
@@ -693,7 +692,7 @@ def punto_de_venta():
     return render_template('pos.html', productos=productos_lista, servicios=servicios_lista)
 
 
-# ─── API BÚSQUEDA DE CLIENTES PARA EL POS ─────────────────────────────────────
+# ─── API BÚSQUEDA DE CLIENTES Y PRODUCTOS PARA EL POS ─────────────────────────
 
 @app.route('/api/ventas/buscar-clientes')
 def api_buscar_clientes():
@@ -715,7 +714,7 @@ def api_buscar_clientes():
                       AND COALESCE(activo, true) = true
                       AND (nombre ILIKE %s OR documento ILIKE %s OR telefono ILIKE %s)
                     ORDER BY nombre ASC
-                    LIMIT 10
+                    LIMIT 15
                 """, (tenant_id, param_like, param_like, param_like))
             else:
                 cursor.execute("""
@@ -724,7 +723,7 @@ def api_buscar_clientes():
                     WHERE (tenant_id = %s OR tenant_id IS NULL)
                       AND COALESCE(activo, true) = true
                     ORDER BY nombre ASC
-                    LIMIT 10
+                    LIMIT 15
                 """, (tenant_id,))
             
             rows = cursor.fetchall()
@@ -853,53 +852,80 @@ def procesar_venta_pos():
 
         conexion = obtener_conexion()
 
-        # ─── RESOLUCIÓN ROBUSTA DE CLIENTE SELECCIONADO O GENERAL ───
-        cliente_raw = data.get('cliente')
-        cliente_id = data.get('cliente_id') or request.form.get('cliente_id')
+        # ─── EXTRAER Y RESOLVER CLIENTE ROBUSTAMENTE ───
+        client_raw = data.get('cliente') or request.form.get('cliente')
         
-        cliente_nombre = ''
-        cliente_doc = ''
-
-        if isinstance(cliente_raw, dict):
-            cliente_nombre = (cliente_raw.get('nombre') or cliente_raw.get('cliente_nombre') or '').strip()
-            cliente_doc = (cliente_raw.get('documento') or cliente_raw.get('cliente_documento') or cliente_raw.get('doc') or '').strip()
+        cliente_id = (
+            data.get('cliente_id') or data.get('id_cliente') or data.get('clienteId') or
+            request.form.get('cliente_id') or request.form.get('id_cliente') or request.form.get('clienteId')
+        )
+        
+        cliente_nombre = (
+            data.get('cliente_nombre') or data.get('nombre_cliente') or data.get('clienteNombre') or
+            request.form.get('cliente_nombre') or request.form.get('nombre_cliente') or request.form.get('clienteNombre') or ''
+        )
+        
+        cliente_doc = (
+            data.get('cliente_documento') or data.get('cliente_doc') or data.get('documento') or data.get('doc') or
+            request.form.get('cliente_documento') or request.form.get('cliente_doc') or request.form.get('documento') or request.form.get('doc') or ''
+        )
+        
+        if isinstance(client_raw, dict):
             if not cliente_id:
-                cliente_id = cliente_raw.get('id')
-        elif isinstance(cliente_raw, str):
-            cliente_nombre = cliente_raw.strip()
+                cliente_id = client_raw.get('id') or client_raw.get('cliente_id') or client_raw.get('id_cliente')
+            if not cliente_nombre:
+                cliente_nombre = client_raw.get('nombre') or client_raw.get('cliente_nombre') or client_raw.get('nombre_cliente') or ''
+            if not cliente_doc:
+                cliente_doc = client_raw.get('documento') or client_raw.get('cliente_documento') or client_raw.get('doc') or ''
+        elif isinstance(client_raw, (int, float)):
+            if not cliente_id:
+                cliente_id = int(client_raw)
+        elif isinstance(client_raw, str):
+            val = client_raw.strip()
+            if val.isdigit():
+                if not cliente_id:
+                    cliente_id = int(val)
+            elif val and val.lower() != 'cliente general':
+                if not cliente_nombre:
+                    cliente_nombre = val
 
-        if not cliente_nombre:
-            cliente_nombre = (
-                data.get('cliente_nombre') or 
-                data.get('nombre_cliente') or 
-                data.get('clienteNombre') or 
-                request.form.get('cliente_nombre') or 
-                request.form.get('cliente') or 
-                ''
-            ).strip()
+        cliente_nombre = cliente_nombre.strip() if isinstance(cliente_nombre, str) else ''
+        cliente_doc = cliente_doc.strip() if isinstance(cliente_doc, str) else ''
+        
+        if cliente_id and str(cliente_id).isdigit():
+            cliente_id = int(cliente_id)
+        else:
+            cliente_id = None
 
-        if not cliente_doc:
-            cliente_doc = (
-                data.get('cliente_documento') or 
-                data.get('cliente_doc') or 
-                data.get('documento') or 
-                request.form.get('cliente_documento') or 
-                request.form.get('documento') or 
-                ''
-            ).strip()
+        tenant_id = session.get('tenant_id', 1)
 
-        # Si viene cliente_id pero el nombre sigue vacío o es 'Cliente General', consultamos la BD
-        if cliente_id and (not cliente_nombre or cliente_nombre.lower() == 'cliente general'):
-            try:
-                with conexion.cursor() as cursor:
-                    cursor.execute("SELECT nombre, COALESCE(documento, '') FROM clientes WHERE id = %s", (int(cliente_id),))
-                    cli_db = cursor.fetchone()
-                    if cli_db:
-                        cliente_nombre = cli_db[0] or cliente_nombre
-                        if not cliente_doc:
-                            cliente_doc = cli_db[1] or ''
-            except Exception as ex_cli:
-                logger.warning(f"Error consultando cliente por ID {cliente_id}: {ex_cli}")
+        # Consultar cliente exacto en la BD si tenemos ID o Nombre
+        with conexion.cursor() as cursor:
+            if cliente_id:
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(documento, '') 
+                    FROM clientes 
+                    WHERE id = %s
+                """, (cliente_id,))
+                cli_db = cursor.fetchone()
+                if cli_db:
+                    cliente_id = cli_db[0]
+                    cliente_nombre = cli_db[1] or cliente_nombre
+                    if not cliente_doc:
+                        cliente_doc = cli_db[2] or ''
+            elif cliente_nombre and cliente_nombre.lower() != 'cliente general':
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(documento, '') 
+                    FROM clientes 
+                    WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) AND (tenant_id = %s OR tenant_id IS NULL)
+                    LIMIT 1
+                """, (cliente_nombre, tenant_id))
+                cli_db = cursor.fetchone()
+                if cli_db:
+                    cliente_id = cli_db[0]
+                    cliente_nombre = cli_db[1]
+                    if not cliente_doc:
+                        cliente_doc = cli_db[2] or ''
 
         if not cliente_nombre:
             cliente_nombre = 'Cliente General'
@@ -914,10 +940,9 @@ def procesar_venta_pos():
 
         vendedor_id = session.get('usuario_id') or session.get('user_id')
         vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
-        tenant_id = session.get('tenant_id', 1)
         num_venta = f"VNT-{int(time.time())}"
         
-        # Marca de tiempo exacta de Perú para la venta
+        # Fecha y hora exacta de Perú
         fecha_venta_actual = datetime.now(ZONA_HORARIA_PERU)
         
         productos_json = json.dumps(items, ensure_ascii=False)
@@ -925,14 +950,15 @@ def procesar_venta_pos():
         with conexion.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
+                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento, 
                     vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
                 ) RETURNING id
             """, (
-                num_venta, fecha_venta_actual, cliente_nombre, cliente_doc, vendedor_id, vendedor_nombre, metodo_pago,
+                num_venta, fecha_venta_actual, cliente_id, cliente_nombre, cliente_doc, 
+                vendedor_id, vendedor_nombre, metodo_pago,
                 subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
             ))
             
@@ -979,7 +1005,7 @@ def scan_poll():
 
 
 # ==============================================================================
-# 1. HISTORIAL DE CLIENTES (AGREGACIÓN DINÁMICA DE MÉTRICAS)
+# 1. HISTORIAL DE CLIENTES (CORREGIDO Y OPTIMIZADO)
 # ==============================================================================
 @app.route('/historial_clientes', endpoint='historial_clientes')
 @app.route('/historial-clientes')
@@ -997,73 +1023,124 @@ def historial_clientes():
     filtros = {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'busqueda': busqueda}
     
     clientes_dict = {}
+    id_map = {}
+    name_map = {}
     conexion = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            col_fecha_ventas = obtener_columna_fecha(cursor)
+
+            # 1. Cargar la lista completa de clientes de la base de datos
             cursor.execute("""
-                SELECT id, COALESCE(nombre, 'Sin Nombre') AS nombre, COALESCE(email, 'No registrado') AS email,
-                       COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, created_at
+                SELECT 
+                    id, 
+                    COALESCE(nombre, 'Sin Nombre') AS nombre, 
+                    COALESCE(email, 'No registrado') AS email,
+                    COALESCE(telefono, '') AS telefono, 
+                    COALESCE(direccion, '') AS direccion
                 FROM clientes
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
                 ORDER BY id DESC
             """, (tenant_id,))
             
             for row in cursor.fetchall():
-                c_id, c_nom, c_email, c_tel, c_dir, c_freg = row[0], row[1], row[2], row[3], row[4], row[5]
-                key = c_nom.strip().lower()
-                clientes_dict[key] = {
-                    'id': c_id, 'nombre': c_nom, 'email': c_email, 'telefono': c_tel, 'direccion': c_dir,
-                    'fecha_registro': str(c_freg) if c_freg else None, 'total_citas': 0, 'total_pedidos': 0,
-                    'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
+                c_id, c_nom, c_email, c_tel, c_dir = row[0], row[1], row[2], row[3], row[4]
+                norm_name = c_nom.strip().lower()
+                
+                cli_obj = {
+                    'id': c_id, 
+                    'nombre': c_nom, 
+                    'email': c_email, 
+                    'telefono': c_tel, 
+                    'direccion': c_dir,
+                    'fecha_registro': None, 
+                    'total_citas': 0, 
+                    'total_pedidos': 0,
+                    'total_gastado': 0.0, 
+                    'ultima_cita': None, 
+                    'ultimo_pedido': None
                 }
+                
+                clientes_dict[c_id] = cli_obj
+                id_map[c_id] = cli_obj
+                if norm_name and norm_name != 'cliente general':
+                    name_map[norm_name] = cli_obj
 
-            cursor.execute("""
-                SELECT cliente_nombre, COALESCE(total, 0.0), fecha_venta 
+            # 2. Consultar Ventas y vincular a los clientes por cliente_id o cliente_nombre
+            cursor.execute(f"""
+                SELECT 
+                    COALESCE(cliente_id, 0) AS cliente_id,
+                    COALESCE(cliente_nombre, 'Cliente General') AS cliente_nombre, 
+                    COALESCE(total, 0.0) AS total, 
+                    {col_fecha_ventas} AS fecha
                 FROM ventas 
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
             """, (tenant_id,))
+            
             for v_row in cursor.fetchall():
-                v_nom = (v_row[0] or 'Cliente General').strip()
-                v_tot = float(v_row[1] or 0.0)
-                v_fec = str(v_row[2]) if v_row[2] else None
-                key = v_nom.lower()
+                v_cid = int(v_row[0] or 0)
+                v_nom = (v_row[1] or 'Cliente General').strip()
+                v_tot = float(v_row[2] or 0.0)
+                v_fec = str(v_row[3]) if v_row[3] else None
+                norm_v_nom = v_nom.lower()
 
-                if key not in clientes_dict:
-                    clientes_dict[key] = {
+                target_cli = None
+                if v_cid and v_cid in id_map:
+                    target_cli = id_map[v_cid]
+                elif norm_v_nom in name_map:
+                    target_cli = name_map[norm_v_nom]
+                elif norm_v_nom and norm_v_nom != 'cliente general':
+                    target_cli = {
                         'id': 0, 'nombre': v_nom, 'email': 'No registrado', 'telefono': '', 'direccion': '',
                         'fecha_registro': v_fec, 'total_citas': 0, 'total_pedidos': 0,
                         'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
                     }
-                
-                clientes_dict[key]['total_pedidos'] += 1
-                clientes_dict[key]['total_gastado'] += v_tot
-                if v_fec and (not clientes_dict[key]['ultimo_pedido'] or v_fec > str(clientes_dict[key]['ultimo_pedido'])):
-                    clientes_dict[key]['ultimo_pedido'] = v_fec
+                    key_virtual = f"virtual_{norm_v_nom}"
+                    clientes_dict[key_virtual] = target_cli
+                    name_map[norm_v_nom] = target_cli
 
+                if target_cli:
+                    target_cli['total_pedidos'] += 1
+                    target_cli['total_gastado'] += v_tot
+                    if v_fec and (not target_cli['ultimo_pedido'] or v_fec > str(target_cli['ultimo_pedido'])):
+                        target_cli['ultimo_pedido'] = v_fec
+
+            # 3. Consultar Citas
             cursor.execute("""
-                SELECT cliente_nombre, COALESCE(precio_total, 0.0), fecha 
+                SELECT 
+                    COALESCE(cliente_nombre, 'Cliente General') AS cliente_nombre, 
+                    COALESCE(precio_total, 0.0) AS total, 
+                    fecha 
                 FROM citas 
                 WHERE (tenant_id = %s OR tenant_id IS NULL)
             """, (tenant_id,))
+            
             for c_row in cursor.fetchall():
                 c_nom = (c_row[0] or 'Cliente General').strip()
                 c_tot = float(c_row[1] or 0.0)
                 c_fec = str(c_row[2]) if c_row[2] else None
-                key = c_nom.lower()
+                norm_c_nom = c_nom.lower()
 
-                if key not in clientes_dict:
-                    clientes_dict[key] = {
+                target_cli = None
+                if norm_c_nom in name_map:
+                    target_cli = name_map[norm_c_nom]
+                elif norm_c_nom and norm_c_nom != 'cliente general':
+                    target_cli = {
                         'id': 0, 'nombre': c_nom, 'email': 'No registrado', 'telefono': '', 'direccion': '',
                         'fecha_registro': c_fec, 'total_citas': 0, 'total_pedidos': 0,
                         'total_gastado': 0.0, 'ultima_cita': None, 'ultimo_pedido': None
                     }
+                    key_virtual = f"virtual_{norm_c_nom}"
+                    clientes_dict[key_virtual] = target_cli
+                    name_map[norm_c_nom] = target_cli
 
-                clientes_dict[key]['total_citas'] += 1
-                clientes_dict[key]['total_gastado'] += c_tot
-                if c_fec and (not clientes_dict[key]['ultima_cita'] or c_fec > str(clientes_dict[key]['ultima_cita'])):
-                    clientes_dict[key]['ultima_cita'] = c_fec
+                if target_cli:
+                    target_cli['total_citas'] += 1
+                    target_cli['total_gastado'] += c_tot
+                    if c_fec and (not target_cli['ultima_cita'] or c_fec > str(target_cli['ultima_cita'])):
+                        target_cli['ultima_cita'] = c_fec
 
     except Exception as e:
         if conexion:
@@ -1112,7 +1189,7 @@ def historial_clientes():
 
 
 # ==============================================================================
-# 2. HISTORIAL DE ASISTENCIA DINÁMICO CON ZONA HORARIA PERÚ
+# 2. HISTORIAL DE ASISTENCIA
 # ==============================================================================
 @app.route('/historial_asistencia', endpoint='historial_asistencia')
 @app.route('/historial-asistencia')
@@ -1225,7 +1302,7 @@ def historial_asistencia():
 
 
 # ==============================================================================
-# 3. HISTORIAL DE COMPRAS (COMPLETO CON ALIAS DE ATRIBUTOS Y SIN ERROR 500)
+# 3. HISTORIAL DE COMPRAS
 # ==============================================================================
 @app.route('/historial_compras', endpoint='historial_compras')
 @app.route('/historial-compras')
@@ -1295,7 +1372,6 @@ def historial_compras():
                         p_id = item.get('id')
                         p_nombre = item.get('nombre') or item.get('title') or 'Producto'
                         
-                        # Excluir ítems de servicio
                         if str(p_id).startswith('service_') or item.get('type') == 'service':
                             continue
 
@@ -1358,7 +1434,7 @@ def historial_compras():
 
 
 # ==============================================================================
-# 4. HISTORIAL DE SERVICIOS DINÁMICO
+# 4. HISTORIAL DE SERVICIOS
 # ==============================================================================
 @app.route('/historial_servicios', endpoint='historial_servicios')
 @app.route('/historial-servicios')
@@ -1650,11 +1726,12 @@ def ticket_venta(venta_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("""
+            col_fecha = obtener_columna_fecha(cursor)
+            cursor.execute(f"""
                 SELECT 
                     v.id,
                     v.numero_venta,
-                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,
+                    TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM') AS fecha,
                     COALESCE(v.cliente_nombre, 'Cliente General') AS cliente,
                     COALESCE(v.cliente_documento, '-') AS doc,
                     COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,
@@ -2074,8 +2151,8 @@ def crear_cliente():
         direccion = get_field('direccion')
         documento = get_field('documento', 'dni', 'ruc')
 
-        if not nombre or not email:
-            msg = 'Nombre y correo son obligatorios.'
+        if not nombre:
+            msg = 'El nombre del cliente es obligatorio.'
             if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': msg}), 400
             flash(msg, 'warning')
@@ -2139,8 +2216,8 @@ def editar_cliente():
         direccion = get_field('direccion')
         documento = get_field('documento', 'dni', 'ruc')
 
-        if not cliente_id or not nombre or not email:
-            msg = 'Nombre, correo e ID de cliente son obligatorios.'
+        if not cliente_id or not nombre:
+            msg = 'El nombre y el ID de cliente son obligatorios.'
             if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify({'success': False, 'error': msg}), 400
             flash(msg, 'warning')
@@ -2542,7 +2619,6 @@ def asistencia():
     usuario_id = obtener_usuario_id_sesion()
     rol = session.get('rol', 'empleado')
     
-    # Fecha exacta hoy en Perú
     hoy_peru = datetime.now(ZONA_HORARIA_PERU).date()
 
     if not usuario_id:
@@ -3219,14 +3295,23 @@ def procesar_pago():
 
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # Buscar si el cliente ya existe por email o documento
+            cursor.execute("""
+                SELECT id FROM clientes 
+                WHERE (email = %s OR documento = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                LIMIT 1
+            """, (email, documento, tenant_id))
+            cli_row = cursor.fetchone()
+            cliente_id = cli_row[0] if cli_row else None
+
             cursor.execute("""
                 INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_nombre, cliente_documento,
+                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento,
                     vendedor_nombre, metodo_pago, subtotal, igv, total,
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (%s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                ) VALUES (%s, %s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
                 RETURNING id
-            """, (num_venta, fecha_actual, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+            """, (num_venta, fecha_actual, cliente_id, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
             
             venta_id = cursor.fetchone()[0]
             for item in items:
