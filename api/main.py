@@ -358,7 +358,6 @@ def dashboard():
         return redirect(url_for('login'))
     
     rol = session['rol']
-    # Se utiliza la fecha ajustada a Perú (UTC-5)
     hoy = obtener_fecha_hoy_peru()
     
     citas_hoy = []
@@ -371,12 +370,7 @@ def dashboard():
         'tarjeta': 0.0,
         'total': 0.0
     }
-    totales_dia = {
-        'total_soles': 0.0,
-        'total_efectivo': 0.0,
-        'total_yape': 0.0,
-        'total_tarjeta': 0.0
-    }
+    totales_dia = cuadre_hoy.copy()
     
     if rol in ['admin', 'empleado', 'dueño']:
         try:
@@ -392,7 +386,7 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
 
-        # Consulta SQL convertida explícitamente a la zona horaria de Perú
+        # Consulta robusta con casting seguro y limpieza de cadenas
         conexion = None
         try:
             conexion = obtener_conexion()
@@ -401,27 +395,24 @@ def dashboard():
                     SELECT 
                         COUNT(*) AS cantidad_ventas,
                         COALESCE(SUM(total), 0) AS total_soles,
-                        COALESCE(SUM(CASE WHEN LOWER(metodo_pago) = 'efectivo' THEN total ELSE 0 END), 0) AS total_efectivo,
-                        COALESCE(SUM(CASE WHEN LOWER(metodo_pago) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
-                        COALESCE(SUM(CASE WHEN LOWER(metodo_pago) IN ('tarjeta', 'bbva', 'pos', 'qr bbva', 'benapay') THEN total ELSE 0 END), 0) AS total_tarjeta
+                        COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) = 'efectivo' THEN total ELSE 0 END), 0) AS total_efectivo,
+                        COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
+                        COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) NOT IN ('efectivo', 'yape', 'plin') THEN total ELSE 0 END), 0) AS total_tarjeta
                     FROM ventas
-                    WHERE DATE(fecha AT TIME ZONE 'UTC' AT TIME ZONE 'America/Lima') = %s
-                       OR DATE(fecha) = %s
-                """, (hoy, hoy))
+                    WHERE 
+                        fecha::date = %s::date
+                        OR DATE(fecha::text) = %s::date
+                        OR DATE(fecha::timestamp - INTERVAL '5 hours') = %s::date
+                """, (hoy, hoy, hoy))
+                
                 res = cursor.fetchone()
                 if res:
-                    cant = int(res[0])
-                    tot_soles = float(res[1])
-                    tot_efec = float(res[2])
-                    tot_yape = float(res[3])
-                    tot_tarj = float(res[4])
+                    cant = int(res[0] or 0)
+                    tot_soles = float(res[1] or 0)
+                    tot_efec = float(res[2] or 0)
+                    tot_yape = float(res[3] or 0)
+                    tot_tarj = float(res[4] or 0)
 
-                    totales_dia = {
-                        'total_soles': tot_soles,
-                        'total_efectivo': tot_efec,
-                        'total_yape': tot_yape,
-                        'total_tarjeta': tot_tarj
-                    }
                     cuadre_hoy = {
                         'cantidad_ventas': cant,
                         'efectivo': tot_efec,
@@ -429,8 +420,9 @@ def dashboard():
                         'tarjeta': tot_tarj,
                         'total': tot_soles
                     }
+                    totales_dia = cuadre_hoy.copy()
         except Exception as e:
-            logger.warning(f"Error calculando totales de ventas del día: {e}")
+            logger.error(f"Error calculando acumulado de ventas: {e}")
         finally:
             if conexion:
                 conexion.close()
@@ -476,7 +468,6 @@ def dashboard():
                            alertas_fidelizacion=alertas_fidelizacion, 
                            totales_dia=totales_dia, 
                            cuadre_hoy=cuadre_hoy)
-
 
 @app.route('/exportar-cuadre-excel', methods=['GET'])
 @app.route('/exportar-cierre-diario', methods=['GET'])
