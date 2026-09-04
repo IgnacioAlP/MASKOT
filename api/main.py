@@ -350,6 +350,19 @@ def inject_today():
     return dict(today_string=obtener_fecha_hoy_peru)
 
 
+def obtener_columna_fecha(cursor):
+    """Detecta automáticamente el nombre de la columna de fecha en la tabla ventas."""
+    cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'ventas' 
+          AND column_name IN ('fecha', 'fecha_venta', 'created_at', 'fecha_registro', 'fecha_creacion', 'fechahora')
+        LIMIT 1;
+    """)
+    res = cursor.fetchone()
+    return res[0] if res else 'created_at'
+
+
 @app.route('/dashboard')
 def dashboard():
     if 'rol' not in session:
@@ -384,12 +397,14 @@ def dashboard():
         except Exception as e:
             logger.warning(f"Error fidelización: {e}")
 
-        # Consulta limpia tolerante a variaciones de formato de fecha
         conexion = None
         try:
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
-                cursor.execute("""
+                # Detección dinámica de columna de fecha
+                col_fecha = obtener_columna_fecha(cursor)
+
+                cursor.execute(f"""
                     SELECT 
                         COUNT(*) AS cantidad_ventas,
                         COALESCE(SUM(total), 0) AS total_soles,
@@ -397,7 +412,7 @@ def dashboard():
                         COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
                         COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) NOT IN ('efectivo', 'yape', 'plin') THEN total ELSE 0 END), 0) AS total_tarjeta
                     FROM ventas
-                    WHERE DATE(fecha) = %s::date OR fecha::text LIKE %s || '%%'
+                    WHERE DATE({col_fecha}) = %s::date OR {col_fecha}::text LIKE %s || '%%'
                 """, (hoy, hoy))
                 
                 res = cursor.fetchone()
@@ -475,14 +490,16 @@ def exportar_cierre_diario():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("""
+            col_fecha = obtener_columna_fecha(cursor)
+
+            cursor.execute(f"""
                 SELECT 
                     id,
                     COALESCE(total, 0) AS total,
                     COALESCE(metodo_pago, 'Efectivo') AS metodo_pago,
-                    fecha
+                    {col_fecha}
                 FROM ventas
-                WHERE DATE(fecha) = %s::date OR fecha::text LIKE %s || '%%'
+                WHERE DATE({col_fecha}) = %s::date OR {col_fecha}::text LIKE %s || '%%'
                 ORDER BY id ASC
             """, (fecha_filtro, fecha_filtro))
             registros = cursor.fetchall()
@@ -491,7 +508,6 @@ def exportar_cierre_diario():
         ws = wb.active
         ws.title = f"Cierre {fecha_filtro}"
 
-        # Título principal
         ws.merge_cells("A1:G1")
         ws["A1"] = f"REPORTE DE CIERRE DE CAJA - FECHA: {fecha_filtro}"
         ws["A1"].font = Font(bold=True, size=11)
@@ -534,7 +550,6 @@ def exportar_cierre_diario():
             for col_idx in range(1, 8):
                 ws.cell(row=row_start + idx - 1, column=col_idx).border = border_thin
 
-        # Fila de Totales
         ws.append(["TOTALES", t_total, t_efec, t_yape, t_tarj, "", ""])
         last_row = ws.max_row
         
@@ -556,20 +571,12 @@ def exportar_cierre_diario():
         wb.save(output)
         output.seek(0)
 
-        try:
-            return send_file(
-                output,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                download_name=f"Cierre_Diario_{fecha_filtro}.xlsx"
-            )
-        except TypeError:
-            return send_file(
-                output,
-                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                as_attachment=True,
-                attachment_filename=f"Cierre_Diario_{fecha_filtro}.xlsx"
-            )
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f"Cierre_Diario_{fecha_filtro}.xlsx"
+        )
 
     except Exception as e:
         if conexion:
