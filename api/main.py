@@ -4,6 +4,7 @@ import json
 import time
 import logging
 import hashlib
+import random
 from datetime import datetime, date, timezone, timedelta
 from functools import wraps
 import io
@@ -21,7 +22,7 @@ from werkzeug.utils import secure_filename
 # Conexión a Base de Datos
 from bd import obtener_conexion, obtener_tenant_id
 
-# Importar todos los controladores
+# Importar controladores
 from controladores import (
     usuarios_controlador,
     citas_controlador,
@@ -49,7 +50,6 @@ app = Flask(
     static_url_path='/static'
 )
 
-# Configuración de cookies de sesión seguras
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')
 use_secure_cookies = os.environ.get('FLASK_ENV', '').lower() == 'production' or os.environ.get('USE_SECURE_COOKIES', '') == 'True'
 app.config['SESSION_COOKIE_SECURE'] = bool(use_secure_cookies)
@@ -73,12 +73,11 @@ try:
 except Exception:
     pass
 
-# Almacenamiento temporal en memoria para escáner en tiempo real
 RECENT_SCANS = []
 
 
 def _ensure_schema():
-    """Migración ligera al arranque adaptada para PostgreSQL / Supabase."""
+    """Migración liviana para ajustar el esquema de Supabase/PostgreSQL."""
     column_migrations = [
         ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_barra VARCHAR(100) DEFAULT NULL"),
         ("productos", "stock_minimo", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5"),
@@ -102,19 +101,33 @@ def _ensure_schema():
                     WHERE table_name = %s AND column_name = %s
                 """, (table, column))
                 if not cursor.fetchone():
-                    cursor.execute(sql)
-                    conn.commit()
-                    logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
+                    try:
+                        cursor.execute(sql)
+                        conn.commit()
+                        logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
+                    except Exception as ex_col:
+                        conn.rollback()
+                        logger.warning(f"No se pudo ejecutar {sql}: {ex_col}")
+
+            # Permitir que la columna email en clientes no sea obligatoria (NOT NULL)
+            try:
+                cursor.execute("ALTER TABLE clientes ALTER COLUMN email DROP NOT NULL;")
+                conn.commit()
+            except Exception:
+                conn.rollback()
 
             for col in ['vendedor_nombre', 'vendedor_id', 'cliente_id', 'cliente_nombre']:
-                cursor.execute("""
-                    SELECT is_nullable FROM information_schema.columns 
-                    WHERE table_name = 'ventas' AND column_name = %s
-                """, (col,))
-                v_col = cursor.fetchone()
-                if v_col and (v_col[0] or '').upper() == 'NO':
-                    cursor.execute(f"ALTER TABLE ventas ALTER COLUMN {col} DROP NOT NULL")
-                    conn.commit()
+                try:
+                    cursor.execute("""
+                        SELECT is_nullable FROM information_schema.columns 
+                        WHERE table_name = 'ventas' AND column_name = %s
+                    """, (col,))
+                    v_col = cursor.fetchone()
+                    if v_col and (v_col[0] or '').upper() == 'NO':
+                        cursor.execute(f"ALTER TABLE ventas ALTER COLUMN {col} DROP NOT NULL")
+                        conn.commit()
+                except Exception:
+                    conn.rollback()
 
         conn.close()
     except Exception as e:
@@ -133,7 +146,7 @@ def handle_exception(e):
     return render_template('error.html'), 500
 
 
-# ─── FILTROS Y CONTEXT PROCESSORS DE TEMPLATES ──────────────────────────────
+# ─── FILTROS Y CONTEXT PROCESSORS ─────────────────────────────────────────────
 
 @app.template_filter('dateformat')
 def dateformat(value, format='%d/%m/%Y'):
@@ -361,7 +374,7 @@ def obtener_columna_fecha(cursor):
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_name = 'ventas' 
-          AND column_name IN ('fecha_venta', 'fecha', 'created_at', 'fecha_registro', 'fecha_creacion', 'fechahora')
+          AND column_name IN ('fecha_venta', 'fecha', 'created_at', 'fecha_registro', 'fechahora')
         ORDER BY CASE column_name
             WHEN 'fecha_venta' THEN 1
             WHEN 'fecha' THEN 2
@@ -854,7 +867,7 @@ def procesar_venta_pos():
 
         conexion = obtener_conexion()
 
-        # ─── RESOLUCIÓN TOTAL Y AUTO-CREACIÓN DE CLIENTE ───
+        # ─── PARSEO Y AUTO-REGISTRO DE CLIENTES ─────────────────────────────
         client_raw = data.get('cliente') or request.form.get('cliente')
         
         cid_raw = (
@@ -868,8 +881,13 @@ def procesar_venta_pos():
         )
         
         cdoc_raw = (
-            data.get('cliente_documento') or data.get('cliente_doc') or data.get('documento') or data.get('doc') or
-            request.form.get('cliente_documento') or request.form.get('cliente_doc') or request.form.get('documento') or request.form.get('doc') or ''
+            data.get('cliente_documento') or data.get('cliente_doc') or data.get('documento') or data.get('doc') or data.get('dni') or
+            request.form.get('cliente_documento') or request.form.get('cliente_doc') or request.form.get('documento') or request.form.get('doc') or request.form.get('dni') or ''
+        )
+
+        cemail_raw = (
+            data.get('cliente_email') or data.get('email') or data.get('correo') or
+            request.form.get('cliente_email') or request.form.get('email') or request.form.get('correo') or ''
         )
 
         if isinstance(client_raw, dict):
@@ -879,6 +897,8 @@ def procesar_venta_pos():
                 cnombre_raw = client_raw.get('nombre') or client_raw.get('cliente_nombre') or client_raw.get('nombre_cliente') or client_raw.get('label') or client_raw.get('text') or ''
             if not cdoc_raw:
                 cdoc_raw = client_raw.get('documento') or client_raw.get('cliente_documento') or client_raw.get('doc') or client_raw.get('dni') or ''
+            if not cemail_raw:
+                cemail_raw = client_raw.get('email') or client_raw.get('correo') or ''
         elif isinstance(client_raw, (int, float)):
             if not cid_raw:
                 cid_raw = int(client_raw)
@@ -894,11 +914,12 @@ def procesar_venta_pos():
         cliente_id = int(str(cid_raw).strip()) if (cid_raw is not None and str(cid_raw).strip().isdigit()) else None
         cliente_nombre = str(cnombre_raw).strip() if cnombre_raw else ''
         cliente_doc = str(cdoc_raw).strip() if cdoc_raw else ''
+        cliente_email = str(cemail_raw).strip() if cemail_raw else ''
 
         tenant_id = session.get('tenant_id', 1)
 
-        # Buscar en la BD o Auto-crear cliente
         with conexion.cursor() as cursor:
+            # 1. Verificar si existe por ID
             if cliente_id:
                 cursor.execute("""
                     SELECT id, nombre, COALESCE(documento, '') 
@@ -912,6 +933,7 @@ def procesar_venta_pos():
                     if not cliente_doc:
                         cliente_doc = cli_db[2] or ''
             
+            # 2. Verificar por nombre si no hubo ID
             if (not cliente_id) and cliente_nombre and cliente_nombre.lower() != 'cliente general':
                 cursor.execute("""
                     SELECT id, nombre, COALESCE(documento, '') 
@@ -926,16 +948,24 @@ def procesar_venta_pos():
                     if not cliente_doc:
                         cliente_doc = cli_db[2] or ''
                 else:
-                    # Si ingresó un nombre pero no existía en BD, se registra automáticamente
-                    cursor.execute("""
-                        INSERT INTO clientes (nombre, documento, activo, tenant_id)
-                        VALUES (%s, %s, true, %s)
-                        RETURNING id, nombre, COALESCE(documento, '')
-                    """, (cliente_nombre, cliente_doc, tenant_id))
-                    new_cli = cursor.fetchone()
-                    cliente_id = new_cli[0]
-                    cliente_nombre = new_cli[1]
-                    cliente_doc = new_cli[2] or cliente_doc
+                    # Crear automáticamente en la tabla `clientes` generando un email único de respaldo
+                    if not cliente_email:
+                        clean_n = ''.join(e for e in cliente_nombre if e.isalnum()).lower()
+                        cliente_email = f"{clean_n}_{int(time.time())}_{random.randint(100,999)}@cliente.local"
+
+                    try:
+                        cursor.execute("""
+                            INSERT INTO clientes (nombre, email, documento, activo, tenant_id)
+                            VALUES (%s, %s, %s, true, %s)
+                            RETURNING id, nombre, COALESCE(documento, '')
+                        """, (cliente_nombre, cliente_email, cliente_doc, tenant_id))
+                        new_cli = cursor.fetchone()
+                        cliente_id = new_cli[0]
+                        cliente_nombre = new_cli[1]
+                        cliente_doc = new_cli[2] or cliente_doc
+                    except Exception as ex_ins:
+                        conexion.rollback()
+                        logger.warning(f"Error auto-creando cliente en tabla clientes: {ex_ins}")
 
         if not cliente_nombre:
             cliente_nombre = 'Cliente General'
@@ -956,19 +986,41 @@ def procesar_venta_pos():
         productos_json = json.dumps(items, ensure_ascii=False)
         
         with conexion.cursor() as cursor:
+            # Comprobar si existe la columna cliente_id en ventas
             cursor.execute("""
-                INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento, 
-                    vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
-                    monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
-                ) RETURNING id
-            """, (
-                num_venta, fecha_venta_actual, cliente_id, cliente_nombre, cliente_doc, 
-                vendedor_id, vendedor_nombre, metodo_pago,
-                subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
-            ))
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'ventas' AND column_name = 'cliente_id'
+            """)
+            has_cliente_id = cursor.fetchone() is not None
+
+            if has_cliente_id:
+                cursor.execute("""
+                    INSERT INTO ventas (
+                        numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento, 
+                        vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
+                        monto_recibido, cambio_entregado, productos, estado, tenant_id
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                    ) RETURNING id
+                """, (
+                    num_venta, fecha_venta_actual, cliente_id, cliente_nombre, cliente_doc, 
+                    vendedor_id, vendedor_nombre, metodo_pago,
+                    subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
+                ))
+            else:
+                cursor.execute("""
+                    INSERT INTO ventas (
+                        numero_venta, fecha_venta, cliente_nombre, cliente_documento, 
+                        vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
+                        monto_recibido, cambio_entregado, productos, estado, tenant_id
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                    ) RETURNING id
+                """, (
+                    num_venta, fecha_venta_actual, cliente_nombre, cliente_doc, 
+                    vendedor_id, vendedor_nombre, metodo_pago,
+                    subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
+                ))
             
             venta_id = cursor.fetchone()[0]
             
@@ -1013,7 +1065,7 @@ def scan_poll():
 
 
 # ==============================================================================
-# 1. HISTORIAL DE CLIENTES (CORREGIDO CON TODAS LAS VARIABLES DE TEMPLATE)
+# HISTORIAL DE CLIENTES (DASHBOARD)
 # ==============================================================================
 @app.route('/historial_clientes', endpoint='historial_clientes')
 @app.route('/historial-clientes')
@@ -1040,7 +1092,7 @@ def historial_clientes():
         with conexion.cursor() as cursor:
             col_fecha_ventas = obtener_columna_fecha(cursor)
 
-            # 1. Cargar Clientes registrados de la base de datos
+            # 1. Cargar Clientes registrados en la Base de Datos
             cursor.execute("""
                 SELECT 
                     id, 
@@ -1076,16 +1128,35 @@ def historial_clientes():
                 if norm_name:
                     name_map[norm_name] = cli_obj
 
-            # 2. Consultar Ventas
-            cursor.execute(f"""
-                SELECT 
-                    COALESCE(cliente_id, 0) AS cliente_id,
-                    COALESCE(cliente_nombre, 'Cliente General') AS cliente_nombre, 
-                    COALESCE(total, 0.0) AS total, 
-                    {col_fecha_ventas} AS fecha
-                FROM ventas 
-                WHERE (tenant_id = %s OR tenant_id IS NULL)
-            """, (tenant_id,))
+            # 2. Consultar Ventas y vincular por ID o Nombre
+            cursor.execute("""
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'ventas' AND column_name = 'cliente_id'
+            """)
+            has_cliente_id = cursor.fetchone() is not None
+
+            if has_cliente_id:
+                query_ventas = f"""
+                    SELECT 
+                        COALESCE(cliente_id, 0) AS cliente_id,
+                        COALESCE(cliente_nombre, 'Cliente General') AS cliente_nombre, 
+                        COALESCE(total, 0.0) AS total, 
+                        {col_fecha_ventas} AS fecha
+                    FROM ventas 
+                    WHERE (tenant_id = %s OR tenant_id IS NULL)
+                """
+            else:
+                query_ventas = f"""
+                    SELECT 
+                        0 AS cliente_id,
+                        COALESCE(cliente_nombre, 'Cliente General') AS cliente_nombre, 
+                        COALESCE(total, 0.0) AS total, 
+                        {col_fecha_ventas} AS fecha
+                    FROM ventas 
+                    WHERE (tenant_id = %s OR tenant_id IS NULL)
+                """
+
+            cursor.execute(query_ventas, (tenant_id,))
             
             for v_row in cursor.fetchall():
                 v_cid = int(v_row[0] or 0)
@@ -1237,7 +1308,7 @@ def historial_clientes():
 
 
 # ==============================================================================
-# 2. HISTORIAL DE ASISTENCIA
+# HISTORIAL DE ASISTENCIA
 # ==============================================================================
 @app.route('/historial_asistencia', endpoint='historial_asistencia')
 @app.route('/historial-asistencia')
@@ -1350,7 +1421,7 @@ def historial_asistencia():
 
 
 # ==============================================================================
-# 3. HISTORIAL DE COMPRAS
+# HISTORIAL DE COMPRAS
 # ==============================================================================
 @app.route('/historial_compras', endpoint='historial_compras')
 @app.route('/historial-compras')
@@ -1482,7 +1553,7 @@ def historial_compras():
 
 
 # ==============================================================================
-# 4. HISTORIAL DE SERVICIOS
+# HISTORIAL DE SERVICIOS
 # ==============================================================================
 @app.route('/historial_servicios', endpoint='historial_servicios')
 @app.route('/historial-servicios')
@@ -2206,6 +2277,10 @@ def crear_cliente():
             flash(msg, 'warning')
             return redirect(url_for('clientes'))
 
+        if not email:
+            clean_n = ''.join(e for e in nombre if e.isalnum()).lower()
+            email = f"{clean_n}_{int(time.time())}_{random.randint(100,999)}@cliente.local"
+
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
@@ -2275,7 +2350,7 @@ def editar_cliente():
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE clientes
-                SET nombre = %s, email = %s, telefono = %s, direccion = %s, documento = %s
+                SET nombre = %s, email = COALESCE(NULLIF(%s, ''), email), telefono = %s, direccion = %s, documento = %s
                 WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
             """, (nombre, email, telefono, direccion, documento, cliente_id, tenant_id))
 
@@ -2806,7 +2881,7 @@ def _procesar_marcar_asistencia(usuario_id, tenant_id):
     return redirect(url_for('asistencia'))
 
 
-# ─── MÓDULO DE GESTIÓN DE CITAS ───────────────────────────────────────────────
+# ─── GESTIÓN DE CITAS ────────────────────────────────────────────────────────
 
 @app.route('/citas')
 def citas():
@@ -3351,14 +3426,31 @@ def procesar_pago():
             cli_row = cursor.fetchone()
             cliente_id = cli_row[0] if cli_row else None
 
+            # Verificar cliente_id en ventas
             cursor.execute("""
-                INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento,
-                    vendedor_nombre, metodo_pago, subtotal, igv, total,
-                    monto_recibido, cambio_entregado, productos, estado, tenant_id
-                ) VALUES (%s, %s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
-                RETURNING id
-            """, (num_venta, fecha_actual, cliente_id, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'ventas' AND column_name = 'cliente_id'
+            """)
+            has_cliente_id = cursor.fetchone() is not None
+
+            if has_cliente_id:
+                cursor.execute("""
+                    INSERT INTO ventas (
+                        numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento,
+                        vendedor_nombre, metodo_pago, subtotal, igv, total,
+                        monto_recibido, cambio_entregado, productos, estado, tenant_id
+                    ) VALUES (%s, %s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                    RETURNING id
+                """, (num_venta, fecha_actual, cliente_id, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO ventas (
+                        numero_venta, fecha_venta, cliente_nombre, cliente_documento,
+                        vendedor_nombre, metodo_pago, subtotal, igv, total,
+                        monto_recibido, cambio_entregado, productos, estado, tenant_id
+                    ) VALUES (%s, %s, %s, %s, 'Web Store', %s, %s, %s, %s, %s, 0.00, %s, 'completada'::estado_venta_enum, %s)
+                    RETURNING id
+                """, (num_venta, fecha_actual, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
             
             venta_id = cursor.fetchone()[0]
             for item in items:
