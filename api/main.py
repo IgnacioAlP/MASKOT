@@ -5,6 +5,7 @@ import time
 import logging
 import hashlib
 import random
+import re
 from datetime import datetime, date, timezone, timedelta
 from functools import wraps
 import io
@@ -40,7 +41,7 @@ from controladores import fidelizacion_controlador as fidelizacion_ctrl
 # ─── CONFIGURACIÓN DE LA APLICACIÓN ──────────────────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # MASKOT/api
-ROOT_DIR = os.path.dirname(BASE_DIR)                   # MASKOT
+ROOT_DIR = os.path.dirname(BASE_DIR)                    # MASKOT
 ZONA_HORARIA_PERU = timezone(timedelta(hours=-5))
 
 app = Flask(
@@ -109,7 +110,6 @@ def _ensure_schema():
                         conn.rollback()
                         logger.warning(f"No se pudo ejecutar {sql}: {ex_col}")
 
-            # Permitir que la columna email en clientes no sea obligatoria (NOT NULL)
             try:
                 cursor.execute("ALTER TABLE clientes ALTER COLUMN email DROP NOT NULL;")
                 conn.commit()
@@ -853,11 +853,18 @@ def procesar_venta():
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
 
-        # 1. Extraer ID del cliente
+        # 1. Extraer ID del cliente si se envió
         raw_id = data.get('cliente_id') or data.get('id_cliente') or data.get('client_id')
-        cliente_id = int(raw_id) if (raw_id is not None and str(raw_id).isdigit() and int(raw_id) > 0) else None
+        if isinstance(raw_id, dict):
+            raw_id = raw_id.get('id')
+        
+        cliente_id = None
+        if raw_id is not None:
+            str_id = str(raw_id).strip()
+            if str_id.isdigit() and int(str_id) > 0:
+                cliente_id = int(str_id)
 
-        # 2. Extraer Nombre del cliente
+        # 2. Extraer Nombre y Documento del cliente
         raw_nombre = (
             data.get('cliente_nombre') or 
             data.get('nombre_cliente') or 
@@ -865,11 +872,21 @@ def procesar_venta():
             data.get('cliente') or ''
         )
         if isinstance(raw_nombre, dict):
+            raw_doc = raw_nombre.get('documento') or raw_nombre.get('doc') or ''
             raw_nombre = raw_nombre.get('nombre', '')
+        else:
+            raw_doc = data.get('cliente_documento') or data.get('documento') or data.get('dni') or ''
 
         cliente_nombre = str(raw_nombre).strip()
-        
-        # Si vino vacio el nombre
+        cliente_documento = str(raw_doc).strip() if raw_doc else None
+
+        # Limpiar si trae documento formato "Nombre (DNI: 12345)"
+        if '(' in cliente_nombre and ')' in cliente_nombre:
+            doc_match = re.search(r'\((.*?)\)', cliente_nombre)
+            if doc_match and not cliente_documento:
+                cliente_documento = doc_match.group(1).replace('DNI:', '').replace('RUC:', '').strip()
+            cliente_nombre = re.sub(r'\s*\(.*?\)', '', cliente_nombre).strip()
+
         if not cliente_nombre:
             cliente_nombre = 'Cliente General'
 
@@ -877,37 +894,74 @@ def procesar_venta():
         tenant_id = session.get('tenant_id', 1)
 
         with conexion.cursor() as cursor:
-            # Si se envió un cliente_id válido
+            final_cliente_id = None
+
+            # A) Si nos enviaron un ID, verificar su existencia en la tabla clientes
             if cliente_id:
-                cursor.execute("SELECT id, nombre FROM clientes WHERE id = %s", (cliente_id,))
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(documento, '') 
+                    FROM clientes 
+                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                """, (cliente_id, tenant_id))
                 cli_db = cursor.fetchone()
                 if cli_db:
-                    cliente_id = cli_db[0]
+                    final_cliente_id = cli_db[0]
                     if cli_db[1] and cli_db[1].strip():
                         cliente_nombre = cli_db[1].strip()
+                    if cli_db[2] and not cliente_documento:
+                        cliente_documento = cli_db[2]
 
-            # Si hay un nombre distinto a 'Cliente General' pero no hay ID
-            elif cliente_nombre.lower() != 'cliente general':
-                cursor.execute(
-                    "SELECT id, nombre FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) LIMIT 1",
-                    (cliente_nombre,)
-                )
+            # B) Si no hay ID pero el cliente no es 'Cliente General', buscar por Nombre/Documento
+            if not final_cliente_id and cliente_nombre.lower() != 'cliente general':
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(documento, '') 
+                    FROM clientes 
+                    WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) 
+                      AND (tenant_id = %s OR tenant_id IS NULL) 
+                    LIMIT 1
+                """, (cliente_nombre, tenant_id))
                 cli_db = cursor.fetchone()
                 if cli_db:
-                    cliente_id = cli_db[0]
+                    final_cliente_id = cli_db[0]
                     cliente_nombre = cli_db[1]
+                    if cli_db[2] and not cliente_documento:
+                        cliente_documento = cli_db[2]
                 else:
-                    # Crear el cliente en BD para asignarle ID
+                    # Crear automáticamente el cliente para tener su ID guardado
                     try:
-                        cursor.execute(
-                            "INSERT INTO clientes (nombre, tenant_id) VALUES (%s, %s) RETURNING id",
-                            (cliente_nombre, tenant_id)
-                        )
-                        cliente_id = cursor.fetchone()[0]
+                        email_auto = f"cliente_{int(time.time())}_{random.randint(100,999)}@pos.local"
+                        cursor.execute("""
+                            INSERT INTO clientes (nombre, email, documento, activo, tenant_id) 
+                            VALUES (%s, %s, %s, true, %s) 
+                            RETURNING id
+                        """, (cliente_nombre, email_auto, cliente_documento, tenant_id))
+                        final_cliente_id = cursor.fetchone()[0]
                     except Exception as e_cli:
-                        print(f"Error creando cliente automático: {e_cli}")
+                        logger.error(f"Error creando cliente automático: {e_cli}")
 
-            print(f"-> VENTA FINAL A GUARDAR -> ID Cliente: {cliente_id} | Nombre: '{cliente_nombre}'")
+            # C) Si es 'Cliente General' o falló la asignación previa, vincular con 'Cliente General' en DB si existe
+            if not final_cliente_id:
+                cursor.execute("""
+                    SELECT id FROM clientes 
+                    WHERE LOWER(TRIM(nombre)) = 'cliente general' 
+                      AND (tenant_id = %s OR tenant_id IS NULL) 
+                    LIMIT 1
+                """, (tenant_id,))
+                cli_gen = cursor.fetchone()
+                if cli_gen:
+                    final_cliente_id = cli_gen[0]
+                else:
+                    try:
+                        cursor.execute("""
+                            INSERT INTO clientes (nombre, email, activo, tenant_id)
+                            VALUES ('Cliente General', 'general@pos.local', true, %s)
+                            RETURNING id
+                        """, (tenant_id,))
+                        final_cliente_id = cursor.fetchone()[0]
+                    except Exception:
+                        final_cliente_id = None
+
+            print(f"-> VENTA FINAL A GUARDAR -> ID Cliente: {final_cliente_id} | Nombre: '{cliente_nombre}' | Doc: '{cliente_documento}'")
 
             subtotal = float(data.get('subtotal', 0.0))
             igv = float(data.get('igv', 0.0))
@@ -924,14 +978,14 @@ def procesar_venta():
 
             cursor.execute("""
                 INSERT INTO ventas (
-                    numero_venta, fecha_venta, cliente_id, cliente_nombre, 
+                    numero_venta, fecha_venta, cliente_id, cliente_nombre, cliente_documento, 
                     vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
                 ) RETURNING id
             """, (
-                num_venta, fecha_actual, cliente_id, cliente_nombre,
+                num_venta, fecha_actual, final_cliente_id, cliente_nombre, cliente_documento,
                 vendedor_id, vendedor_nombre, metodo_pago,
                 subtotal, igv, total, monto_recibido, cambio, productos_json, tenant_id
             ))
@@ -950,7 +1004,7 @@ def procesar_venta():
         return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': f"/venta/ticket/{venta_id}"})
 
     except Exception as e:
-        print(f"❌ ERROR PROCESANDO VENTA: {e}")
+        logger.error(f"❌ ERROR PROCESANDO VENTA: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/ventas/scan-push', methods=['POST'])
@@ -2926,32 +2980,34 @@ def cambiar_estado_cita(cita_id):
         logger.error(f"Error cambiando estado de cita: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-
 @app.route('/cita/<int:cita_id>/reprogramar', methods=['POST'])
 def reprogramar_cita(cita_id):
     if session.get('rol') not in ['admin', 'empleado', 'dueño']:
         return jsonify({'success': False, 'error': 'Sin permisos'}), 403
 
+    tenant_id = session.get('tenant_id', 1)
+    data = request.get_json(silent=True) or {}
+    nueva_fecha = (data.get('fecha') or request.form.get('fecha') or '').strip()
+    nueva_hora = (data.get('hora') or request.form.get('hora') or '').strip()
+
+    if not nueva_fecha or not nueva_hora:
+        return jsonify({'success': False, 'error': 'Fecha y hora requeridas.'}), 400
+
+    conexion = obtener_conexion()
     try:
-        tenant_id = session.get('tenant_id', 1)
-        data = request.get_json(silent=True) or {}
-        nueva_fecha = (data.get('fecha') or request.form.get('fecha') or '').strip()
-        nueva_hora = (data.get('hora') or request.form.get('hora') or '').strip()
-
-        if not nueva_fecha or not nueva_hora:
-            return jsonify({'success': False, 'error': 'Fecha y hora requeridas.'}), 400
-
-        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("UPDATE citas SET fecha = %s, hora = %s WHERE id = %s AND tenant_id = %s", (nueva_fecha, nueva_hora, cita_id, tenant_id))
-
+            cursor.execute(
+                "UPDATE citas SET fecha = %s, hora = %s WHERE id = %s AND tenant_id = %s",
+                (nueva_fecha, nueva_hora, cita_id, tenant_id)
+            )
         conexion.commit()
-        conexion.close()
-
         return jsonify({'success': True, 'message': 'Cita reprogramada correctamente.'})
     except Exception as e:
-        logger.error(f"Error reprogramando cita: {e}")
+        conexion.rollback()
+        logger.error(f"Error reprogramando cita ID={cita_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conexion.close()
 
 
 @app.route('/cita/<int:cita_id>', endpoint='ver_detalles_cita')
@@ -2965,8 +3021,8 @@ def ver_recibo_cita(cita_id):
     tenant_id = session.get('tenant_id', 1)
     cita = None
 
+    conexion = obtener_conexion()
     try:
-        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
@@ -2987,9 +3043,10 @@ def ver_recibo_cita(cita_id):
                     'servicio_nombre': r[11], 'servicio_precio': float(r[12] or 0),
                     0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5], 6: r[6], 7: r[7], 8: r[8], 9: float(r[9] or 0), 10: str(r[10]).lower()
                 }
-        conexion.close()
     except Exception as e:
         logger.error(f"Error recibo cita ID={cita_id}: {e}")
+    finally:
+        conexion.close()
 
     if not cita:
         flash('Cita no encontrada.', 'error')
@@ -3007,8 +3064,8 @@ def ver_ticket_cita(cita_id):
     tenant_id = session.get('tenant_id', 1)
     cita = None
 
+    conexion = obtener_conexion()
     try:
-        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT c.id, c.cliente_nombre, COALESCE(c.cliente_email, ''), COALESCE(c.cliente_telefono, ''),
@@ -3026,9 +3083,10 @@ def ver_ticket_cita(cita_id):
                     'fecha': r[4] or '', 'hora': r[5] or '', 'mascota_nombre': r[6], 'mascota_especie': r[7],
                     'observaciones': r[8], 'precio_total': float(r[9] or 0), 'estado': str(r[10]).lower(), 'servicio_nombre': r[11]
                 }
-        conexion.close()
     except Exception as e:
         logger.error(f"Error ticket cita ID={cita_id}: {e}")
+    finally:
+        conexion.close()
 
     if not cita:
         flash('Cita no encontrada.', 'error')
@@ -3046,6 +3104,7 @@ def editar_cita(cita_id):
     tenant_id = session.get('tenant_id', 1)
 
     if request.method == 'POST':
+        conexion = obtener_conexion()
         try:
             nombre = request.form.get('cliente_nombre', '').strip()
             fecha = request.form.get('fecha', '').strip()
@@ -3054,7 +3113,6 @@ def editar_cita(cita_id):
             mascota_nombre = request.form.get('mascota_nombre', '').strip()
             observaciones = request.form.get('observaciones', '').strip()
 
-            conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 cursor.execute("""
                     UPDATE citas 
@@ -3062,14 +3120,13 @@ def editar_cita(cita_id):
                     WHERE id = %s AND tenant_id = %s
                 """, (nombre, fecha, hora, servicio_id, mascota_nombre, observaciones, cita_id, tenant_id))
             conexion.commit()
-            conexion.close()
-
             flash('Cita actualizada correctamente.', 'success')
-            return redirect(url_for('citas'))
         except Exception as e:
-            logger.error(f"Error editando cita: {e}")
+            conexion.rollback()
+            logger.error(f"Error editando cita ID={cita_id}: {e}")
             flash(f'Error al editar cita: {e}', 'error')
-            return redirect(url_for('citas'))
+        finally:
+            conexion.close()
 
     return redirect(url_for('citas'))
 
@@ -3080,18 +3137,19 @@ def eliminar_cita(cita_id):
     if session.get('rol') not in ['admin', 'dueño']:
         return jsonify({'success': False, 'error': 'Sin permisos'}), 403
 
+    tenant_id = session.get('tenant_id', 1)
+    conexion = obtener_conexion()
     try:
-        tenant_id = session.get('tenant_id', 1)
-        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("DELETE FROM citas WHERE id = %s AND tenant_id = %s", (cita_id, tenant_id))
         conexion.commit()
-        conexion.close()
-
         return jsonify({'success': True, 'message': 'Cita eliminada permanentemente.'})
     except Exception as e:
-        logger.error(f"Error eliminando cita: {e}")
+        conexion.rollback()
+        logger.error(f"Error eliminando cita ID={cita_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conexion.close()
 
 
 # ─── COMPRAS Y PROVEEDORES ───────────────────────────────────────────────────
@@ -3206,6 +3264,7 @@ def agregar_al_carrito():
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
     total_qty = sum(int(v.get('qty', 0)) for v in session.get('cart', {}).values())
     message = f'Producto "{producto[1]}" agregado al carrito.'
+    
     if is_ajax:
         return jsonify({'success': True, 'message': message, 'cart_count': total_qty})
 
@@ -3283,49 +3342,50 @@ def checkout():
 
 @app.route('/procesar-pago', methods=['POST'])
 def procesar_pago():
-    try:
-        cart = _get_cart()
-        if not cart:
-            flash('Tu carrito está vacío', 'warning')
-            return redirect(url_for('ver_carrito'))
-        
-        nombre = request.form.get('nombre', '').strip()
-        email = request.form.get('email', '').strip()
-        telefono = request.form.get('telefono', '').strip()
-        direccion = request.form.get('direccion', '').strip()
-        documento = request.form.get('documento', '').strip()
-        metodo_pago = request.form.get('metodo_pago', 'efectivo').strip()
-        
-        if not all([nombre, email, telefono, direccion, metodo_pago]):
-            flash('Por favor completa todos los campos obligatorios.', 'error')
-            return redirect(url_for('checkout'))
-        
-        items = []
-        subtotal = 0.0
-        for id_str, data in cart.items():
-            try:
-                pid = int(id_str)
-            except Exception:
-                continue
-            
-            producto = productos_controlador.obtener_producto_por_id(pid) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
-            if not producto:
-                continue
-            qty = int(data.get('qty', 0))
-            precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
-            subtotal_item = precio_unitario * qty
-            items.append({'id': pid, 'nombre': producto[1], 'cantidad': qty, 'precio': precio_unitario, 'subtotal': subtotal_item})
-            subtotal += subtotal_item
-        
-        igv = round(subtotal * 0.18, 2)
-        total_final = subtotal + igv
-        tenant_id = session.get('tenant_id', 1)
-        num_venta = f"VNT-{int(time.time())}"
-        fecha_actual = datetime.now(ZONA_HORARIA_PERU)
-        productos_json = json.dumps(items, ensure_ascii=False)
+    cart = _get_cart()
+    if not cart:
+        flash('Tu carrito está vacío', 'warning')
+        return redirect(url_for('ver_carrito'))
+    
+    nombre = request.form.get('nombre', '').strip()
+    email = request.form.get('email', '').strip()
+    telefono = request.form.get('telefono', '').strip()
+    direccion = request.form.get('direccion', '').strip()
+    documento = request.form.get('documento', '').strip()
+    metodo_pago = request.form.get('metodo_pago', 'efectivo').strip()
+    
+    if not all([nombre, email, telefono, direccion, metodo_pago]):
+        flash('Por favor completa todos los campos obligatorios.', 'error')
+        return redirect(url_for('checkout'))
 
-        conexion = obtener_conexion()
+    items = []
+    subtotal = 0.0
+    for id_str, data in cart.items():
+        try:
+            pid = int(id_str)
+        except Exception:
+            continue
+        
+        producto = productos_controlador.obtener_producto_por_id(pid) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
+        if not producto:
+            continue
+        qty = int(data.get('qty', 0))
+        precio_unitario = float(producto[4] if len(producto) > 4 and producto[4] else 0.0)
+        subtotal_item = precio_unitario * qty
+        items.append({'id': pid, 'nombre': producto[1], 'cantidad': qty, 'precio': precio_unitario, 'subtotal': subtotal_item})
+        subtotal += subtotal_item
+    
+    igv = round(subtotal * 0.18, 2)
+    total_final = subtotal + igv
+    tenant_id = session.get('tenant_id', 1)
+    num_venta = f"VNT-{int(time.time())}"
+    fecha_actual = datetime.now(ZONA_HORARIA_PERU)
+    productos_json = json.dumps(items, ensure_ascii=False)
+
+    conexion = obtener_conexion()
+    try:
         with conexion.cursor() as cursor:
+            # Buscar cliente previo
             cursor.execute("""
                 SELECT id FROM clientes 
                 WHERE (email = %s OR documento = %s) AND (tenant_id = %s OR tenant_id IS NULL)
@@ -3334,7 +3394,7 @@ def procesar_pago():
             cli_row = cursor.fetchone()
             cliente_id = cli_row[0] if cli_row else None
 
-            # Verificar cliente_id en ventas
+            # Verificar si la columna cliente_id existe en la tabla ventas
             cursor.execute("""
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name = 'ventas' AND column_name = 'cliente_id'
@@ -3361,20 +3421,26 @@ def procesar_pago():
                 """, (num_venta, fecha_actual, nombre, documento, metodo_pago, subtotal, igv, total_final, total_final, productos_json, tenant_id))
             
             venta_id = cursor.fetchone()[0]
+
+            # Descuenta el stock garantizando aislamiento por tenant
             for item in items:
-                cursor.execute("UPDATE productos SET cantidad = GREATEST(cantidad - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
+                cursor.execute(
+                    "UPDATE productos SET cantidad = GREATEST(cantidad - %s, 0) WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", 
+                    (item['cantidad'], item['id'], tenant_id)
+                )
 
         conexion.commit()
-        conexion.close()
-
         session.pop('cart', None)
         flash('¡Pago procesado exitosamente!', 'success')
         return redirect(url_for('index'))
-        
+
     except Exception as e:
+        conexion.rollback()
         logger.error(f"Error procesando pago e-commerce: {e}")
         flash(f'Error procesando tu pago: {str(e)}', 'error')
         return redirect(url_for('checkout'))
+    finally:
+        conexion.close()
 
 
 # ─── FIDELIZACIÓN Y TENANTS ──────────────────────────────────────────────────
@@ -3393,13 +3459,18 @@ def fidelizacion():
 def gestionar_tenants():
     if session.get('rol') != 'superadmin':
         return redirect(url_for('login'))
+    
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             cursor.execute("SELECT id, nombre, slug, activo, created_at FROM tenants ORDER BY id")
             tenants = cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Error listando tenants: {e}")
+        tenants = []
     finally:
         conexion.close()
+        
     return render_template('gestionar_tenants.html', tenants=tenants)
 
 
@@ -3433,9 +3504,11 @@ def crear_tenant():
         flash(f'Tenant "{nombre}" creado con éxito.', 'success')
     except Exception as e:
         conexion.rollback()
+        logger.error(f"Error al crear tenant: {e}")
         flash(f'Error al crear tenant: {str(e)}', 'error')
     finally:
         conexion.close()
+
     return redirect(url_for('gestionar_tenants'))
 
 
@@ -3443,6 +3516,7 @@ def crear_tenant():
 def toggle_tenant(tenant_id):
     if session.get('rol') != 'superadmin':
         return redirect(url_for('login'))
+        
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
@@ -3451,9 +3525,11 @@ def toggle_tenant(tenant_id):
         flash('Estado del tenant actualizado.', 'success')
     except Exception as e:
         conexion.rollback()
+        logger.error(f"Error cambiando estado tenant ID={tenant_id}: {e}")
         flash(f'Error: {str(e)}', 'error')
     finally:
         conexion.close()
+
     return redirect(url_for('gestionar_tenants'))
 
 
