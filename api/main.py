@@ -3441,7 +3441,8 @@ def procesar_venta_pos():
 
 # ─── MÓDULO DE MASCOTAS ──────────────────────────────────────────────────────
 
-@app.route('/mascotas')
+@app.route('/mascotas', endpoint='mascota')
+@app.route('/mascotas/lista', endpoint='mascotas')
 def listar_mascotas():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
