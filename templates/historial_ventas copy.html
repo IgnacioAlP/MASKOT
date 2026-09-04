@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de Servicios - Sistema Veterinaria{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-card {
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .stats-card h5 {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+
+    .stats-card p {
+        opacity: 0.9;
+        margin: 0;
+    }
+
+    .method-badge {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+    }
+
+    .method-efectivo {
+        background: #28a745;
+        color: white;
+    }
+
+    .method-tarjeta {
+        background: #007bff;
+        color: white;
+    }
+
+    .method-yape {
+        background: #6f42c1;
+        color: white;
+    }
+
+    .status-badge {
+        font-size: 0.85rem;
+        padding: 0.3rem 0.7rem;
+        border-radius: 15px;
+    }
+
+    .status-completado,
+    .status-completada {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-pendiente {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-cancelado,
+    .status-cancelada {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .filter-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 1.5rem;
+    }
+
+    .sales-table {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .table th {
+        background: #f8f9fa;
+        border-top: none;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .action-buttons .btn {
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+
+    .quick-filters {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .quick-filter-btn {
+        padding: 0.5rem 1rem;
+        border: 1px solid #dee2e6;
+        background: white;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 0.9rem;
+    }
+
+    .quick-filter-btn.active,
+    .quick-filter-btn:hover {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+
+    .stats-default {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    }
+
+    .stats-success {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    }
+
+    .stats-info {
+        background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-concierge-bell"></i> Historial de Servicios</h2>
+                <div>
+                    <a href="{{ url_for('citas') }}" class="btn btn-primary">
+                        <i class="fas fa-calendar-plus"></i> Agendar Servicio / Cita
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="filter-card">
+                <form method="GET" id="filtros-form">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Inicio:</label>
+                            <input type="date" name="fecha_inicio" class="form-control"
+                                value="{{ filtros.fecha_inicio or '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fecha Fin:</label>
+                            <input type="date" name="fecha_fin" class="form-control"
+                                value="{{ filtros.fecha_fin or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Buscar (Cliente / Servicio / Boleta):</label>
+                            <input type="text" name="busqueda" class="form-control"
+                                placeholder="Nombre cliente, servicio..." value="{{ filtros.busqueda or '' }}">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search"></i> Buscar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filtros rápidos -->
+                    <div class="quick-filters mt-3">
+                        <button type="button" class="quick-filter-btn" onclick="filtrarHoy()">Hoy</button>
+                        <button type="button" class="quick-filter-btn" onclick="limpiarFiltros()">Limpiar
+                            Filtros</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tabla de Servicios -->
+            <div class="sales-table">
+                {% set lista_servicios = servicios if servicios is defined else ventas %}
+                {% if lista_servicios %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>N° Comprobante</th>
+                                <th>Fecha / Hora</th>
+                                <th>Cliente</th>
+                                <th>Servicio Realizado</th>
+                                <th>Atendido Por</th>
+                                <th>Método Pago</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in lista_servicios %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.numero_comprobante if item.numero_comprobante is defined else
+                                        item[1] }}</strong>
+                                </td>
+                                <td>
+                                    <div>{{ item.fecha if item.fecha is defined else item[2] }}</div>
+                                </td>
+                                <td>{{ item.cliente_nombre if item.cliente_nombre is defined else item[3] }}</td>
+                                <td>
+                                    <span class="badge bg-info text-dark">
+                                        <i class="fas fa-cut"></i> {{ item.servicio_descripcion if
+                                        item.servicio_descripcion is defined else item[4] }}
+                                    </span>
+                                </td>
+                                <td>{{ item.personal if item.personal is defined else item[5] }}</td>
+                                <td>
+                                    {% set pago = item.metodo_pago if item.metodo_pago is defined else item[6] %}
+                                    <span class="method-badge method-{{ pago|lower }}">
+                                        {% if pago|lower in ['efectivo', 'cash'] %}
+                                        💵 Efectivo
+                                        {% elif pago|lower in ['tarjeta', 'card', 'pos'] %}
+                                        💳 Tarjeta
+                                        {% elif pago|lower in ['yape', 'plin'] %}
+                                        📱 {{ pago|upper }}
+                                        {% else %}
+                                        🏷️ {{ pago|title }}
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set total_val = item.total if item.total is defined else item[7] %}
+                                    <strong class="text-success">S/ {{ "%.2f"|format(total_val|float) }}</strong>
+                                </td>
+                                <td>
+                                    {% set estado_val = item.estado if item.estado is defined else item[8] %}
+                                    <span class="status-badge status-{{ estado_val|lower }}">
+                                        {% if estado_val|lower in ['completado', 'completada'] %}
+                                        ✅ Completado
+                                        {% elif estado_val|lower == 'pendiente' %}
+                                        ⏳ Pendiente
+                                        {% else %}
+                                        ❌ Cancelado
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        {% set item_id = item.id if item.id is defined else item[0] %}
+                                        <a href="{{ url_for('exportar_cierre_diario') }}?id={{ item_id }}"
+                                            class="btn btn-sm btn-outline-success" title="Imprimir Comprobante"
+                                            target="_blank">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 border-top">
+                    <span class="text-muted">Mostrando {{ lista_servicios|length }} registros de servicios</span>
+                </div>
+
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-concierge-bell fa-4x mb-3"></i>
+                    <h4>No se encontraron servicios realizados</h4>
+                    <p class="mb-3">No hay registros de atención que coincidan con los filtros seleccionados.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filtrarHoy() {
+        const hoy = new Date().toISOString().split('T')[0];
+        document.querySelector('[name="fecha_inicio"]').value = hoy;
+        document.querySelector('[name="fecha_fin"]').value = hoy;
+        document.getElementById('filtros-form').submit();
+    }
+
+    function limpiarFiltros() {
+        document.querySelector('[name="fecha_inicio"]').value = '';
+        document.querySelector('[name="fecha_fin"]').value = '';
+        document.querySelector('[name="busqueda"]').value = '';
+        document.getElementById('filtros-form').submit();
+    }
+</script>
+{% endblock %}

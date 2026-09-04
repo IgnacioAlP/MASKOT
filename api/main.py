@@ -957,12 +957,12 @@ def scan_poll():
     return jsonify({'success': True, 'scans': scans, 'timestamp': time.time()})
 
 
-# ─── HISTORIAL DE VENTAS ──────────────────────────────────────────────────────
+# ─── HISTORIAL DE CLIENTES ──────────────────────────────────────────────────────
 
-@app.route('/historial_ventas', endpoint='historial_ventas')
-@app.route('/historial-ventas')
-@app.route('/ventas/historial')
-def historial_ventas():
+@app.route('/historial_servicios', endpoint='historial_servicios')
+@app.route('/historial-servicios')
+@app.route('/servicios/historial')
+def historial_servicios():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
@@ -979,24 +979,30 @@ def historial_ventas():
         'busqueda': busqueda
     }
     
-    ventas_lista = []
+    servicios_lista = []
+    conexion = None
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # Inspección rápida para determinar la columna de fecha disponible
+            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'ventas' AND column_name IN ('fecha', 'fecha_venta', 'created_at') LIMIT 1;")
+            res_col = cursor.fetchone()
+            col_fecha = res_col[0] if res_col else 'fecha'
+
             condiciones = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
             params = [tenant_id]
 
             if fecha_inicio:
-                condiciones.append("v.fecha_venta >= %s")
-                params.append(f"{fecha_inicio} 00:00:00")
+                condiciones.append(f"DATE(v.{col_fecha}::text) >= %s::date")
+                params.append(fecha_inicio)
 
             if fecha_fin:
-                condiciones.append("v.fecha_venta <= %s")
-                params.append(f"{fecha_fin} 23:59:59")
+                condiciones.append(f"DATE(v.{col_fecha}::text) <= %s::date")
+                params.append(fecha_fin)
 
             if busqueda:
-                condiciones.append("(v.numero_venta ILIKE %s OR v.cliente_nombre ILIKE %s OR v.cliente_documento ILIKE %s)")
+                condiciones.append("(COALESCE(v.cliente, v.cliente_nombre, '') ILIKE %s OR COALESCE(v.servicio_descripcion, '') ILIKE %s OR COALESCE(v.nro_boleta, v.numero_venta, '') ILIKE %s)")
                 param_like = f"%{busqueda}%"
                 params.extend([param_like, param_like, param_like])
 
@@ -1004,68 +1010,66 @@ def historial_ventas():
 
             query = f"""
                 SELECT 
-                    v.id,                                                 -- 0
-                    v.numero_venta,                                       -- 1
-                    TO_CHAR(v.fecha_venta, 'DD/MM/YYYY HH12:MI AM') AS fecha,-- 2
-                    COALESCE(v.cliente_nombre, 'Cliente General') AS cliente, -- 3
-                    COALESCE(v.cliente_documento, '') AS doc,             -- 4
-                    COALESCE(v.vendedor_nombre, 'Cajero') AS vendedor,    -- 5
-                    COALESCE(v.metodo_pago, 'efectivo') AS pago,          -- 6
-                    COALESCE(v.subtotal, 0.00) AS subtotal,               -- 7
-                    COALESCE(v.igv, 0.00) AS igv,                         -- 8
-                    COALESCE(v.total, 0.00) AS total,                     -- 9
-                    COALESCE(v.estado::text, 'completada') AS estado      -- 10
+                    v.id,                                                                         -- 0
+                    COALESCE(v.nro_boleta, v.numero_venta, 'N/A') AS comprobante,                 -- 1
+                    TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM') AS fecha,                    -- 2
+                    COALESCE(v.cliente, v.cliente_nombre, 'Cliente General') AS cliente,          -- 3
+                    COALESCE(v.servicio_descripcion, 'Servicio Veterinario / Baño') AS servicio,  -- 4
+                    COALESCE(v.vendedor_nombre, 'Atendido') AS personal,                         -- 5
+                    COALESCE(v.metodo_pago, 'efectivo') AS pago,                                  -- 6
+                    COALESCE(v.total, 0.00) AS total,                                             -- 7
+                    COALESCE(v.estado::text, 'completado') AS estado                               -- 8
                 FROM ventas v
                 WHERE {where_clause}
-                ORDER BY v.fecha_venta DESC
+                ORDER BY v.{col_fecha} DESC
                 LIMIT 200
             """
             
             cursor.execute(query, tuple(params))
             
             for r in cursor.fetchall():
-                v_id = r[0]
-                v_num = r[1] or ''
-                v_fecha = r[2] or ''
-                v_cliente = r[3]
-                v_doc = r[4]
-                v_vendedor = r[5]
-                v_pago = r[6]
-                v_subtotal = float(r[7]) if r[7] is not None else 0.0
-                v_igv = float(r[8]) if r[8] is not None else 0.0
-                v_total = float(r[9]) if r[9] is not None else 0.0
-                v_estado = str(r[10]).lower()
+                s_id = r[0]
+                s_num = r[1] or ''
+                s_fecha = r[2] or ''
+                s_cliente = r[3]
+                s_servicio = r[4]
+                s_personal = r[5]
+                s_pago = r[6]
+                s_total = float(r[7]) if r[7] is not None else 0.0
+                s_estado = str(r[8]).lower()
 
-                ventas_lista.append({
-                    'id': v_id,
-                    'numero_venta': v_num,
-                    'fecha_venta': v_fecha,
-                    'cliente_nombre': v_cliente,
-                    'cliente_documento': v_doc,
-                    'vendedor_nombre': v_vendedor,
-                    'metodo_pago': v_pago,
-                    'subtotal': v_subtotal,
-                    'igv': v_igv,
-                    'total': v_total,
-                    'estado': v_estado,
-                    0: v_id,
-                    1: v_num,
-                    2: v_fecha,
-                    3: v_cliente,
-                    4: v_doc,
-                    5: v_vendedor,
-                    6: v_pago,
-                    7: v_subtotal,
-                    8: v_igv,
-                    9: v_total,
-                    10: v_estado
+                servicios_lista.append({
+                    'id': s_id,
+                    'numero_comprobante': s_num,
+                    'fecha': s_fecha,
+                    'cliente_nombre': s_cliente,
+                    'servicio_descripcion': s_servicio,
+                    'personal': s_personal,
+                    'metodo_pago': s_pago,
+                    'total': s_total,
+                    'estado': s_estado,
+                    # Compatibilidad para plantillas HTML que usen índices numéricos
+                    0: s_id,
+                    1: s_num,
+                    2: s_fecha,
+                    3: s_cliente,
+                    4: s_servicio,
+                    5: s_personal,
+                    6: s_pago,
+                    7: s_total,
+                    8: s_estado
                 })
 
-        conexion.close()
     except Exception as e:
-        logger.error(f"Error consultando historial de ventas: {e}")
+        if conexion:
+            conexion.rollback()
+        logger.error(f"Error consultando historial de servicios: {e}")
+    finally:
+        if conexion:
+            conexion.close()
 
-    return render_template('historial_ventas.html', ventas=ventas_lista, filtros=filtros)
+    # Retorna tanto 'servicios' como 'ventas' para asegurar compatibilidad con la plantilla
+    return render_template('historial_servicios.html', servicios=servicios_lista, ventas=servicios_lista, filtros=filtros)
 
 
 # ─── VISTA Y GENERACIÓN DE TICKET DE VENTA ───────────────────────────────────
