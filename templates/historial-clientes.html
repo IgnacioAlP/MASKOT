@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Historial de Clientes - Veterinaria PetCare{% endblock %}
+{% block title %}Historial de Servicios - Veterinaria PetCare{% endblock %}
 
 {% block content %}
-<section class="clientes-section">
+<section class="servicios-section">
     <div class="container">
         <div class="section-header">
             <h1>
-                <i class="fas fa-users"></i> 
-                Historial de Clientes
+                <i class="fas fa-concierge-bell"></i>
+                Historial de Servicios y Ventas
             </h1>
-            <p>Gestión completa de clientes y su historial de servicios</p>
+            <p>Registro y seguimiento de atención de servicios veterinarios, baños y comprobantes</p>
         </div>
 
         <!-- Filtros -->
@@ -18,32 +18,29 @@
             <h3><i class="fas fa-filter"></i> Filtros y Búsqueda</h3>
             <div class="filter-row">
                 <div class="form-group">
-                    <label><i class="fas fa-search"></i> Buscar Cliente:</label>
-                    <input type="text" id="buscarCliente" placeholder="Nombre o email..." onkeyup="filtrarClientes()">
+                    <label><i class="fas fa-search"></i> Buscar:</label>
+                    <input type="text" id="buscarServicio" placeholder="Cliente, N° comprobante o servicio..."
+                        value="{{ filtros.busqueda }}" onkeyup="filtrarServicios()">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-calendar"></i> Desde:</label>
-                    <input type="date" id="fechaDesde" onchange="filtrarClientes()">
+                    <input type="date" id="fechaDesde" value="{{ filtros.fecha_inicio }}" onchange="filtrarServicios()">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-calendar-alt"></i> Hasta:</label>
-                    <input type="date" id="fechaHasta" onchange="filtrarClientes()">
+                    <input type="date" id="fechaHasta" value="{{ filtros.fecha_fin }}" onchange="filtrarServicios()">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-sort"></i> Ordenar por:</label>
-                    <select id="ordenarPor" onchange="ordenarClientes()">
-                        <option value="ultima_actividad">Última Actividad</option>
-                        <option value="nombre">Nombre A-Z</option>
-                        <option value="total_gastado">Mayor Gasto</option>
-                        <option value="total_citas">Más Citas</option>
+                    <select id="ordenarPor" onchange="ordenarServicios()">
+                        <option value="fecha_desc">Más recientes primero</option>
+                        <option value="fecha_asc">Más antiguos primero</option>
+                        <option value="monto_desc">Mayor Monto</option>
+                        <option value="cliente">Cliente A-Z</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <input type="submit" value="🔄 Limpiar" onclick="limpiarFiltros()" 
-                           style="background: #6c757d; color: white; border: none; padding: 8px 16px; 
-                                  border-radius: 5px; cursor: pointer; font-size: 14px;"
-                           onmouseover="this.style.background='#5a6268'"
-                           onmouseout="this.style.background='#6c757d'">
+                    <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">🔄 Limpiar</button>
                 </div>
             </div>
         </div>
@@ -51,185 +48,103 @@
         <!-- Estadísticas rápidas -->
         <div class="stats-row">
             <div class="stat-card">
-                <i class="fas fa-users"></i>
+                <i class="fas fa-receipt"></i>
                 <div class="stat-info">
-                    <h3 id="totalClientes">{{ historial|length }}</h3>
-                    <p>Total Clientes</p>
+                    <h3 id="totalRegistros">{{ servicios|length }}</h3>
+                    <p>Total Servicios/Ventas</p>
                 </div>
             </div>
-            <div class="stat-card">
-                <i class="fas fa-calendar-check"></i>
-                <div class="stat-info">
-                    <h3 id="totalCitas">
-                        {{ total_citas }}
-                    </h3>
-                    <p>Total Citas</p>
-                </div>
-            </div>
-            <div class="stat-card">
-                <i class="fas fa-shopping-cart"></i>
-                <div class="stat-info">
-                    <h3 id="totalPedidos">
-                        {{ total_pedidos }}
-                    </h3>
-                    <p>Total Pedidos</p>
-                </div>
-            </div>
-            <div class="stat-card">
+            <div class="stat-card stat-success">
                 <i class="fas fa-dollar-sign"></i>
                 <div class="stat-info">
-                    <h3 id="ingresosTotales">
-                        S/. {{ "%.2f"|format(total_gastado) }}
-                    </h3>
-                    <p>Ingresos Totales</p>
+                    {% set suma_totales = servicios | map(attribute='total') | sum %}
+                    <h3 id="ingresosTotales">S/. {{ "%.2f"|format(suma_totales) }}</h3>
+                    <p>Ingresos Recaudados</p>
+                </div>
+            </div>
+            <div class="stat-card stat-info-card">
+                <i class="fas fa-chart-line"></i>
+                <div class="stat-info">
+                    {% set promedio = (suma_totales / servicios|length) if servicios|length > 0 else 0 %}
+                    <h3 id="promedioTicket">S/. {{ "%.2f"|format(promedio) }}</h3>
+                    <p>Promedio por Ticket</p>
                 </div>
             </div>
         </div>
 
-        <!-- Lista de clientes -->
+        <!-- Tabla de servicios -->
         <div class="table-card">
-            <h3><i class="fas fa-list"></i> Lista Completa de Clientes</h3>
-            
-            {% if historial %}
+            <h3><i class="fas fa-list"></i> Registro de Atenciones</h3>
+
+            {% if servicios %}
             <div class="table-responsive">
-                <table class="clientes-table" id="tablaClientes">
+                <table class="servicios-table" id="tablaServicios">
                     <thead>
                         <tr>
+                            <th><i class="fas fa-hashtag"></i> N° Comprobante</th>
+                            <th><i class="fas fa-calendar-day"></i> Fecha / Hora</th>
                             <th><i class="fas fa-user"></i> Cliente</th>
-                            <th><i class="fas fa-envelope"></i> Email</th>
-                            <th><i class="fas fa-phone"></i> Teléfono</th>
-                            <th><i class="fas fa-calendar-check"></i> Citas</th>
-                            <th><i class="fas fa-shopping-bag"></i> Pedidos</th>
-                            <th><i class="fas fa-money-bill-wave"></i> Total Gastado</th>
-                            <th><i class="fas fa-clock"></i> Última Actividad</th>
+                            <th><i class="fas fa-paw"></i> Servicio / Descripción</th>
+                            <th><i class="fas fa-user-md"></i> Personal</th>
+                            <th><i class="fas fa-credit-card"></i> Método Pago</th>
+                            <th><i class="fas fa-money-bill"></i> Total</th>
+                            <th><i class="fas fa-info-circle"></i> Estado</th>
                             <th><i class="fas fa-cogs"></i> Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for cliente in historial %}
-                        <tr class="cliente-row" 
-                            data-nombre="{{ cliente[1]|lower }}" 
-                            data-email="{{ cliente[2]|lower }}" 
-                            data-total="{{ cliente[8] or 0 }}"
-                            data-citas="{{ cliente[6] or 0 }}"
-                            data-ultima="{{ cliente[9] or cliente[10] or '' }}">
+                        {% for s in servicios %}
+                        <tr class="servicio-row" data-id="{{ s.id }}"
+                            data-comprobante="{{ (s.numero_comprobante or '')|lower }}"
+                            data-cliente="{{ (s.cliente_nombre or '')|lower }}"
+                            data-servicio="{{ (s.servicio_descripcion or '')|lower }}" data-total="{{ s.total or 0 }}"
+                            data-fecha="{{ s.fecha or '' }}">
+
+                            <td>
+                                <strong>{{ s.numero_comprobante if s.numero_comprobante else 'N/A' }}</strong>
+                            </td>
+                            <td>
+                                <span class="fecha-text"><i class="fas fa-clock text-muted"></i> {{ s.fecha }}</span>
+                            </td>
                             <td>
                                 <div class="cliente-info">
                                     <i class="fas fa-user-circle"></i>
-                                    <div>
-                                        <strong>{{ cliente[1] }}</strong>
-                                        {% if cliente[5] %}
-                                        <small class="text-muted">Cliente desde: {% if cliente[5].__class__.__name__ in ['date', 'datetime'] %}{{ cliente[5].strftime('%d/%m/%Y') }}{% else %}{{ cliente[5] }}{% endif %}</small>
-                                        {% endif %}
-                                    </div>
+                                    <strong>{{ s.cliente_nombre }}</strong>
                                 </div>
                             </td>
                             <td>
-                                <span class="email-badge">
-                                    <i class="fas fa-envelope"></i>
-                                    {{ cliente[2] }}
+                                <span class="servicio-badge">{{ s.servicio_descripcion }}</span>
+                            </td>
+                            <td>
+                                <span class="personal-text">{{ s.personal }}</span>
+                            </td>
+                            <td>
+                                <span class="pago-badge {{ s.metodo_pago|lower }}">
+                                    <i class="fas fa-wallet"></i> {{ s.metodo_pago|upper }}
                                 </span>
                             </td>
                             <td>
-                                {% if cliente[3] %}
-                                <span class="telefono-badge">
-                                    <i class="fas fa-phone"></i>
-                                    {{ cliente[3] }}
-                                </span>
+                                <strong class="monto-text">S/. {{ "%.2f"|format(s.total or 0) }}</strong>
+                            </td>
+                            <td>
+                                {% if s.estado in ['completado', 'pagado', 'activo'] %}
+                                <span class="status-badge status-completed"><i class="fas fa-check-circle"></i> {{
+                                    s.estado|capitalize }}</span>
+                                {% elif s.estado == 'pendiente' %}
+                                <span class="status-badge status-pending"><i class="fas fa-hourglass-half"></i>
+                                    Pendiente</span>
                                 {% else %}
-                                <span class="sin-info">
-                                    <i class="fas fa-minus-circle text-muted"></i>
-                                    No registrado
-                                </span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="stat-badge citas-badge">
-                                    <i class="fas fa-calendar-check"></i>
-                                    <strong>{{ cliente[6] or 0 }}</strong>
-                                    <small>cita{{ 's' if (cliente[6] or 0) != 1 else '' }}</small>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="stat-badge pedidos-badge">
-                                    <i class="fas fa-shopping-bag"></i>
-                                    <strong>{{ cliente[7] or 0 }}</strong>
-                                    <small>pedido{{ 's' if (cliente[7] or 0) != 1 else '' }}</small>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="money-badge">
-                                    <i class="fas fa-dollar-sign"></i>
-                                    <strong>S/. {{ "%.2f"|format(cliente[8] or 0) }}</strong>
-                                </div>
-                            </td>
-                            <td>
-                                {% set ultima_cita = cliente[9] %}
-                                {% set ultimo_pedido = cliente[10] %}
-                                {% if ultima_cita or ultimo_pedido %}
-                                    {% if ultima_cita and ultimo_pedido %}
-                                        {% if ultima_cita >= ultimo_pedido %}
-                                        <span class="fecha-badge cita-badge">
-                                            <i class="fas fa-calendar"></i>
-                                            {% if ultima_cita %}
-                                                {{ ultima_cita.strftime('%d/%m/%Y') if ultima_cita.__class__.__name__ in ['date', 'datetime'] else ultima_cita }}
-                                            {% else %}
-                                                N/A
-                                            {% endif %}
-                                            <small>Cita</small>
-                                        </span>
-                                        {% else %}
-                                        <span class="fecha-badge pedido-badge">
-                                            <i class="fas fa-shopping-cart"></i>
-                                            {% if ultimo_pedido %}
-                                                {{ ultimo_pedido.strftime('%d/%m/%Y') if ultimo_pedido.__class__.__name__ in ['date', 'datetime'] else ultimo_pedido }}
-                                            {% else %}
-                                                N/A
-                                            {% endif %}
-                                            <small>Pedido</small>
-                                        </span>
-                                        {% endif %}
-                                    {% elif ultima_cita %}
-                                    <span class="fecha-badge cita-badge">
-                                        <i class="fas fa-calendar"></i>
-                                        {% if ultima_cita %}
-                                            {{ ultima_cita.strftime('%d/%m/%Y') if ultima_cita.__class__.__name__ in ['date', 'datetime'] else ultima_cita }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                        <small>Cita</small>
-                                    </span>
-                                    {% else %}
-                                    <span class="fecha-badge pedido-badge">
-                                        <i class="fas fa-shopping-cart"></i>
-                                        {% if ultimo_pedido %}
-                                            {{ ultimo_pedido.strftime('%d/%m/%Y') if ultimo_pedido.__class__.__name__ in ['date', 'datetime'] else ultimo_pedido }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                        <small>Pedido</small>
-                                    </span>
-                                    {% endif %}
-                                {% else %}
-                                <span class="sin-actividad">
-                                    <i class="fas fa-clock text-muted"></i>
-                                    Sin actividad
-                                </span>
+                                <span class="status-badge status-cancelled"><i class="fas fa-times-circle"></i> {{
+                                    s.estado|capitalize }}</span>
                                 {% endif %}
                             </td>
                             <td>
                                 <div class="acciones-buttons">
-                                    {% if cliente[0] > 0 %}
-                                    <a href="{{ url_for('detalle_cliente', id=cliente[0]) }}" 
-                                       class="btn-accion ver" title="Ver detalles completos">
+                                    <a href="{{ url_for('historial_servicios') }}"
+                                        onclick="alert('Ticket ID: ' + {{ s.id }})" class="btn-accion ver"
+                                        title="Ver Ticket / Detalle">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    {% else %}
-                                    <a href="{{ url_for('detalle_cliente', email=cliente[2]) }}" 
-                                       class="btn-accion ver" title="Ver detalles completos">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    {% endif %}
                                 </div>
                             </td>
                         </tr>
@@ -239,9 +154,9 @@
             </div>
             {% else %}
             <div class="empty-state">
-                <i class="fas fa-users"></i>
-                <h3>No hay clientes registrados</h3>
-                <p>Aún no existen clientes en el sistema.</p>
+                <i class="fas fa-concierge-bell"></i>
+                <h3>No hay servicios registrados</h3>
+                <p>Aún no se han procesado atenciones o ventas en el sistema.</p>
             </div>
             {% endif %}
         </div>
@@ -249,342 +164,348 @@
 </section>
 
 <style>
-.clientes-section {
-    padding: 20px 0;
-}
+    .servicios-section {
+        padding: 20px 0;
+    }
 
-.section-header {
-    text-align: center;
-    margin-bottom: 30px;
-}
+    .section-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
 
-.section-header h1 {
-    color: #2c3e50;
-    font-size: 2.5rem;
-    margin-bottom: 10px;
-}
+    .section-header h1 {
+        color: #2c3e50;
+        font-size: 2.2rem;
+        margin-bottom: 8px;
+    }
 
-.filters-card {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-}
+    .filters-card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        margin-bottom: 20px;
+    }
 
-.filter-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    align-items: end;
-}
-
-.stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.stat-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 20px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-.stat-card i {
-    font-size: 2rem;
-    margin-right: 15px;
-    opacity: 0.8;
-}
-
-.stat-info h3 {
-    font-size: 1.8rem;
-    margin: 0;
-    font-weight: bold;
-}
-
-.stat-info p {
-    margin: 0;
-    opacity: 0.9;
-    font-size: 0.9rem;
-}
-
-.table-card {
-    background: white;
-    padding: 25px;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.table-responsive {
-    overflow-x: auto;
-}
-
-.clientes-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-}
-
-.clientes-table th,
-.clientes-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-}
-
-.clientes-table th {
-    background: #f8f9fa;
-    font-weight: 600;
-    color: #495057;
-}
-
-.clientes-table tbody tr:hover {
-    background: #f8f9fa;
-}
-
-.cliente-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.cliente-info i {
-    font-size: 1.5rem;
-    color: #007bff;
-}
-
-.email-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    color: #6c757d;
-    font-size: 0.9rem;
-}
-
-.telefono-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    color: #28a745;
-}
-
-.stat-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 0.85rem;
-}
-
-.citas-badge {
-    background: #e3f2fd;
-    color: #1976d2;
-}
-
-.pedidos-badge {
-    background: #f3e5f5;
-    color: #7b1fa2;
-}
-
-.money-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    color: #28a745;
-    font-weight: 600;
-}
-
-.fecha-badge {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 8px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-}
-
-.cita-badge {
-    background: #fff3cd;
-    color: #856404;
-}
-
-.pedido-badge {
-    background: #d1ecf1;
-    color: #0c5460;
-}
-
-.acciones-buttons {
-    display: flex;
-    gap: 5px;
-}
-
-.btn-accion {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 5px;
-    text-decoration: none;
-    color: white;
-    font-size: 0.85rem;
-    transition: all 0.3s ease;
-}
-
-.btn-accion.ver {
-    background: #17a2b8;
-}
-
-.btn-accion.ver:hover {
-    background: #138496;
-    transform: scale(1.1);
-}
-
-.sin-info, .sin-actividad {
-    color: #6c757d;
-    font-style: italic;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.empty-state {
-    text-align: center;
-    padding: 40px;
-    color: #6c757d;
-}
-
-.empty-state i {
-    font-size: 4rem;
-    margin-bottom: 20px;
-    opacity: 0.5;
-}
-
-.text-muted { color: #6c757d !important; }
-
-@media (max-width: 768px) {
     .filter-row {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        align-items: end;
     }
-    
+
+    .btn-limpiar {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 9px 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        width: 100%;
+        transition: background 0.2s;
+    }
+
+    .btn-limpiar:hover {
+        background: #5a6268;
+    }
+
     .stats-row {
-        grid-template-columns: repeat(2, 1fr);
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
     }
-    
-    .clientes-table {
+
+    .stat-card {
+        background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-card.stat-success {
+        background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);
+    }
+
+    .stat-card.stat-info-card {
+        background: linear-gradient(135deg, #36b9cc 0%, #258391 100%);
+    }
+
+    .stat-card i {
+        font-size: 2rem;
+        margin-right: 15px;
+        opacity: 0.85;
+    }
+
+    .stat-info h3 {
+        font-size: 1.6rem;
+        margin: 0;
+        font-weight: bold;
+    }
+
+    .stat-info p {
+        margin: 0;
+        opacity: 0.9;
         font-size: 0.85rem;
     }
-    
+
+    .table-card {
+        background: white;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
+
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .servicios-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+
+    .servicios-table th,
+    .servicios-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #eef2f5;
+        font-size: 0.92rem;
+    }
+
+    .servicios-table th {
+        background: #f8f9fc;
+        font-weight: 600;
+        color: #4e73df;
+    }
+
+    .servicios-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
     .cliente-info {
-        flex-direction: column;
-        align-items: flex-start;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .cliente-info i {
+        color: #4e73df;
+    }
+
+    .servicio-badge {
+        background: #eaecf4;
+        color: #3a3b45;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .pago-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: #e2e3e5;
+        color: #383d41;
+    }
+
+    .pago-badge.efectivo {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .pago-badge.yape,
+    .pago-badge.plin {
+        background: #e2d9f3;
+        color: #5a2ca0;
+    }
+
+    .pago-badge.tarjeta {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .monto-text {
+        color: #1cc88a;
+    }
+
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .status-completed {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-cancelled {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .acciones-buttons {
+        display: flex;
         gap: 5px;
     }
-}
+
+    .btn-accion {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        font-size: 0.85rem;
+        transition: transform 0.2s;
+    }
+
+    .btn-accion.ver {
+        background: #36b9cc;
+    }
+
+    .btn-accion.ver:hover {
+        transform: scale(1.1);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #858796;
+    }
+
+    .empty-state i {
+        font-size: 3.5rem;
+        margin-bottom: 15px;
+        opacity: 0.4;
+    }
+
+    .text-muted {
+        color: #858796 !important;
+    }
+
+    @media (max-width: 768px) {
+        .filter-row {
+            grid-template-columns: 1fr;
+        }
+
+        .stats-row {
+            grid-template-columns: 1fr;
+        }
+
+        .servicios-table {
+            font-size: 0.85rem;
+        }
+    }
 </style>
 
 <script>
-function filtrarClientes() {
-    const busqueda = document.getElementById('buscarCliente').value.toLowerCase();
-    const fechaDesde = document.getElementById('fechaDesde').value;
-    const fechaHasta = document.getElementById('fechaHasta').value;
-    const filas = document.querySelectorAll('.cliente-row');
-    
-    let clientesVisibles = 0;
-    let totalCitas = 0;
-    let totalPedidos = 0;
-    let ingresosTotales = 0;
-    
-    filas.forEach(fila => {
-        const nombre = fila.dataset.nombre;
-        const email = fila.dataset.email;
-        const ultimaActividad = fila.dataset.ultima;
-        let mostrar = true;
-        
-        // Filtro por texto
-        if (busqueda && !nombre.includes(busqueda) && !email.includes(busqueda)) {
-            mostrar = false;
-        }
-        
-        // Filtros por fecha (si hay actividad registrada)
-        if (ultimaActividad && fechaDesde && ultimaActividad < fechaDesde) {
-            mostrar = false;
-        }
-        
-        if (ultimaActividad && fechaHasta && ultimaActividad > fechaHasta) {
-            mostrar = false;
-        }
-        
-        if (mostrar) {
-            fila.style.display = '';
-            clientesVisibles++;
-            totalCitas += parseInt(fila.dataset.citas) || 0;
-            totalPedidos += parseInt(fila.querySelector('.pedidos-badge strong').textContent) || 0;
-            ingresosTotales += parseFloat(fila.dataset.total) || 0;
-        } else {
-            fila.style.display = 'none';
-        }
-    });
-    
-    // Actualizar estadísticas
-    document.getElementById('totalClientes').textContent = clientesVisibles;
-    document.getElementById('totalCitas').textContent = totalCitas;
-    document.getElementById('totalPedidos').textContent = totalPedidos;
-    document.getElementById('ingresosTotales').textContent = 'S/. ' + ingresosTotales.toFixed(2);
-}
+    function filtrarServicios() {
+        const busqueda = document.getElementById('buscarServicio').value.toLowerCase().trim();
+        const fechaDesde = document.getElementById('fechaDesde').value;
+        const fechaHasta = document.getElementById('fechaHasta').value;
+        const filas = document.querySelectorAll('.servicio-row');
 
-function ordenarClientes() {
-    const orden = document.getElementById('ordenarPor').value;
-    const tabla = document.getElementById('tablaClientes');
-    const filas = Array.from(tabla.querySelectorAll('.cliente-row'));
-    
-    filas.sort((a, b) => {
-        switch(orden) {
-            case 'nombre':
-                return a.dataset.nombre.localeCompare(b.dataset.nombre);
-            case 'total_gastado':
-                return parseFloat(b.dataset.total) - parseFloat(a.dataset.total);
-            case 'total_citas':
-                return parseInt(b.dataset.citas) - parseInt(a.dataset.citas);
-            case 'ultima_actividad':
-            default:
-                const fechaA = a.dataset.ultima || '0000-00-00';
-                const fechaB = b.dataset.ultima || '0000-00-00';
-                return fechaB.localeCompare(fechaA);
-        }
-    });
-    
-    const tbody = tabla.querySelector('tbody');
-    filas.forEach(fila => tbody.appendChild(fila));
-}
+        let visibles = 0;
+        let sumaTotales = 0;
 
-function limpiarFiltros() {
-    document.getElementById('buscarCliente').value = '';
-    document.getElementById('fechaDesde').value = '';
-    document.getElementById('fechaHasta').value = '';
-    document.getElementById('ordenarPor').value = 'ultima_actividad';
-    
-    // Mostrar todas las filas
-    const filas = document.querySelectorAll('.cliente-row');
-    filas.forEach(fila => {
-        fila.style.display = '';
-    });
-    
-    // Restaurar estadísticas originales
-    location.reload(); // Forma simple de restaurar valores originales
-}
+        filas.forEach(fila => {
+            const cliente = fila.dataset.cliente;
+            const servicio = fila.dataset.servicio;
+            const comprobante = fila.dataset.comprobante;
+            const fechaText = fila.dataset.fecha; // Ej: "04/09/2026 02:30 PM"
+            const total = parseFloat(fila.dataset.total) || 0;
 
-// Configuración inicial
-document.addEventListener('DOMContentLoaded', function() {
-    const hoy = new Date().toISOString().split('T')[0];
-    document.getElementById('fechaHasta').value = hoy;
-});
+            let mostrar = true;
+
+            // Filtro por texto libre
+            if (busqueda && !cliente.includes(busqueda) && !servicio.includes(busqueda) && !comprobante.includes(busqueda)) {
+                mostrar = false;
+            }
+
+            // Filtros rápidos por fecha si coinciden en ISO
+            if (fechaDesde && fechaText) {
+                const partesFecha = fechaText.split(' ')[0].split('/');
+                if (partesFecha.length === 3) {
+                    const fechaFilaISO = `${partesFecha[2]}-${partesFecha[1]}-${partesFecha[0]}`;
+                    if (fechaFilaISO < fechaDesde) mostrar = false;
+                }
+            }
+
+            if (fechaHasta && fechaText) {
+                const partesFecha = fechaText.split(' ')[0].split('/');
+                if (partesFecha.length === 3) {
+                    const fechaFilaISO = `${partesFecha[2]}-${partesFecha[1]}-${partesFecha[0]}`;
+                    if (fechaFilaISO > fechaHasta) mostrar = false;
+                }
+            }
+
+            if (mostrar) {
+                fila.style.display = '';
+                visibles++;
+                sumaTotales += total;
+            } else {
+                fila.style.display = 'none';
+            }
+        });
+
+        // Actualizar tarjetas dinámicas
+        document.getElementById('totalRegistros').textContent = visibles;
+        document.getElementById('ingresosTotales').textContent = 'S/. ' + sumaTotales.toFixed(2);
+        document.getElementById('promedioTicket').textContent = 'S/. ' + (visibles > 0 ? (sumaTotales / visibles).toFixed(2) : '0.00');
+    }
+
+    function ordenarServicios() {
+        const orden = document.getElementById('ordenarPor').value;
+        const tabla = document.getElementById('tablaServicios');
+        const filas = Array.from(tabla.querySelectorAll('.servicio-row'));
+
+        filas.sort((a, b) => {
+            switch (orden) {
+                case 'cliente':
+                    return a.dataset.cliente.localeCompare(b.dataset.cliente);
+                case 'monto_desc':
+                    return parseFloat(b.dataset.total) - parseFloat(a.dataset.total);
+                case 'fecha_asc':
+                    return parseInt(a.dataset.id) - parseInt(b.dataset.id);
+                case 'fecha_desc':
+                default:
+                    return parseInt(b.dataset.id) - parseInt(a.dataset.id);
+            }
+        });
+
+        const tbody = tabla.querySelector('tbody');
+        filas.forEach(fila => tbody.appendChild(fila));
+    }
+
+    function limpiarFiltros() {
+        document.getElementById('buscarServicio').value = '';
+        document.getElementById('fechaDesde').value = '';
+        document.getElementById('fechaHasta').value = '';
+        document.getElementById('ordenarPor').value = 'fecha_desc';
+
+        const filas = document.querySelectorAll('.servicio-row');
+        filas.forEach(fila => fila.style.display = '');
+
+        filtrarServicios();
+    }
 </script>
 {% endblock %}
