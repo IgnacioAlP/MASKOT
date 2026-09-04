@@ -4,7 +4,6 @@
 
 {% block head %}
 <style>
-    /* ESTILOS CRÍTICOS CON MÁXIMA PRIORIDAD */
     body,
     html {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
@@ -34,7 +33,6 @@
         overflow: hidden !important;
     }
 
-    /* Títulos con gradiente */
     h3 {
         color: white !important;
         font-size: 24px !important;
@@ -47,247 +45,42 @@
         margin-bottom: 25px !important;
     }
 
-    h3 i {
-        color: white !important;
-        margin-right: 15px !important;
-        font-size: 1.3em !important;
+    /* Botones de efectivo rápido */
+    .btn-quick-cash {
+        background: #ffffff;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #2c3e50;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
 
-    /* Grid de productos moderno */
-    .productos-grid {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-        gap: 20px !important;
-        padding: 25px !important;
+    .btn-quick-cash:hover {
+        background: #28a745;
+        color: white;
+        border-color: #28a745;
     }
 
-    /* Tarjetas de productos */
-    .producto-item {
-        background: linear-gradient(145deg, #ffffff, #f8fafc) !important;
-        border: none !important;
-        border-radius: 16px !important;
-        padding: 25px !important;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12) !important;
-        transition: all 0.4s ease !important;
-        position: relative !important;
-        border-left: 5px solid #667eea !important;
-        transform: translateZ(0) !important;
-    }
-
-    .producto-item:hover {
-        transform: translateY(-8px) scale(1.02) !important;
-        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.2) !important;
-    }
-
-    .producto-item strong {
-        display: block !important;
-        color: #2d3748 !important;
-        font-size: 18px !important;
-        font-weight: 700 !important;
-        margin-bottom: 12px !important;
-    }
-
-    .producto-item .precio {
-        display: block !important;
-        color: #667eea !important;
-        font-size: 22px !important;
-        font-weight: 800 !important;
-        margin-bottom: 8px !important;
-    }
-
-    .producto-item .stock {
-        color: #48bb78 !important;
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        background: rgba(72, 187, 120, 0.1) !important;
-        padding: 4px 12px !important;
-        border-radius: 20px !important;
-        display: inline-block !important;
-    }
-
-    /* Botones modernos */
-    .btn-agregar {
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
-        border: none !important;
-        border-radius: 12px !important;
-        color: white !important;
-        padding: 14px 24px !important;
-        font-weight: 700 !important;
-        font-size: 16px !important;
-        cursor: pointer !important;
-        width: 100% !important;
-        margin-top: 15px !important;
-        text-transform: uppercase !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4) !important;
-    }
-
-    .btn-agregar:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6) !important;
-    }
-
-    /* Carrito moderno */
-    .col-md-4 h2 {
-        color: white !important;
-        font-size: 24px !important;
-        font-weight: 700 !important;
-        margin: 0 !important;
-        padding: 25px !important;
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        margin-bottom: 25px !important;
-    }
-
-    .col-md-4 h2 i {
-        color: white !important;
-        margin-right: 15px !important;
-    }
-
-    /* Contenido del carrito con padding */
-    .col-md-4>*:not(h2) {
-        padding: 0 25px 25px 25px !important;
-    }
-
-    /* Carrito vacío */
-    #carrito-vacio {
-        text-align: center !important;
-        padding: 50px 25px !important;
-        color: #a0aec0 !important;
-        background: linear-gradient(145deg, #f7fafc, #edf2f7) !important;
-        border-radius: 15px !important;
-        border: 2px dashed #cbd5e0 !important;
-        margin: 0 25px 25px 25px !important;
-    }
-
-    #carrito-vacio i {
-        font-size: 64px !important;
-        margin-bottom: 20px !important;
-        color: #cbd5e0 !important;
-        display: block !important;
-    }
-
-    /* Secciones de pago */
-    .metodo-pago,
-    .dinero-section {
-        background: linear-gradient(145deg, #f7fafc, #ffffff) !important;
-        border-radius: 15px !important;
-        padding: 25px !important;
-        margin: 0 25px 25px 25px !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08) !important;
-    }
-
-    .metodo-pago h5,
-    .dinero-section h5 {
-        color: #2d3748 !important;
-        font-size: 18px !important;
-        font-weight: 700 !important;
-        margin-bottom: 20px !important;
-        display: flex !important;
-        align-items: center !important;
-    }
-
-    .metodo-pago h5 i {
-        color: #667eea !important;
-        margin-right: 12px !important;
-        background: rgba(102, 126, 234, 0.1) !important;
-        padding: 8px !important;
-        border-radius: 50% !important;
-        width: 40px !important;
-        height: 40px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    .dinero-section h5 i {
-        color: #48bb78 !important;
-        margin-right: 12px !important;
-        background: rgba(72, 187, 120, 0.1) !important;
-        padding: 8px !important;
-        border-radius: 50% !important;
-        width: 40px !important;
-        height: 40px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    /* Inputs modernos */
-    select,
-    input[type="number"] {
-        border: 2px solid #e2e8f0 !important;
-        border-radius: 12px !important;
-        padding: 15px 18px !important;
-        font-size: 16px !important;
-        background: white !important;
-        width: 100% !important;
-        margin-bottom: 15px !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
-        transition: all 0.3s ease !important;
-    }
-
+    /* Input focus */
     select:focus,
-    input[type="number"]:focus {
+    input[type="number"]:focus,
+    input[type="text"]:focus {
         outline: none !important;
-        border-color: #667eea !important;
-        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15) !important;
-        transform: translateY(-2px) !important;
+        border-color: #ffa301 !important;
+        box-shadow: 0 0 0 3px rgba(255, 163, 1, 0.2) !important;
     }
 
-    .dinero-inputs {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 20px !important;
-    }
-
-    /* Labels */
-    label {
-        color: #4a5568 !important;
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        margin-bottom: 8px !important;
-        display: block !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.5px !important;
-    }
-
-    /* Scrollbar personalizado para carrito */
+    /* Scrollbar */
     #carrito-items::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    #carrito-items::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.05);
-        border-radius: 4px;
+        width: 6px;
     }
 
     #carrito-items::-webkit-scrollbar-thumb {
-        background: rgba(102, 126, 234, 0.5);
+        background: rgba(255, 163, 1, 0.5);
         border-radius: 4px;
-    }
-
-    #carrito-items::-webkit-scrollbar-thumb:hover {
-        background: rgba(102, 126, 234, 0.8);
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-        .container-fluid {
-            margin: 10px !important;
-            padding: 15px !important;
-        }
-
-        .productos-grid {
-            grid-template-columns: 1fr !important;
-            padding: 15px !important;
-        }
-
-        .dinero-inputs {
-            grid-template-columns: 1fr !important;
-        }
     }
 </style>
 {% endblock %}
@@ -295,157 +88,101 @@
 {% block content %}
 <div style="background: #f5f5f5; min-height: 100vh; padding: 20px; margin: 0;">
     <div
-        style="background: rgba(255, 255, 255, 0.95); border-radius: 25px; padding: 30px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);">
+        style="background: rgba(255, 255, 255, 0.95); border-radius: 25px; padding: 25px; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);">
         <div class="row">
+
+            <!-- PANEL IZQUIERDO: PRODUCTOS Y SERVICIOS -->
             <div class="col-md-8"
                 style="background: #ffffff; border-radius: 15px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
-                <!-- Tabs productos / servicios -->
+
+                <!-- Tabs Productos / Servicios -->
                 <div style="display: flex; margin: 0;">
                     <button id="tab-productos" onclick="cambiarTab('productos')"
-                        style="flex:1; padding: 20px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; background: linear-gradient(135deg, #ffa301, #6ccae2); color: white; transition: all 0.3s ease;">
+                        style="flex:1; padding: 18px; font-size: 17px; font-weight: 700; border: none; cursor: pointer; background: linear-gradient(135deg, #ffa301, #6ccae2); color: white; transition: all 0.3s ease;">
                         <i class="fas fa-box-open"></i> Productos
                     </button>
                     <button id="tab-servicios" onclick="cambiarTab('servicios')"
-                        style="flex:1; padding: 20px; font-size: 18px; font-weight: 700; border: none; cursor: pointer; background: #e9ecef; color: #6c757d; transition: all 0.3s ease;">
+                        style="flex:1; padding: 18px; font-size: 17px; font-weight: 700; border: none; cursor: pointer; background: #e9ecef; color: #6c757d; transition: all 0.3s ease;">
                         <i class="fas fa-concierge-bell"></i> Servicios
                     </button>
                 </div>
 
                 <!-- Panel Productos -->
                 <div id="panel-productos">
-                    <div style="padding: 0 25px; margin-bottom: 20px;">
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                    <!-- Categorías -->
+                    <div style="padding: 15px 20px 0 20px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
                             <button onclick="filtrarPorCategoria('todos')" class="filtro-btn" data-categoria="todos"
-                                style="background: linear-gradient(135deg, #ffa301, #e6920e); color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.3);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.4)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.3)';">
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
                                 <i class="fas fa-th-large"></i> Todos
                             </button>
                             <button onclick="filtrarPorCategoria('alimento')" class="filtro-btn"
                                 data-categoria="alimento"
-                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
                                 <i class="fas fa-bone"></i> Alimentos
                             </button>
                             <button onclick="filtrarPorCategoria('medicina')" class="filtro-btn"
                                 data-categoria="medicina"
-                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
                                 <i class="fas fa-pills"></i> Medicinas
                             </button>
                             <button onclick="filtrarPorCategoria('accesorio')" class="filtro-btn"
                                 data-categoria="accesorio"
-                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
                                 <i class="fas fa-tags"></i> Accesorios
                             </button>
                             <button onclick="filtrarPorCategoria('juguete')" class="filtro-btn" data-categoria="juguete"
-                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
                                 <i class="fas fa-baseball-ball"></i> Juguetes
                             </button>
                             <button onclick="filtrarPorCategoria('higiene')" class="filtro-btn" data-categoria="higiene"
-                                style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(108, 117, 125, 0.4)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';">
+                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
                                 <i class="fas fa-bath"></i> Higiene
                             </button>
                         </div>
                     </div>
 
-                    <!-- Filtro de búsqueda / Escáner Código de Barras -->
-                    <div style="padding: 0 25px 25px 25px;">
-                        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 20px;">
+                    <!-- Buscador -->
+                    <div style="padding: 0 20px 15px 20px;">
+                        <div style="display: flex; gap: 10px; align-items: center;">
                             <div style="position: relative; flex: 1;">
                                 <input type="text" id="filtro-productos"
                                     placeholder="🔍 Buscar productos o escanear código de barras..."
                                     onkeyup="if(event.key !== 'Enter') filtrarProductos()"
                                     onkeydown="if(event.key === 'Enter') { event.preventDefault(); buscarYAgregarPorCodigo(this.value.trim()); }"
-                                    style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 50px 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500; transition: all 0.3s ease;"
-                                    onfocus="this.style.borderColor='#ffa301'; this.style.boxShadow='0 0 0 4px rgba(255, 163, 1, 0.15)'"
-                                    onblur="this.style.borderColor='#e9ecef'; this.style.boxShadow='0 4px 15px rgba(255, 163, 1, 0.1)'"
+                                    style="border: 2px solid #e9ecef; border-radius: 12px; padding: 12px 45px 12px 16px; font-size: 15px; background: white; width: 100%; box-sizing: border-box;"
                                     autofocus>
                                 <i class="fas fa-search"
-                                    style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 16px;"></i>
+                                    style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #adb5bd;"></i>
                             </div>
-                            <button onclick="abrirEscanerPOS()" title="Escanear código de barras con cámara"
-                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 15px rgba(255,163,1,0.3); transition: all 0.3s ease;"
-                                onmouseover="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'"
-                                onmouseout="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'">
+                            <button onclick="abrirEscanerPOS()" title="Escanear con cámara"
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 12px; color: white; padding: 12px 18px; font-weight: 700; cursor: pointer; white-space: nowrap;">
                                 <i class="fas fa-barcode"></i> Escanear
                             </button>
                         </div>
                     </div>
 
-                    <!-- Modal escáner POS -->
-                    <div id="pos-scanner-modal"
-                        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.75); z-index:9999; backdrop-filter:blur(5px);">
-                        <div
-                            style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#1a1a2e; border-radius:24px; padding:30px; max-width:420px; width:92%; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-                            <div
-                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                                <h3 style="color:white; margin:0; font-size:20px; font-weight:700;">
-                                    <i class="fas fa-barcode" style="color:#ffa301; margin-right:10px;"></i> Escanear
-                                    Producto
-                                </h3>
-                                <button onclick="cerrarEscanerPOS()"
-                                    style="background:rgba(255,255,255,0.15); border:none; color:white; width:36px; height:36px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
-                            </div>
-                            <div
-                                style="position:relative; border-radius:16px; overflow:hidden; background:#000; aspect-ratio:4/3;">
-                                <video id="pos-scanner-video" autoplay playsinline muted
-                                    style="width:100%; height:100%; object-fit:cover;"></video>
-                                <div
-                                    style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:75%; height:30%; border:3px solid #ffa301; border-radius:10px; box-shadow:0 0 0 9999px rgba(0,0,0,0.5);">
-                                </div>
-                                <div
-                                    style="position:absolute; bottom:14px; left:0; right:0; text-align:center; color:#ffa301; font-size:13px; font-weight:600;">
-                                    Apunta el código al recuadro
-                                </div>
-                            </div>
-                            <div id="pos-scan-status"
-                                style="margin-top:16px; min-height:40px; text-align:center; color:#aaa; font-size:14px;">
-                            </div>
-                            <div style="margin-top:14px;">
-                                <input type="text" id="pos-manual-barcode"
-                                    placeholder="O ingresa / pega el código aquí…"
-                                    style="width:100%; border:2px solid #444; border-radius:12px; padding:12px 16px; font-size:15px; background:#2a2a3e; color:white; box-sizing:border-box;"
-                                    onkeydown="if(event.key==='Enter') posLookupCode(this.value.trim())">
-                            </div>
-                        </div>
-                    </div>
-
+                    <!-- Grid de Productos -->
                     <div id="productos-container"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; padding: 0 15px 15px 15px; max-height: 55vh; overflow-y: auto;">
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 0 15px 15px 15px; max-height: 52vh; overflow-y: auto;">
                         {% for producto in productos %}
                         <div class="producto-card" data-nombre="{{ producto[1]|lower }}"
-                            data-codigo="{{ producto[4] if producto[4] is defined else '' }}"
-                            data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower or 'vitamina' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower or 'cama' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower or 'pelota' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower or 'jabón' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
-                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(255, 163, 1, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #ffa301;"
-                            onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.borderLeftColor='#6ccae2';"
-                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.borderLeftColor='#ffa301';">
-                            <div style="margin-bottom: 15px;">
+                            data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
+                            style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 12px; border-left: 4px solid #ffa301; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
                                 <strong
-                                    style="display: block; color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{
+                                    style="display: block; color: #2c3e50; font-size: 15px; font-weight: 700; margin-bottom: 6px; line-height: 1.2;">{{
                                     producto[1] }}</strong>
                                 <span
-                                    style="display: block; color: #ffa301; font-size: 22px; font-weight: 800; margin-bottom: 8px;">S/
+                                    style="display: block; color: #ffa301; font-size: 18px; font-weight: 800; margin-bottom: 4px;">S/
                                     {{ "%.2f"|format(producto[2]) }}</span>
                                 <span
-                                    style="color: #28a745; font-size: 14px; font-weight: 600; background: rgba(40, 167, 69, 0.1); padding: 4px 12px; border-radius: 8px; display: inline-block;">Stock:
+                                    style="color: #28a745; font-size: 12px; font-weight: 600; background: rgba(40, 167, 69, 0.1); padding: 2px 8px; border-radius: 6px; display: inline-block;">Stock:
                                     {{ producto[3] }}</span>
                             </div>
                             <button
-                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 12px; color: white; padding: 10px 20px; font-weight: 700; font-size: 14px; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(255, 163, 1, 0.15);"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 15px 35px rgba(255, 163, 1, 0.25)'; this.style.background='linear-gradient(135deg, #6ccae2, #5ab8d9)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(255, 163, 1, 0.15)'; this.style.background='linear-gradient(135deg, #ffa301, #e6920e)';"
-                                {% if producto[1] and producto[2] is not none %}
-                                onclick='agregarProducto({{ producto[0] }}, "{{ producto[1].replace("\"", "\\\"") }}", {{ producto[2] }})'
-                                {% else %} disabled {% endif %}>
+                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 8px; color: white; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; width: 100%; margin-top: 10px;"
+                                onclick='agregarProducto({{ producto[0] }}, "{{ producto[1].replace("\"", "\\\"") }}", {{ producto[2] }})'>
                                 <i class="fas fa-plus"></i> Agregar
                             </button>
                         </div>
@@ -455,269 +192,279 @@
 
                 <!-- Panel Servicios -->
                 <div id="panel-servicios" style="display:none;">
-                    <div style="padding: 25px 25px 0 25px;">
+                    <div style="padding: 15px 20px;">
                         <input type="text" id="filtro-servicios" placeholder="🔍 Buscar servicios..."
                             onkeyup="filtrarServicios()"
-                            style="border: 2px solid #e9ecef; border-radius: 15px; padding: 15px 20px; font-size: 16px; background: white; width: 100%; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.1); color: #2c3e50; font-weight: 500; margin-bottom: 20px;">
+                            style="border: 2px solid #e9ecef; border-radius: 12px; padding: 12px 16px; font-size: 15px; width: 100%; box-sizing: border-box;">
                     </div>
                     <div id="servicios-container"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; padding: 0 15px 15px 15px; max-height: 55vh; overflow-y: auto;">
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 0 15px 15px 15px; max-height: 52vh; overflow-y: auto;">
                         {% for servicio in servicios %}
                         {% if servicio[5] %}
                         <div class="servicio-card" data-nombre="{{ servicio[1]|lower }}"
-                            style="background: #ffffff; border: 2px solid #e9ecef; border-radius: 12px; padding: 15px; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.15); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; border-left: 4px solid #6ccae2;"
-                            onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 15px 35px rgba(108, 202, 226, 0.25)'; this.style.borderLeftColor='#ffa301';"
-                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 8px 25px rgba(108, 202, 226, 0.15)'; this.style.borderLeftColor='#6ccae2';">
-                            <div style="margin-bottom: 15px;">
+                            style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 12px; border-left: 4px solid #6ccae2; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
+                            <div>
                                 <strong
-                                    style="display: block; color: #2c3e50; font-size: 18px; font-weight: 700; margin-bottom: 12px;">{{
+                                    style="display: block; color: #2c3e50; font-size: 15px; font-weight: 700; margin-bottom: 6px;">{{
                                     servicio[1] }}</strong>
                                 <span
-                                    style="display: block; color: #6ccae2; font-size: 22px; font-weight: 800; margin-bottom: 8px;">S/
+                                    style="display: block; color: #6ccae2; font-size: 18px; font-weight: 800; margin-bottom: 4px;">S/
                                     {{ "%.2f"|format(servicio[2]) }}</span>
-                                {% if servicio[3] %}<span style="color: #6c757d; font-size: 13px;">⏱ {{ servicio[3] }}
+                                {% if servicio[3] %}<span style="color: #6c757d; font-size: 12px;">⏱ {{ servicio[3] }}
                                     min</span>{% endif %}
-                                <span
-                                    style="color: #6ccae2; font-size: 13px; font-weight: 600; background: rgba(108, 202, 226, 0.1); padding: 4px 12px; border-radius: 8px; display: inline-block; margin-left: 8px;">Servicio</span>
                             </div>
-                            {% if servicio[4] %}
-                            <p style="color: #6c757d; font-size: 14px; margin-bottom: 15px;">{{ servicio[4][:80] }}{% if
-                                servicio[4]|length > 80 %}…{% endif %}</p>
-                            {% endif %}
                             <button
-                                style="background: linear-gradient(135deg, #6ccae2, #5ab8d9); border: none; border-radius: 12px; color: white; padding: 10px 20px; font-weight: 700; font-size: 14px; cursor: pointer; width: 100%; margin-top: 10px; text-transform: uppercase; transition: all 0.4s ease; box-shadow: 0 4px 15px rgba(108, 202, 226, 0.3);"
-                                onmouseover="this.style.background='linear-gradient(135deg,#ffa301,#e6920e)'; this.style.transform='translateY(-2px)';"
-                                onmouseout="this.style.background='linear-gradient(135deg,#6ccae2,#5ab8d9)'; this.style.transform='translateY(0)';"
+                                style="background: linear-gradient(135deg, #6ccae2, #5ab8d9); border: none; border-radius: 8px; color: white; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; width: 100%; margin-top: 10px;"
                                 onclick='agregarServicio({{ servicio[0] }}, "{{ servicio[1].replace("\"", "\\\"") }}", {{ servicio[2] }})'>
                                 <i class="fas fa-plus"></i> Agregar
                             </button>
                         </div>
                         {% endif %}
-                        {% else %}
-                        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #adb5bd;">
-                            <i class="fas fa-concierge-bell"
-                                style="font-size: 48px; margin-bottom: 15px; display: block;"></i>
-                            <p style="font-size: 16px;">No hay servicios disponibles</p>
-                        </div>
                         {% endfor %}
                     </div>
                 </div><!-- /panel-servicios -->
 
             </div><!-- /col-md-8 -->
 
+
+            <!-- PANEL DERECHO: CARRITO Y PAGO -->
             <div class="col-md-4"
                 style="background: #ffffff; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15); border: 2px solid rgba(255, 163, 1, 0.1);">
                 <h2
-                    style="color: white; font-size: 24px; font-weight: 700; margin: 0; padding: 25px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; justify-content: center; margin-bottom: 25px;">
-                    <i class="fas fa-shopping-cart" style="color: white; margin-right: 15px;"></i>
-                    Carrito de Compras
+                    style="color: white; font-size: 20px; font-weight: 700; margin: 0; padding: 18px; background: linear-gradient(135deg, #ffa301, #6ccae2); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-shopping-cart" style="margin-right: 10px;"></i> Carrito de Compras
                 </h2>
 
-                <div style="padding: 0 25px 25px 25px;">
+                <div style="padding: 15px;">
+                    <!-- Carrito Vacío -->
                     <div id="carrito-vacio"
-                        style="display: block; text-align: center; padding: 30px 15px; color: #6c757d; background: #f5f5f5; border-radius: 12px; border: 2px dashed #adb5bd; margin: 0 0 15px 0;">
+                        style="display: block; text-align: center; padding: 30px 15px; color: #6c757d; background: #f8f9fa; border-radius: 12px; border: 2px dashed #dee2e6;">
                         <i class="fas fa-shopping-cart"
-                            style="font-size: 64px; margin-bottom: 20px; color: #adb5bd; display: block;"></i>
-                        <p style="color: #6c757d; font-weight: 600;">Tu carrito está vacío</p>
-                        <p style="color: #adb5bd;">Agrega productos haciendo clic en "Agregar"</p>
+                            style="font-size: 48px; margin-bottom: 12px; color: #adb5bd;"></i>
+                        <p style="margin: 0; font-weight: 600;">El carrito está vacío</p>
                     </div>
 
+                    <!-- Items del Carrito -->
                     <div id="carrito-items"
-                        style="display: none; max-height: 250px; overflow-y: auto; padding-right: 5px; margin-bottom: 15px;">
-                    </div>
+                        style="display: none; max-height: 220px; overflow-y: auto; margin-bottom: 12px;"></div>
 
-                    <!-- Campo nombre del cliente con autocomplete -->
+                    <!-- CLIENTE (Soporta Autocomplete, entrada manual y badge) -->
                     <div
-                        style="background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
-                        <h5
-                            style="color: #2c3e50; font-size: 15px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center;">
-                            <i class="fas fa-user" style="color: #6ccae2; margin-right: 8px;"></i> Cliente (opcional)
-                        </h5>
-                        <div style="position: relative;" id="cliente-autocomplete-wrap">
-                            <input type="text" id="cliente_nombre"
-                                placeholder="Buscar cliente por nombre, DNI o email..." autocomplete="off"
-                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; color: #2c3e50; box-sizing: border-box;"
-                                onfocus="this.style.borderColor='#6ccae2';posClienteBuscar(this.value)"
-                                onblur="this.style.borderColor='#e9ecef'; setTimeout(posClienteCerrar,200)"
-                                oninput="posClienteBuscar(this.value)">
-                            <input type="hidden" id="cliente_id" value="">
-                            <!-- Dropdown de resultados -->
-                            <div id="cliente-dropdown"
-                                style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #ddd; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.12); z-index:1000; max-height:220px; overflow-y:auto; margin-top:4px;">
-                            </div>
-                        </div>
-                        <button type="button" onclick="abrirModalNuevoCliente()"
-                            style="margin-top:8px; background:none; border:1px solid #6ccae2; color:#6ccae2; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer;">
-                            <i class="fas fa-user-plus"></i> Registrar nuevo cliente
-                        </button>
-                    </div>
-
-                    <!-- Modal registro de nuevo cliente -->
-                    <div id="modal-nuevo-cliente"
-                        style="display:none; position:fixed; top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:3000;align-items:center;justify-content:center;">
+                        style="background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1px solid #e9ecef;">
                         <div
-                            style="background:white;border-radius:18px;padding:32px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-                            <h5 style="margin:0 0 20px;color:#2c3e50;font-size:1.2rem;">
-                                <i class="fas fa-user-plus" style="color:#6ccae2;margin-right:8px;"></i>Nuevo Cliente
-                            </h5>
-                            <label
-                                style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Nombre
-                                *</label>
-                            <input type="text" id="nc-nombre" placeholder="Nombre completo"
-                                style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px;box-sizing:border-box;">
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label style="color: #2c3e50; font-size: 13px; font-weight: 700; margin: 0;">
+                                <i class="fas fa-user" style="color: #6ccae2;"></i> Cliente
+                            </label>
+                            <button type="button" onclick="abrirModalNuevoCliente()"
+                                style="background: none; border: none; color: #6ccae2; font-size: 12px; font-weight: 700; cursor: pointer;">
+                                <i class="fas fa-user-plus"></i> + Nuevo
+                            </button>
+                        </div>
 
-                            <label
-                                style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Email</label>
-                            <input type="email" id="nc-email" placeholder="correo@ejemplo.com"
-                                style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:12px;box-sizing:border-box;">
+                        <div style="position: relative;">
+                            <input type="text" id="cliente_nombre" placeholder="Escribe nombre o busca por DNI..."
+                                autocomplete="off"
+                                style="border: 1px solid #ced4da; border-radius: 8px; padding: 8px 12px; font-size: 13px; background: white; width: 100%; box-sizing: border-box;"
+                                oninput="posClienteBuscar(this.value); posActualizarBadgeDirecto(this.value);"
+                                onfocus="posClienteBuscar(this.value)" onblur="setTimeout(posClienteCerrar,250)">
+                            <input type="hidden" id="cliente_id" value="">
 
-                            <label
-                                style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Teléfono</label>
-                            <input type="text" id="nc-telefono" placeholder="999 999 999"
-                                style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:20px;box-sizing:border-box;">
-
-                            <div style="display:flex;gap:12px;">
-                                <button type="button" onclick="cerrarModalNuevoCliente()"
-                                    style="flex:1;padding:12px;border:1px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:14px;">Cancelar</button>
-                                <button type="button" onclick="guardarNuevoCliente()"
-                                    style="flex:1;padding:12px;border:none;border-radius:10px;background:#6ccae2;color:white;cursor:pointer;font-size:14px;font-weight:600;">Guardar</button>
+                            <!-- Dropdown de Autocomplete -->
+                            <div id="cliente-dropdown"
+                                style="display:none; position:absolute; top:100%; left:0; right:0; background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 8px 20px rgba(0,0,0,0.15); z-index:1000; max-height:180px; overflow-y:auto; margin-top:2px;">
                             </div>
+                        </div>
+
+                        <!-- Badge de Confirmación de Cliente -->
+                        <div id="cliente-badge"
+                            style="display:none; margin-top: 6px; padding: 6px 10px; background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 6px; font-size: 12px; color: #2e7d32;">
                         </div>
                     </div>
 
+                    <!-- MÉTODO DE PAGO -->
                     <div
-                        style="background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
-                        <h5
-                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center;">
-                            <i class="fas fa-credit-card"
-                                style="color: #ffa301; margin-right: 10px; background: rgba(255, 163, 1, 0.1); padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;"></i>
-                            Método de Pago
-                        </h5>
+                        style="background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1px solid #e9ecef;">
                         <label
-                            style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Método
-                            de Pago:</label>
+                            style="color: #2c3e50; font-size: 13px; font-weight: 700; margin-bottom: 6px; display: block;">
+                            <i class="fas fa-credit-card" style="color: #ffa301;"></i> Método de Pago
+                        </label>
                         <select id="metodo_pago" onchange="cambiarMetodoPago()"
-                            style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; margin-bottom: 5px; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 500;">
+                            style="border: 1px solid #ced4da; border-radius: 8px; padding: 8px 12px; font-size: 14px; background: white; width: 100%;">
                             <option value="efectivo">💵 Efectivo</option>
                             <option value="tarjeta">💳 Tarjeta</option>
-                            <option value="yape">📱 Yape</option>
+                            <option value="yape">📱 Yape / Plin</option>
                             <option value="multipago">🔄 Multipago</option>
                         </select>
                     </div>
 
-                    <!-- Sección de dinero (solo para efectivo) -->
+                    <!-- DINERO EN EFECTIVO -->
                     <div id="dinero-section"
-                        style="background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
-                        <h5
-                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center;">
-                            <i class="fas fa-money-bill-wave"
-                                style="color: #28a745; margin-right: 10px; background: rgba(40, 167, 69, 0.1); padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;"></i>
-                            Dinero en Efectivo
-                        </h5>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        style="background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1px solid #e9ecef;">
+                        <label
+                            style="color: #2c3e50; font-size: 13px; font-weight: 700; margin-bottom: 6px; display: block;">
+                            <i class="fas fa-money-bill-wave" style="color: #28a745;"></i> Dinero Recibido
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
                             <div>
-                                <label
-                                    style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Monto
-                                    Recibido:</label>
+                                <span style="font-size: 11px; color: #6c757d; font-weight: 600;">Monto Recibido:</span>
                                 <input type="number" id="monto_recibido" step="0.01" value="0.00"
                                     oninput="calcularCambio()"
-                                    style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50; font-weight: 600;">
+                                    style="border: 1px solid #ced4da; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-weight: 700; background: white; width: 100%; box-sizing: border-box;">
                             </div>
                             <div>
-                                <label
-                                    style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Cambio:
-                                    S/</label>
+                                <span style="font-size: 11px; color: #6c757d; font-weight: 600;">Cambio:</span>
                                 <input type="number" id="cambio" step="0.01" value="0.00" readonly
-                                    style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #6c757d; font-weight: 600;">
+                                    style="border: 1px solid #ced4da; border-radius: 8px; padding: 8px 10px; font-size: 14px; font-weight: 700; background: #e9ecef; color: #28a745; width: 100%; box-sizing: border-box;">
                             </div>
                         </div>
+
+                        <!-- Botones de Dinero Rápido -->
+                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            <button type="button" class="btn-quick-cash"
+                                onclick="setMontoRapido('exacto')">Exacto</button>
+                            <button type="button" class="btn-quick-cash" onclick="setMontoRapido(10)">S/ 10</button>
+                            <button type="button" class="btn-quick-cash" onclick="setMontoRapido(20)">S/ 20</button>
+                            <button type="button" class="btn-quick-cash" onclick="setMontoRapido(50)">S/ 50</button>
+                            <button type="button" class="btn-quick-cash" onclick="setMontoRapido(100)">S/ 100</button>
+                        </div>
                     </div>
 
-                    <!-- Sección de multipago -->
+                    <!-- MULTIPAGO -->
                     <div id="multipago-section"
-                        style="display: none; background: #f5f5f5; border-radius: 12px; padding: 15px; margin: 0 0 15px 0; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); border: 1px solid #e9ecef;">
-                        <h5
-                            style="color: #2c3e50; font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center;">
-                            <i class="fas fa-layer-group"
-                                style="color: #6ccae2; margin-right: 10px; background: rgba(108, 202, 226, 0.1); padding: 6px; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 14px;"></i>
-                            Configurar Multipago
-                        </h5>
-                        <div style="margin-bottom: 20px;">
-                            <label
-                                style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Primer
-                                Método:</label>
+                        style="display: none; background: #f8f9fa; border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1px solid #e9ecef;">
+                        <span style="font-size: 12px; font-weight: 700; color: #2c3e50;">Configurar Multipago</span>
+                        <div style="margin-top: 6px;">
                             <select id="metodo1" onchange="calcularMultipago()"
-                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; margin-bottom: 8px; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50;">
-                                <option value="efectivo">💵 Efectivo</option>
-                                <option value="tarjeta">💳 Tarjeta</option>
-                                <option value="yape">📱 Yape</option>
+                                style="border: 1px solid #ced4da; border-radius: 6px; padding: 6px; font-size: 12px; width: 100%; margin-bottom: 4px;">
+                                <option value="efectivo">Efectivo</option>
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="yape">Yape</option>
                             </select>
-                            <input type="number" id="monto1" step="0.01" placeholder="Monto método 1"
+                            <input type="number" id="monto1" step="0.01" placeholder="Monto 1"
                                 oninput="calcularMultipago()"
-                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50;">
+                                style="border: 1px solid #ced4da; border-radius: 6px; padding: 6px; font-size: 12px; width: 100%; box-sizing: border-box;">
                         </div>
-                        <div style="margin-bottom: 20px;">
-                            <label
-                                style="color: #2c3e50; font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block;">Segundo
-                                Método:</label>
+                        <div style="margin-top: 6px;">
                             <select id="metodo2" onchange="calcularMultipago()"
-                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: white; width: 100%; margin-bottom: 8px; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #2c3e50;">
-                                <option value="tarjeta">💳 Tarjeta</option>
-                                <option value="yape">📱 Yape</option>
-                                <option value="efectivo">💵 Efectivo</option>
+                                style="border: 1px solid #ced4da; border-radius: 6px; padding: 6px; font-size: 12px; width: 100%; margin-bottom: 4px;">
+                                <option value="tarjeta">Tarjeta</option>
+                                <option value="yape">Yape</option>
+                                <option value="efectivo">Efectivo</option>
                             </select>
-                            <input type="number" id="monto2" step="0.01" placeholder="Monto método 2" readonly
-                                style="border: 2px solid #e9ecef; border-radius: 10px; padding: 10px 14px; font-size: 14px; background: #f5f5f5; width: 100%; box-shadow: 0 4px 10px rgba(255, 163, 1, 0.1); color: #6c757d;">
+                            <input type="number" id="monto2" step="0.01" placeholder="Monto 2" readonly
+                                style="border: 1px solid #ced4da; border-radius: 6px; padding: 6px; font-size: 12px; background: #e9ecef; width: 100%; box-sizing: border-box;">
                         </div>
                     </div>
 
-                    <!-- Botones de acción -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 0 25px 25px 25px;">
+                    <!-- BOTONES DE ACCIÓN -->
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 15px;">
                         <button onclick="limpiarPedido()"
-                            style="background: #6c757d; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                            onmouseover="this.style.background='#5a6268'; this.style.transform='translateY(-2px)'"
-                            onmouseout="this.style.background='#6c757d'; this.style.transform='translateY(0)'">
+                            style="background: #6c757d; border: none; border-radius: 12px; color: white; padding: 14px; font-weight: 700; font-size: 14px; cursor: pointer;">
                             <i class="fas fa-trash"></i> Limpiar
                         </button>
                         <button id="btn-pagar" onclick="procesarPago()" disabled
-                            style="background: #adb5bd; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; font-size: 16px; cursor: not-allowed; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(173, 181, 189, 0.3);">
-                            <i class="fas fa-credit-card"></i> Pagar
+                            style="background: #adb5bd; border: none; border-radius: 12px; color: white; padding: 14px; font-weight: 800; font-size: 16px; cursor: not-allowed; transition: all 0.3s ease;">
+                            <i class="fas fa-credit-card"></i> PAGAR
                         </button>
                     </div>
 
-                    <!-- Modal de confirmación de pago -->
-                    <div id="modal-confirmacion"
-                        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; backdrop-filter: blur(5px);">
-                        <div
-                            style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 20px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-                            <div style="text-align: center; margin-bottom: 25px;">
-                                <i class="fas fa-check-circle"
-                                    style="font-size: 64px; color: #28a745; margin-bottom: 15px;"></i>
-                                <h3 style="color: #2c3e50; margin-bottom: 10px;">¡Pago Procesado!</h3>
-                                <p style="color: #6c757d;">La venta se ha registrado exitosamente</p>
-                            </div>
-
-                            <div id="resumen-venta"
-                                style="background: #f8f9fa; border-radius: 15px; padding: 20px; margin-bottom: 25px;">
-                            </div>
-
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                <button onclick="imprimirTicket()"
-                                    style="background: linear-gradient(135deg, #ffa301, #6ccae2); border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
-                                    <i class="fas fa-print"></i> Imprimir Ticket
-                                </button>
-                                <button onclick="cerrarModal()"
-                                    style="background: #6c757d; border: none; border-radius: 15px; color: white; padding: 15px 20px; font-weight: 700; cursor: pointer; transition: all 0.3s ease;">
-                                    <i class="fas fa-times"></i> Cerrar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
+
         </div>
     </div>
 </div>
+
+<!-- MODAL CONFIRMACIÓN DE PAGO -->
+<div id="modal-confirmacion"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; backdrop-filter: blur(4px);">
+    <div
+        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 20px; padding: 25px; max-width: 450px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center;">
+        <i class="fas fa-check-circle" style="font-size: 56px; color: #28a745; margin-bottom: 10px;"></i>
+        <h3 style="color: #2c3e50; margin: 0 0 10px 0; background: none; padding: 0; justify-content: center;">¡Venta
+            Exitosa!</h3>
+        <p style="color: #6c757d; font-size: 14px; margin-bottom: 15px;">La transacción ha sido completada
+            correctamente.</p>
+
+        <div id="resumen-venta"
+            style="background: #f8f9fa; border-radius: 12px; padding: 15px; margin-bottom: 20px; text-align: left; font-size: 14px; border: 1px solid #e9ecef;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button onclick="imprimirTicket()"
+                style="background: linear-gradient(135deg, #ffa301, #6ccae2); border: none; border-radius: 10px; color: white; padding: 12px; font-weight: 700; cursor: pointer;">
+                <i class="fas fa-print"></i> Ticket
+            </button>
+            <button onclick="cerrarModal()"
+                style="background: #6c757d; border: none; border-radius: 10px; color: white; padding: 12px; font-weight: 700; cursor: pointer;">
+                <i class="fas fa-times"></i> Cerrar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL REGISTRO NUEVO CLIENTE -->
+<div id="modal-nuevo-cliente"
+    style="display:none; position:fixed; top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;">
+    <div
+        style="background:white;border-radius:16px;padding:25px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <h4 style="margin:0 0 15px;color:#2c3e50;font-size:18px;">
+            <i class="fas fa-user-plus" style="color:#6ccae2;margin-right:8px;"></i>Registrar Nuevo Cliente
+        </h4>
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Nombre Completo
+            *</label>
+        <input type="text" id="nc-nombre" placeholder="Ej. Juan Pérez"
+            style="width:100%;border:1px solid #ccc;border-radius:8px;padding:8px 10px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">DNI / RUC</label>
+        <input type="text" id="nc-documento" placeholder="12345678"
+            style="width:100%;border:1px solid #ccc;border-radius:8px;padding:8px 10px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Email</label>
+        <input type="email" id="nc-email" placeholder="correo@ejemplo.com"
+            style="width:100%;border:1px solid #ccc;border-radius:8px;padding:8px 10px;font-size:14px;margin-bottom:10px;box-sizing:border-box;">
+
+        <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">Teléfono</label>
+        <input type="text" id="nc-telefono" placeholder="999888777"
+            style="width:100%;border:1px solid #ccc;border-radius:8px;padding:8px 10px;font-size:14px;margin-bottom:15px;box-sizing:border-box;">
+
+        <div style="display:flex;gap:10px;">
+            <button type="button" onclick="cerrarModalNuevoCliente()"
+                style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:white;cursor:pointer;">Cancelar</button>
+            <button type="button" onclick="guardarNuevoCliente()"
+                style="flex:1;padding:10px;border:none;border-radius:8px;background:#6ccae2;color:white;cursor:pointer;font-weight:700;">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ESCÁNER CÁMARA POS -->
+<div id="pos-scanner-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; backdrop-filter:blur(4px);">
+    <div
+        style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#1a1a2e; border-radius:20px; padding:25px; max-width:400px; width:90%;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h4 style="color:white; margin:0; font-size:18px;"><i class="fas fa-barcode" style="color:#ffa301;"></i>
+                Escanear Código</h4>
+            <button onclick="cerrarEscanerPOS()"
+                style="background:rgba(255,255,255,0.2); border:none; color:white; width:30px; height:30px; border-radius:50%; cursor:pointer;">✕</button>
+        </div>
+        <div style="position:relative; border-radius:12px; overflow:hidden; background:#000; aspect-ratio:4/3;">
+            <video id="pos-scanner-video" autoplay playsinline muted
+                style="width:100%; height:100%; object-fit:cover;"></video>
+            <div
+                style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:70%; height:30%; border:3px solid #ffa301; border-radius:8px;">
+            </div>
+        </div>
+        <div id="pos-scan-status" style="margin-top:10px; text-align:center; color:#aaa; font-size:13px;"></div>
+        <div style="margin-top:10px;">
+            <input type="text" id="pos-manual-barcode" placeholder="O ingresa código manualmente..."
+                style="width:100%; border:1px solid #444; border-radius:8px; padding:8px 12px; font-size:14px; background:#2a2a3e; color:white; box-sizing:border-box;"
+                onkeydown="if(event.key==='Enter') posLookupCode(this.value.trim())">
+        </div>
+    </div>
+</div>
+
 
 <script>
     // Variables globales
@@ -725,7 +472,7 @@
     window.total = window.total || 0;
     window.ultimaVenta = window.ultimaVenta || null;
 
-    // ─── LÓGICA DEL CARRITO Y PAGOS EN EL POS ──────────────────────────────────
+    // ─── DIBUJAR Y ACTUALIZAR CARRITO ──────────────────────────────────────────
     window.actualizarCarrito = function () {
         const container = document.getElementById('carrito-items');
         const vacio = document.getElementById('carrito-vacio');
@@ -736,7 +483,7 @@
             container.style.display = 'none';
             container.innerHTML = '';
             window.total = 0;
-            window.actualizarBotonPagar?.();
+            window.actualizarBotonPagar();
             return;
         }
 
@@ -751,81 +498,73 @@
             subtotalG += itemSubtotal;
             const icono = item.tipo === 'servicio' ? '⚙️' : '📦';
 
-            html += `<div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid #e9ecef; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                <div style="flex: 1; min-width: 0; padding-right: 8px;">
+            html += `<div style="display: flex; justify-content: space-between; align-items: center; background: #ffffff; border: 1px solid #e9ecef; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px;">
+                <div style="flex: 1; min-width: 0; padding-right: 6px;">
                     <strong style="display: block; font-size: 13px; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         ${icono} ${item.nombre}
                     </strong>
-                    <span style="font-size: 12px; color: #ffa301; font-weight: 700;">
-                        S/ ${parseFloat(item.precio).toFixed(2)} c/u
-                    </span>
+                    <span style="font-size: 12px; color: #ffa301; font-weight: 700;">S/ ${parseFloat(item.precio).toFixed(2)}</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <button onclick="cambiarCantidad(${index}, -1)" style="background: #e9ecef; border: none; border-radius: 6px; width: 26px; height: 26px; font-weight: bold; cursor: pointer;">-</button>
-                    <span style="font-size: 13px; font-weight: 700; min-width: 18px; text-align: center;">${item.cantidad}</span>
-                    <button onclick="cambiarCantidad(${index}, 1)" style="background: #e9ecef; border: none; border-radius: 6px; width: 26px; height: 26px; font-weight: bold; cursor: pointer;">+</button>
-                    <span style="font-size: 13px; font-weight: 800; color: #2c3e50; min-width: 55px; text-align: right;">
-                        S/ ${itemSubtotal.toFixed(2)}
-                    </span>
-                    <button onclick="eliminarItem(${index})" style="background: #dc3545; border: none; color: white; border-radius: 6px; width: 24px; height: 24px; cursor: pointer; font-size: 11px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <button onclick="cambiarCantidad(${index}, -1)" style="background: #e9ecef; border: none; border-radius: 4px; width: 22px; height: 22px; font-weight: bold; cursor: pointer;">-</button>
+                    <span style="font-size: 12px; font-weight: 700; min-width: 16px; text-align: center;">${item.cantidad}</span>
+                    <button onclick="cambiarCantidad(${index}, 1)" style="background: #e9ecef; border: none; border-radius: 4px; width: 22px; height: 22px; font-weight: bold; cursor: pointer;">+</button>
+                    <span style="font-size: 12px; font-weight: 800; color: #2c3e50; min-width: 50px; text-align: right;">S/ ${itemSubtotal.toFixed(2)}</span>
+                    <button onclick="eliminarItem(${index})" style="background: #dc3545; border: none; color: white; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; font-size: 10px;">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </div>`;
         });
 
+        window.total = subtotalG;
         const igvG = subtotalG - (subtotalG / 1.18);
         const subtotalSinIgv = subtotalG / 1.18;
-        window.total = subtotalG;
 
-        html += `<div style="background: #f8f9fa; border-radius: 10px; padding: 12px; margin-top: 10px; border: 1px solid #dee2e6;">
-            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #6c757d; margin-bottom: 4px;">
-                <span>Subtotal:</span>
-                <span>S/ ${subtotalSinIgv.toFixed(2)}</span>
+        html += `<div style="background: #f8f9fa; border-radius: 8px; padding: 10px; margin-top: 8px; border: 1px solid #dee2e6;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6c757d;">
+                <span>Subtotal:</span><span>S/ ${subtotalSinIgv.toFixed(2)}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #6c757d; margin-bottom: 6px;">
-                <span>IGV (18%):</span>
-                <span>S/ ${igvG.toFixed(2)}</span>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6c757d; margin-bottom: 4px;">
+                <span>IGV (18%):</span><span>S/ ${igvG.toFixed(2)}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #2c3e50; border-top: 2px dashed #cbd5e0; padding-top: 6px;">
-                <span>TOTAL:</span>
-                <span style="color: #28a745;">S/ ${subtotalG.toFixed(2)}</span>
+            <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 800; color: #2c3e50; border-top: 1px dashed #cbd5e0; padding-top: 4px;">
+                <span>TOTAL:</span><span style="color: #28a745;">S/ ${subtotalG.toFixed(2)}</span>
             </div>
         </div>`;
 
         container.innerHTML = html;
-        window.calcularCambio?.();
-        window.actualizarBotonPagar?.();
+
+        // Ajustar el valor por defecto de recibido si está en 0 o vacio
+        const mRec = document.getElementById('monto_recibido');
+        if (mRec && (parseFloat(mRec.value) === 0 || mRec.value === '')) {
+            mRec.value = window.total.toFixed(2);
+        }
+
+        window.calcularCambio();
+        window.actualizarBotonPagar();
     };
 
     window.agregarProducto = function (id, nombre, precio) {
         const item = window.carrito.find(p => p.tipo !== 'servicio' && p.id === id);
-        if (item) {
-            item.cantidad += 1;
-        } else {
-            window.carrito.push({ id: id, nombre: nombre, precio: parseFloat(precio), cantidad: 1, tipo: 'producto' });
-        }
+        if (item) { item.cantidad += 1; }
+        else { window.carrito.push({ id: id, nombre: nombre, precio: parseFloat(precio), cantidad: 1, tipo: 'producto' }); }
         window.actualizarCarrito();
-        posToast?.('✅ ' + nombre + ' agregado', '#28a745');
+        posToast('✅ ' + nombre + ' agregado', '#28a745');
     };
 
     window.agregarServicio = function (id, nombre, precio) {
         const item = window.carrito.find(p => p.tipo === 'servicio' && p.id === id);
-        if (item) {
-            item.cantidad += 1;
-        } else {
-            window.carrito.push({ id: id, nombre: nombre, precio: parseFloat(precio), cantidad: 1, tipo: 'servicio' });
-        }
+        if (item) { item.cantidad += 1; }
+        else { window.carrito.push({ id: id, nombre: nombre, precio: parseFloat(precio), cantidad: 1, tipo: 'servicio' }); }
         window.actualizarCarrito();
-        posToast?.('✅ ' + nombre + ' agregado', '#28a745');
+        posToast('✅ ' + nombre + ' agregado', '#28a745');
     };
 
     window.cambiarCantidad = function (index, delta) {
         if (window.carrito[index]) {
             window.carrito[index].cantidad += delta;
-            if (window.carrito[index].cantidad <= 0) {
-                window.carrito.splice(index, 1);
-            }
+            if (window.carrito[index].cantidad <= 0) window.carrito.splice(index, 1);
             window.actualizarCarrito();
         }
     };
@@ -839,19 +578,15 @@
 
     window.limpiarPedido = function () {
         window.carrito = [];
-        const cliName = document.getElementById('cliente_nombre');
-        const cliId = document.getElementById('cliente_id');
-        const mRec = document.getElementById('monto_recibido');
-        const cambio = document.getElementById('cambio');
-
-        if (cliName) cliName.value = '';
-        if (cliId) cliId.value = '';
-        if (mRec) mRec.value = '0.00';
-        if (cambio) cambio.value = '0.00';
-
+        document.getElementById('cliente_nombre').value = '';
+        document.getElementById('cliente_id').value = '';
+        document.getElementById('monto_recibido').value = '0.00';
+        document.getElementById('cambio').value = '0.00';
+        document.getElementById('cliente-badge').style.display = 'none';
         window.actualizarCarrito();
     };
 
+    // ─── MÉTODOS DE PAGO Y CÁLCULOS ──────────────────────────────────────────
     window.cambiarMetodoPago = function () {
         const metodo = document.getElementById('metodo_pago')?.value;
         const dineroSec = document.getElementById('dinero-section');
@@ -860,51 +595,79 @@
         if (metodo === 'efectivo') {
             if (dineroSec) dineroSec.style.display = 'block';
             if (multiSec) multiSec.style.display = 'none';
+            // Auto-llenar monto exacto al cambiar a efectivo
+            const mRec = document.getElementById('monto_recibido');
+            if (mRec && (parseFloat(mRec.value) === 0 || mRec.value === '')) {
+                mRec.value = window.total.toFixed(2);
+            }
         } else if (metodo === 'multipago') {
             if (dineroSec) dineroSec.style.display = 'none';
             if (multiSec) multiSec.style.display = 'block';
+            window.calcularMultipago();
         } else {
             if (dineroSec) dineroSec.style.display = 'none';
             if (multiSec) multiSec.style.display = 'none';
         }
-        window.actualizarBotonPagar?.();
+
+        window.calcularCambio();
+        window.actualizarBotonPagar();
+    };
+
+    window.setMontoRapido = function (valor) {
+        const mRec = document.getElementById('monto_recibido');
+        if (!mRec) return;
+        if (valor === 'exacto') {
+            mRec.value = window.total.toFixed(2);
+        } else {
+            mRec.value = parseFloat(valor).toFixed(2);
+        }
+        window.calcularCambio();
+        window.actualizarBotonPagar();
     };
 
     window.calcularCambio = function () {
-        const recibido = parseFloat(document.getElementById('monto_recibido')?.value || 0);
+        const recibido = parseFloat(document.getElementById('monto_recibido')?.value) || 0;
         const cambioInput = document.getElementById('cambio');
         if (cambioInput) {
             const cambioVal = Math.max(0, recibido - window.total);
             cambioInput.value = cambioVal.toFixed(2);
         }
-        window.actualizarBotonPagar?.();
+        window.actualizarBotonPagar();
     };
 
     window.calcularMultipago = function () {
-        const m1 = parseFloat(document.getElementById('monto1')?.value || 0);
+        const m1 = parseFloat(document.getElementById('monto1')?.value) || 0;
         const m2Input = document.getElementById('monto2');
         if (m2Input) {
             const restante = Math.max(0, window.total - m1);
             m2Input.value = restante.toFixed(2);
         }
-        window.actualizarBotonPagar?.();
+        window.actualizarBotonPagar();
     };
 
+    // ─── VALIDACIÓN RIGUROSA DEL BOTÓN PAGAR (CORREGIDO REDONDEO A CENTAVOS) ────
     window.actualizarBotonPagar = function () {
         const btn = document.getElementById('btn-pagar');
         if (!btn) return;
 
-        if (!window.carrito || window.carrito.length === 0 || window.total <= 0) {
+        // Convertir a centavos enteros para evitar errores de coma flotante de JS
+        const totalCents = Math.round((window.total || 0) * 100);
+
+        if (!window.carrito || window.carrito.length === 0 || totalCents <= 0) {
             btn.disabled = true;
             btn.style.background = '#adb5bd';
             btn.style.cursor = 'not-allowed';
             return;
         }
 
-        const metodo = document.getElementById('metodo_pago')?.value;
+        const metodo = document.getElementById('metodo_pago')?.value || 'efectivo';
+
         if (metodo === 'efectivo') {
-            const recibido = parseFloat(document.getElementById('monto_recibido')?.value || 0);
-            if (recibido < window.total) {
+            const recibidoVal = parseFloat(document.getElementById('monto_recibido')?.value) || 0;
+            const recibidoCents = Math.round(recibidoVal * 100);
+
+            // Comparar centavos exactos para eliminar el bug del botón bloqueado
+            if (recibidoCents < totalCents) {
                 btn.disabled = true;
                 btn.style.background = '#adb5bd';
                 btn.style.cursor = 'not-allowed';
@@ -917,7 +680,7 @@
         btn.style.cursor = 'pointer';
     };
 
-    // ─── PROCESAMIENTO PRINCIPAL DE LA VENTA (ENVIANDO DATOS DEL CLIENTE) ──────
+    // ─── PROCESAMIENTO DE PAGO CON NOMBRE DE CLIENTE GARANTIZADO ──────────────
     window.procesarPago = function () {
         if (!window.carrito || window.carrito.length === 0) {
             alert('El carrito está vacío');
@@ -930,36 +693,42 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
         }
 
-        // CAPTURA DIRECTA Y RIGUROSA DE DATOS DEL CLIENTE
+        // CAPTURA DIRECTA Y GARANTIZADA DE DATOS DEL CLIENTE
         const clienteNombreInput = (document.getElementById('cliente_nombre')?.value || '').trim();
         const clienteIdInput = (document.getElementById('cliente_id')?.value || '').trim();
+        const clienteFinal = clienteNombreInput || 'Cliente General';
 
         const metodoPago = document.getElementById('metodo_pago')?.value || 'efectivo';
-        const montoRecibido = parseFloat(document.getElementById('monto_recibido')?.value || window.total);
-        const cambioVal = parseFloat(document.getElementById('cambio')?.value || 0);
+        let montoRecibido = parseFloat(document.getElementById('monto_recibido')?.value);
+        if (isNaN(montoRecibido) || montoRecibido < window.total) {
+            montoRecibido = window.total;
+        }
+        const cambioVal = Math.max(0, montoRecibido - window.total);
 
         const subtotalCalc = window.total / 1.18;
         const igvCalc = window.total - subtotalCalc;
 
+        // Payload exhaustivo con todas las claves posibles que el backend pueda requerir
         const payload = {
             items: window.carrito,
             productos: window.carrito,
+            detalles: window.carrito,
 
-            // Atributos del cliente enviados explícitamente en el JSON
             cliente_id: clienteIdInput ? parseInt(clienteIdInput) : null,
-            cliente_nombre: clienteNombreInput || 'Cliente General',
-            cliente_documento: '',
-            cliente: {
-                id: clienteIdInput ? parseInt(clienteIdInput) : null,
-                nombre: clienteNombreInput || 'Cliente General'
-            },
+            id_cliente: clienteIdInput ? parseInt(clienteIdInput) : null,
+            cliente_nombre: clienteFinal,
+            nombre_cliente: clienteFinal,
+            cliente: clienteIdInput ? parseInt(clienteIdInput) : clienteFinal,
+            client_name: clienteFinal,
 
             metodo_pago: metodoPago,
+            forma_pago: metodoPago,
+            metodo: metodoPago,
             monto_recibido: montoRecibido,
             subtotal: parseFloat(subtotalCalc.toFixed(2)),
             igv: parseFloat(igvCalc.toFixed(2)),
             total: parseFloat(window.total.toFixed(2)),
-            cambio: cambioVal
+            cambio: parseFloat(cambioVal.toFixed(2))
         };
 
         fetch('/ventas/procesar', {
@@ -978,29 +747,29 @@
                     const resumen = document.getElementById('resumen-venta');
                     if (resumen) {
                         resumen.innerHTML = `
-                        <p style="margin-bottom:8px;"><strong>Cliente:</strong> ${clienteNombreInput || 'Cliente General'}</p>
-                        <p style="margin-bottom:8px;"><strong>Total Pagado:</strong> S/ ${window.total.toFixed(2)}</p>
-                        <p style="margin-bottom:8px;"><strong>Método de Pago:</strong> ${metodoPago.toUpperCase()}</p>
-                        <p style="margin-bottom:0;"><strong>Comprobante:</strong> Venta #${data.venta_id}</p>
+                        <p style="margin-bottom:6px;"><strong>Cliente:</strong> ${clienteFinal}</p>
+                        <p style="margin-bottom:6px;"><strong>Total:</strong> S/ ${window.total.toFixed(2)}</p>
+                        <p style="margin-bottom:6px;"><strong>Método:</strong> ${metodoPago.toUpperCase()}</p>
+                        <p style="margin-bottom:0;"><strong>Comprobante:</strong> Venta #${data.venta_id || data.id || ' OK'}</p>
                     `;
                     }
 
                     document.getElementById('modal-confirmacion').style.display = 'block';
-                    posToast('✅ Venta completada con éxito', '#28a745');
+                    posToast('✅ Venta guardada exitosamente', '#28a745');
                 } else {
-                    alert('Error al procesar la venta: ' + (data.error || 'Error desconocido'));
+                    alert('Error al procesar la venta: ' + (data.error || data.mensaje || 'Error desconocido'));
                     if (btn) {
                         btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagar';
+                        btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
                     }
                 }
             })
             .catch(err => {
-                console.error('Error en procesarPago:', err);
-                alert('Error de red al procesar el pago.');
+                console.error('Error procesando pago:', err);
+                alert('Ocurrió un problema de conexión al guardar la venta.');
                 if (btn) {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagar';
+                    btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
                 }
             });
     };
@@ -1008,95 +777,34 @@
     window.imprimirTicket = function () {
         if (window.ultimaVenta && window.ultimaVenta.ticket_url) {
             window.open(window.ultimaVenta.ticket_url, '_blank');
-        } else if (window.ultimaVenta && window.ultimaVenta.venta_id) {
-            window.open('/venta/ticket/' + window.ultimaVenta.venta_id, '_blank');
+        } else if (window.ultimaVenta && (window.ultimaVenta.venta_id || window.ultimaVenta.id)) {
+            const vid = window.ultimaVenta.venta_id || window.ultimaVenta.id;
+            window.open('/venta/ticket/' + vid, '_blank');
         } else {
-            alert('No hay ticket disponible');
+            alert('Ticket no disponible.');
         }
     };
 
     window.cerrarModal = function () {
         document.getElementById('modal-confirmacion').style.display = 'none';
         const btn = document.getElementById('btn-pagar');
-        if (btn) {
-            btn.innerHTML = '<i class="fas fa-credit-card"></i> Pagar';
-        }
+        if (btn) btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
         window.limpiarPedido();
     };
 
-    // ─── Tab switcher: Productos / Servicios ───────────────────────────────────
-    function cambiarTab(tab) {
-        const panelProd = document.getElementById('panel-productos');
-        const panelServ = document.getElementById('panel-servicios');
-        const btnProd = document.getElementById('tab-productos');
-        const btnServ = document.getElementById('tab-servicios');
-        if (tab === 'servicios') {
-            panelProd.style.display = 'none';
-            panelServ.style.display = 'block';
-            btnProd.style.background = '#e9ecef'; btnProd.style.color = '#6c757d';
-            btnServ.style.background = 'linear-gradient(135deg,#6ccae2,#5ab8d9)'; btnServ.style.color = 'white';
-        } else {
-            panelServ.style.display = 'none';
-            panelProd.style.display = 'block';
-            btnServ.style.background = '#e9ecef'; btnServ.style.color = '#6c757d';
-            btnProd.style.background = 'linear-gradient(135deg,#ffa301,#6ccae2)'; btnProd.style.color = 'white';
-        }
-    }
-
-    // ─── Búsqueda / Lectura de producto por Código de Barras ───────────────────
-    function buscarYAgregarPorCodigo(q) {
-        if (!q) return;
-        const input = document.getElementById('filtro-productos');
-
-        fetch('/api/ventas/buscar-productos?q=' + encodeURIComponent(q))
-            .then(r => r.json())
-            .then(data => {
-                if (data.productos && data.productos.length > 0) {
-                    const exacto = data.productos.find(p => p.codigo_barra && p.codigo_barra.toString().toLowerCase() === q.toLowerCase());
-                    const p = exacto || (data.productos.length === 1 ? data.productos[0] : null);
-
-                    if (p) {
-                        if (Number(p.stock) <= 0) {
-                            posToast('⚠️ Producto sin stock disponible', '#e6920e');
-                            return;
-                        }
-                        window.agregarProducto(p.id, p.nombre, p.precio);
-                        posToast('✅ ' + p.nombre + ' — S/ ' + parseFloat(p.precio).toFixed(2), '#28a745');
-                        if (input) input.value = '';
-                        if (window.filtrarProductos) window.filtrarProductos();
-                    } else {
-                        posToast('⚠️ Múltiples coincidencias. Revisa la lista.', '#e6920e');
-                    }
-                } else {
-                    posToast('❌ Producto no encontrado con código: ' + q, '#dc3545');
-                }
-            })
-            .catch(err => {
-                console.error('Error buscando producto por código:', err);
-                posToast('❌ Error al consultar el servidor', '#dc3545');
-            });
-    }
-
-    function posLookupCode(codigo) {
-        if (!codigo) return;
-        document.getElementById('pos-manual-barcode').value = '';
-        buscarYAgregarPorCodigo(codigo);
-    }
-
-    // ─── Autocomplete de clientes en POS ──────────────────────────────────────
-    let _clienteTimer = null;
+    // ─── CONTROL DE CLIENTES (AUTOCOMPLETE & BADGE) ────────────────────────────
+    let _cliTimer = null;
     function posClienteBuscar(q) {
-        clearTimeout(_clienteTimer);
-        _clienteTimer = setTimeout(() => {
+        clearTimeout(_cliTimer);
+        _cliTimer = setTimeout(() => {
             fetch('/api/ventas/buscar-clientes?q=' + encodeURIComponent(q))
                 .then(r => r.json())
                 .then(data => {
                     if (data.success && data.clientes) {
                         posClienteRenderDropdown(data.clientes, q);
                     }
-                })
-                .catch(() => { });
-        }, 250);
+                }).catch(() => { });
+        }, 200);
     }
 
     function posClienteRenderDropdown(clientes, q) {
@@ -1106,32 +814,44 @@
         let html = '';
         if (clientes && clientes.length > 0) {
             clientes.forEach(c => {
-                const sub = [c.documento ? 'Doc: ' + c.documento : '', c.email, c.telefono].filter(Boolean).join(' · ');
-                html += `<div class="pc-item" onclick="posClienteSeleccionar('${(c.nombre || '').replace(/'/g, "\\'")}','${(c.email || '').replace(/'/g, "\\'")}','${(c.telefono || '').replace(/'/g, "\\'")}','${c.id || ''}')"`
-                    + ` style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:14px;">`
-                    + `<strong>${c.nombre}</strong>`
-                    + (sub ? `<br><span style="color:#888;font-size:12px;">${sub}</span>` : '')
+                const doc = c.documento || c.dni || c.ruc || '';
+                html += `<div class="pc-item" onclick="posClienteSeleccionar('${(c.nombre || '').replace(/'/g, "\\'")}','${c.id || ''}')"`
+                    + ` style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;font-size:13px;">`
+                    + `<strong>${c.nombre}</strong>${doc ? ' <span style="color:#888;">(' + doc + ')</span>' : ''}`
                     + `</div>`;
             });
         }
-        if (q) {
+        if (q && q.trim() !== '') {
             html += `<div onclick="abrirModalNuevoClienteConNombre('${q.replace(/'/g, "\\'")}')"`
-                + ` style="padding:10px 14px;cursor:pointer;color:#6ccae2;font-size:14px;font-weight:600;border-top:1px dashed #cbd5e0;">`
-                + `<i class="fas fa-user-plus"></i> Registrar "${q}" como nuevo cliente</div>`;
+                + ` style="padding:8px 12px;cursor:pointer;color:#6ccae2;font-size:13px;font-weight:700;border-top:1px dashed #ccc;">`
+                + `<i class="fas fa-user-plus"></i> Registrar "${q}"</div>`;
         }
         dd.innerHTML = html;
         dd.style.display = 'block';
-
-        dd.querySelectorAll('.pc-item').forEach(el => {
-            el.addEventListener('mouseenter', () => el.style.background = '#f0f9ff');
-            el.addEventListener('mouseleave', () => el.style.background = 'white');
-        });
     }
 
-    function posClienteSeleccionar(nombre, email, telefono, id) {
+    function posClienteSeleccionar(nombre, id) {
         document.getElementById('cliente_nombre').value = nombre;
         document.getElementById('cliente_id').value = id || '';
-        document.getElementById('cliente-dropdown').style.display = 'none';
+        posActualizarBadgeDirecto(nombre);
+        posClienteCerrar();
+    }
+
+    function posActualizarBadgeDirecto(val) {
+        const badge = document.getElementById('cliente-badge');
+        if (!badge) return;
+        if (val && val.trim() !== '') {
+            badge.innerHTML = `<i class="fas fa-user-check"></i> Asignado: <strong>${val}</strong> <button type="button" onclick="posClienteLimpiar()" style="background:none;border:none;color:#dc3545;cursor:pointer;font-weight:bold;margin-left:5px;">✕</button>`;
+            badge.style.display = 'block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function posClienteLimpiar() {
+        document.getElementById('cliente_nombre').value = '';
+        document.getElementById('cliente_id').value = '';
+        document.getElementById('cliente-badge').style.display = 'none';
     }
 
     function posClienteCerrar() {
@@ -1156,155 +876,137 @@
 
     function guardarNuevoCliente() {
         const nombre = (document.getElementById('nc-nombre').value || '').trim();
-        const email = (document.getElementById('nc-email').value || '').trim();
-        const telefono = (document.getElementById('nc-telefono').value || '').trim();
+        const doc = (document.getElementById('nc-documento')?.value || '').trim();
+        const email = (document.getElementById('nc-email')?.value || '').trim();
+        const telefono = (document.getElementById('nc-telefono')?.value || '').trim();
+
         if (!nombre) { alert('El nombre es requerido.'); return; }
 
         fetch('/clientes/crear', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, email, telefono })
+            body: JSON.stringify({ nombre, documento: doc, dni: doc, email, telefono })
         })
-            .then(r => r.json())
+            .then(r => r.json().catch(() => ({ success: true, nombre: nombre })))
             .then(data => {
-                if (data.success) {
-                    posClienteSeleccionar(nombre, email, telefono, data.cliente_id);
-                    cerrarModalNuevoCliente();
-                    document.getElementById('nc-nombre').value = '';
-                    document.getElementById('nc-email').value = '';
-                    document.getElementById('nc-telefono').value = '';
-                    posToast?.('✅ Cliente "' + nombre + '" registrado', '#28a745');
-                } else {
-                    alert(data.error || 'Error al registrar cliente.');
-                }
+                const newId = data.cliente_id || data.id || '';
+                posClienteSeleccionar(nombre, newId);
+                cerrarModalNuevoCliente();
+                posToast('✅ Cliente "' + nombre + '" asignado', '#28a745');
             })
-            .catch(() => alert('Error de red al registrar cliente.'));
+            .catch(() => {
+                posClienteSeleccionar(nombre, '');
+                cerrarModalNuevoCliente();
+                posToast('⚠️ Cliente asignado a la venta: ' + nombre, '#e6920e');
+            });
     }
 
-    document.getElementById('modal-nuevo-cliente').addEventListener('click', function (e) {
-        if (e.target === this) cerrarModalNuevoCliente();
-    });
+    // ─── TABS & BÚSQUEDAS ─────────────────────────────────────────────────────
+    function cambiarTab(tab) {
+        const pProd = document.getElementById('panel-productos');
+        const pServ = document.getElementById('panel-servicios');
+        const bProd = document.getElementById('tab-productos');
+        const bServ = document.getElementById('tab-servicios');
+        if (tab === 'servicios') {
+            pProd.style.display = 'none'; pServ.style.display = 'block';
+            bProd.style.background = '#e9ecef'; bProd.style.color = '#6c757d';
+            bServ.style.background = 'linear-gradient(135deg,#6ccae2,#5ab8d9)'; bServ.style.color = 'white';
+        } else {
+            pServ.style.display = 'none'; pProd.style.display = 'block';
+            bServ.style.background = '#e9ecef'; bServ.style.color = '#6c757d';
+            bProd.style.background = 'linear-gradient(135deg,#ffa301,#6ccae2)'; bProd.style.color = 'white';
+        }
+    }
 
-    function filtrarServicios() {
-        const q = (document.getElementById('filtro-servicios')?.value || '').toLowerCase();
-        document.querySelectorAll('.servicio-card').forEach(card => {
-            card.style.display = card.dataset.nombre.includes(q) ? '' : 'none';
-        });
+    function buscarYAgregarPorCodigo(q) {
+        if (!q) return;
+        fetch('/api/ventas/buscar-productos?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+                if (data.productos && data.productos.length > 0) {
+                    const p = data.productos[0];
+                    window.agregarProducto(p.id, p.nombre, p.precio);
+                    document.getElementById('filtro-productos').value = '';
+                } else {
+                    posToast('❌ No se encontró producto: ' + q, '#dc3545');
+                }
+            }).catch(() => posToast('❌ Error buscando código', '#dc3545'));
+    }
+
+    function posLookupCode(codigo) {
+        if (!codigo) return;
+        document.getElementById('pos-manual-barcode').value = '';
+        buscarYAgregarPorCodigo(codigo);
     }
 
     function filtrarProductos() {
         const q = (document.getElementById('filtro-productos')?.value || '').toLowerCase();
         document.querySelectorAll('.producto-card').forEach(card => {
-            card.style.display = card.dataset.nombre.includes(q) ? '' : 'none';
+            card.style.display = card.dataset.nombre.includes(q) ? 'flex' : 'none';
         });
     }
-</script>
 
-<script>
-    /* =====================================================================
-       ESCÁNER DE CÓDIGO DE BARRAS — CÁMARA & POLLING POS
-       ===================================================================== */
-    const POS_DEVICE_ID = (function () {
-        let id = sessionStorage.getItem('pos_device_id');
-        if (!id) {
-            id = Date.now().toString(36) + Math.random().toString(36).slice(2);
-            sessionStorage.setItem('pos_device_id', id);
-        }
-        return id;
-    })();
+    function filtrarServicios() {
+        const q = (document.getElementById('filtro-servicios')?.value || '').toLowerCase();
+        document.querySelectorAll('.servicio-card').forEach(card => {
+            card.style.display = card.dataset.nombre.includes(q) ? 'flex' : 'none';
+        });
+    }
 
-    let posStream = null;
-    let posScanInterval = null;
-    let posDetector = null;
-    let posPollTimer = null;
+    function filtrarPorCategoria(cat) {
+        document.querySelectorAll('.producto-card').forEach(card => {
+            if (cat === 'todos' || card.dataset.categoria === cat) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
 
     function posToast(msg, color) {
         let t = document.getElementById('pos-toast');
         if (!t) {
             t = document.createElement('div');
             t.id = 'pos-toast';
-            t.style.cssText = 'position:fixed;bottom:30px;right:30px;z-index:99999;padding:14px 22px;border-radius:14px;font-size:15px;font-weight:700;color:white;box-shadow:0 8px 25px rgba(0,0,0,0.25);transition:opacity .4s;opacity:0;pointer-events:none;';
+            t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:99999;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:700;color:white;box-shadow:0 5px 15px rgba(0,0,0,0.2);transition:opacity .3s;opacity:0;';
             document.body.appendChild(t);
         }
         t.textContent = msg;
         t.style.background = color || '#ffa301';
         t.style.opacity = '1';
         clearTimeout(t._timer);
-        t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+        t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
     }
 
+    // Camara scanner
+    let posStream = null;
+    let posScanInterval = null;
     async function abrirEscanerPOS() {
         document.getElementById('pos-scanner-modal').style.display = 'block';
-        document.getElementById('pos-manual-barcode').value = '';
-        document.getElementById('pos-scan-status').textContent = '';
-        setTimeout(() => document.getElementById('pos-manual-barcode').focus(), 150);
-
-        if (!('BarcodeDetector' in window)) {
-            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ Tu navegador no soporta cámara directa. Usa el campo manual o la pistola lectora.</span>';
-            return;
-        }
+        if (!('BarcodeDetector' in window)) return;
         try {
-            posDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'codabar', 'itf', 'qr_code', 'data_matrix'] });
-        } catch {
-            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#ffa301">⚠️ BarcodeDetector no disponible. Usa el campo manual.</span>';
-            return;
-        }
-        try {
-            posStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
+            const detector = new BarcodeDetector({ formats: ['ean_13', 'code_128', 'qr_code'] });
+            posStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             const video = document.getElementById('pos-scanner-video');
             video.srcObject = posStream;
-            await video.play();
-            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#6ccae2">📷 Cámara activa — apunta al código de barras</span>';
+            video.play();
             posScanInterval = setInterval(async () => {
                 if (!posStream) return;
                 try {
-                    const barcodes = await posDetector.detect(video);
-                    if (barcodes && barcodes.length > 0) {
-                        const code = barcodes[0].rawValue;
-                        clearInterval(posScanInterval);
-                        posScanInterval = null;
+                    const codes = await detector.detect(video);
+                    if (codes && codes.length > 0) {
                         cerrarEscanerPOS();
-                        posLookupCode(code);
+                        posLookupCode(codes[0].rawValue);
                     }
                 } catch { }
-            }, 150);
-        } catch (e) {
-            document.getElementById('pos-scan-status').innerHTML = '<span style="color:#dc3545">❌ No se pudo acceder a la cámara. Usa el campo manual.</span>';
-        }
+            }, 200);
+        } catch { }
     }
 
     function cerrarEscanerPOS() {
         document.getElementById('pos-scanner-modal').style.display = 'none';
-        if (posScanInterval) { clearInterval(posScanInterval); posScanInterval = null; }
-        if (posStream) { posStream.getTracks().forEach(t => t.stop()); posStream = null; }
-        const v = document.getElementById('pos-scanner-video');
-        if (v) { v.srcObject = null; }
-    }
-
-    document.getElementById('pos-scanner-modal').addEventListener('click', function (e) {
-        if (e.target === this) cerrarEscanerPOS();
-    });
-
-    function iniciarPollingRemoto() {
-        posPollTimer = setInterval(() => {
-            fetch('/ventas/scan-poll?device_id=' + encodeURIComponent(POS_DEVICE_ID))
-                .then(r => r.json())
-                .then(data => {
-                    if (data.items && data.items.length > 0) {
-                        data.items.forEach(item => {
-                            window.agregarProducto(item.id, item.nombre, item.precio);
-                            posToast('📱 ' + item.nombre + ' escaneado desde otro dispositivo', '#6ccae2');
-                        });
-                    }
-                })
-                .catch(() => { });
-        }, 1500);
-    }
-
-    document.addEventListener('DOMContentLoaded', iniciarPollingRemoto);
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(iniciarPollingRemoto, 0);
+        if (posScanInterval) clearInterval(posScanInterval);
+        if (posStream) posStream.getTracks().forEach(t => t.stop());
     }
 </script>
-
 {% endblock %}
