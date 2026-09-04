@@ -9,6 +9,7 @@ from functools import wraps
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter    
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
@@ -574,9 +575,11 @@ def exportar_cierre_diario():
             cell.fill = total_fill
             cell.border = border_thin
 
+        # Ajuste dinámico de ancho de columnas (ignora la fila 1 de título combinado)
         for col in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = col[0].column_letter
+            max_len = max(len(str(cell.value or '')) for cell in col[1:]) # Ignora el título A1:G1
+            col_idx = col[0].column
+            col_letter = get_column_letter(col_idx)
             ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
         output = io.BytesIO()
