@@ -1072,7 +1072,7 @@ def historial_servicios():
 
 
 # ==========================================
-# HISTORIAL DE VENTAS
+# HISTORIAL DE VENTAS (ADAPTATIVO)
 # ==========================================
 @app.route('/historial_ventas', endpoint='historial_ventas')
 @app.route('/historial-ventas')
@@ -1100,42 +1100,85 @@ def historial_ventas():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'ventas' AND column_name IN ('fecha', 'fecha_venta', 'created_at') LIMIT 1;")
-            res_col = cursor.fetchone()
-            col_fecha = res_col[0] if res_col else 'fecha'
+            # 1. Inspeccionar qué columnas existen REALMENTE en la tabla 'ventas'
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'ventas';
+            """)
+            columnas = [r[0].lower() for r in cursor.fetchall()]
 
-            condiciones = ["(v.tenant_id = %s OR v.tenant_id IS NULL)"]
-            params = [tenant_id]
+            # Si la consulta no trae columnas (por ej. diferencia de mayúsculas/minúsculas), consultar con LIMIT 0
+            if not columnas:
+                cursor.execute("SELECT * FROM ventas LIMIT 0;")
+                columnas = [desc[0].lower() for desc in cursor.description]
 
-            if fecha_inicio:
+            # 2. Construir expresiones dinámicas según columnas disponibles
+            col_fecha = next((c for c in ['fecha', 'fecha_venta', 'created_at', 'fecha_registro'] if c in columnas), None)
+            expr_fecha = f"TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM')" if col_fecha else "'01/01/2026 12:00 AM'"
+
+            cols_comprobante = [c for c in ['nro_boleta', 'numero_venta', 'comprobante', 'nro_comprobante', 'codigo'] if c in columnas]
+            expr_comprobante = f"COALESCE({', '.join(['v.' + c for c in cols_comprobante])}, 'N/A')" if cols_comprobante else "'N/A'"
+
+            cols_cliente = [c for c in ['cliente', 'cliente_nombre', 'nombre_cliente', 'comprador'] if c in columnas]
+            expr_cliente = f"COALESCE({', '.join(['v.' + c for c in cols_cliente])}, 'Cliente General')" if cols_cliente else "'Cliente General'"
+
+            cols_servicio = [c for c in ['servicio_descripcion', 'descripcion', 'concepto', 'producto'] if c in columnas]
+            expr_servicio = f"COALESCE({', '.join(['v.' + c for c in cols_servicio])}, 'Venta General')" if cols_servicio else "'Venta General'"
+
+            cols_personal = [c for c in ['vendedor_nombre', 'vendedor', 'personal', 'usuario'] if c in columnas]
+            expr_personal = f"COALESCE({', '.join(['v.' + c for c in cols_personal])}, 'Atendido')" if cols_personal else "'Atendido'"
+
+            cols_pago = [c for c in ['metodo_pago', 'forma_pago', 'pago'] if c in columnas]
+            expr_pago = f"COALESCE({', '.join(['v.' + c for c in cols_pago])}, 'efectivo')" if cols_pago else "'efectivo'"
+
+            cols_total = [c for c in ['total', 'monto_total', 'monto', 'precio_total'] if c in columnas]
+            expr_total = f"COALESCE(v.{cols_total[0]}, 0.00)" if cols_total else "0.00"
+
+            expr_estado = "COALESCE(v.estado::text, 'completado')" if 'estado' in columnas else "'completado'"
+
+            # 3. Construir filtro WHERE seguro
+            condiciones = []
+            params = []
+
+            if 'tenant_id' in columnas:
+                condiciones.append("(v.tenant_id = %s OR v.tenant_id IS NULL)")
+                params.append(tenant_id)
+
+            if fecha_inicio and col_fecha:
                 condiciones.append(f"DATE(v.{col_fecha}::text) >= %s::date")
                 params.append(fecha_inicio)
 
-            if fecha_fin:
+            if fecha_fin and col_fecha:
                 condiciones.append(f"DATE(v.{col_fecha}::text) <= %s::date")
                 params.append(fecha_fin)
 
             if busqueda:
-                condiciones.append("(COALESCE(v.cliente, v.cliente_nombre, '') ILIKE %s OR COALESCE(v.servicio_descripcion, '') ILIKE %s OR COALESCE(v.nro_boleta, v.numero_venta, '') ILIKE %s)")
-                param_like = f"%{busqueda}%"
-                params.extend([param_like, param_like, param_like])
+                busq_conds = []
+                for col_b in cols_cliente + cols_servicio + cols_comprobante:
+                    busq_conds.append(f"COALESCE(v.{col_b}::text, '') ILIKE %s")
+                    params.append(f"%{busqueda}%")
+                if busq_conds:
+                    condiciones.append(f"({' OR '.join(busq_conds)})")
 
-            where_clause = " AND ".join(condiciones)
+            where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
+            order_by = f"ORDER BY v.{col_fecha} DESC" if col_fecha else "ORDER BY v.id DESC"
 
+            # 4. Consulta SQL final
             query = f"""
                 SELECT 
                     v.id,
-                    COALESCE(v.nro_boleta, v.numero_venta, 'N/A') AS comprobante,
-                    TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM') AS fecha,
-                    COALESCE(v.cliente, v.cliente_nombre, 'Cliente General') AS cliente,
-                    COALESCE(v.servicio_descripcion, 'Venta General') AS servicio,
-                    COALESCE(v.vendedor_nombre, 'Atendido') AS personal,
-                    COALESCE(v.metodo_pago, 'efectivo') AS pago,
-                    COALESCE(v.total, 0.00) AS total,
-                    COALESCE(v.estado::text, 'completado') AS estado
+                    {expr_comprobante} AS comprobante,
+                    {expr_fecha} AS fecha,
+                    {expr_cliente} AS cliente,
+                    {expr_servicio} AS servicio,
+                    {expr_personal} AS personal,
+                    {expr_pago} AS pago,
+                    {expr_total} AS total,
+                    {expr_estado} AS estado
                 FROM ventas v
-                WHERE {where_clause}
-                ORDER BY v.{col_fecha} DESC
+                {where_clause}
+                {order_by}
                 LIMIT 200
             """
             
@@ -1148,12 +1191,12 @@ def historial_ventas():
 
                 ventas_lista.append({
                     'id': v_id,
-                    'numero_comprobante': v_num,
-                    'fecha': v_fecha,
-                    'cliente_nombre': v_cliente,
-                    'servicio_descripcion': v_servicio,
-                    'personal': v_personal,
-                    'metodo_pago': v_pago,
+                    'numero_comprobante': v_num or 'N/A',
+                    'fecha': v_fecha or '',
+                    'cliente_nombre': v_cliente or 'Cliente General',
+                    'servicio_descripcion': v_servicio or 'Venta General',
+                    'personal': v_personal or 'Atendido',
+                    'metodo_pago': v_pago or 'efectivo',
                     'total': v_total,
                     'estado': v_estado_str,
                     0: v_id, 1: v_num, 2: v_fecha, 3: v_cliente, 4: v_servicio, 5: v_personal, 6: v_pago, 7: v_total, 8: v_estado_str
@@ -1162,12 +1205,11 @@ def historial_ventas():
     except Exception as e:
         if conexion:
             conexion.rollback()
-        logger.error(f"Error consultando historial de ventas: {e}")
+        print(f"❌ Error en historial_ventas: {e}")
     finally:
         if conexion:
             conexion.close()
 
-    # Intenta renderizar 'historial_ventas.html'. Si no existe la plantilla separada, utiliza 'historial_servicios.html'
     try:
         return render_template('historial_ventas.html', ventas=ventas_lista, servicios=ventas_lista, filtros=filtros)
     except Exception:
