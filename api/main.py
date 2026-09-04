@@ -3448,6 +3448,296 @@ def procesar_venta_pos():
     finally:
         conexion.close()
 
+# ─── MÓDULO DE MASCOTAS ──────────────────────────────────────────────────────
+
+@app.route('/mascotas')
+def listar_mascotas():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    tenant_id = session.get('tenant_id', 1)
+    mascotas = []
+    clientes = []
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # 1. Obtener lista de mascotas con los datos de su dueño (cliente)
+            cursor.execute("""
+                SELECT 
+                    m.id, 
+                    m.nombre AS mascota_nombre, 
+                    m.especie, 
+                    COALESCE(m.raza, '') AS raza, 
+                    COALESCE(m.edad, 0) AS edad, 
+                    COALESCE(m.peso, 0.0) AS peso, 
+                    COALESCE(m.color, '') AS color, 
+                    COALESCE(m.genero::text, '') AS genero, 
+                    COALESCE(m.esterilizado, false) AS esterilizado, 
+                    COALESCE(m.observaciones, '') AS observaciones,
+                    m.cliente_id,
+                    COALESCE(c.nombre, 'Sin Dueño') AS cliente_nombre,
+                    COALESCE(c.documento, '') AS cliente_documento,
+                    COALESCE(c.telefono, '') AS cliente_telefono
+                FROM mascotas m
+                LEFT JOIN clientes c ON m.cliente_id = c.id
+                WHERE m.tenant_id = %s AND m.activo = TRUE
+                ORDER BY m.id DESC
+            """, (tenant_id,))
+            
+            rows = cursor.fetchall()
+            for r in rows:
+                mascotas.append({
+                    'id': r[0],
+                    'nombre': r[1],
+                    'especie': r[2],
+                    'raza': r[3],
+                    'edad': r[4],
+                    'peso': float(r[5]),
+                    'color': r[6],
+                    'genero': r[7],
+                    'esterilizado': r[8],
+                    'observaciones': r[9],
+                    'cliente_id': r[10],
+                    'cliente_nombre': r[11],
+                    'cliente_documento': r[12],
+                    'cliente_telefono': r[13]
+                })
+
+            # 2. Obtener lista de clientes activos para el selector/dropdown
+            cursor.execute("""
+                SELECT id, nombre, COALESCE(documento, '') 
+                FROM clientes 
+                WHERE tenant_id = %s AND activo = TRUE 
+                ORDER BY nombre ASC
+            """, (tenant_id,))
+            clientes_rows = cursor.fetchall()
+            for c in clientes_rows:
+                clientes.append({
+                    'id': c[0],
+                    'nombre': c[1],
+                    'documento': c[2]
+                })
+
+    except Exception as e:
+        logger.error(f"Error al listar mascotas: {e}")
+        flash(f"Error cargando mascotas: {str(e)}", "error")
+    finally:
+        conexion.close()
+
+    return render_template('mascotas.html', mascotas=mascotas, clientes=clientes)
+
+
+@app.route('/mascotas/crear', methods=['POST'])
+def crear_mascota():
+    if session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+        flash('Sin permisos.', 'error')
+        return redirect(url_for('listar_mascotas'))
+
+    tenant_id = session.get('tenant_id', 1)
+    is_ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    data = request.get_json(silent=True) or request.form
+
+    # Captura de campos
+    cliente_id = data.get('cliente_id')
+    nombre = (data.get('nombre') or '').strip()
+    especie = (data.get('especie') or '').strip()
+    raza = (data.get('raza') or '').strip()
+    color = (data.get('color') or '').strip()
+    genero = (data.get('genero') or '').strip()
+    observaciones = (data.get('observaciones') or '').strip()
+
+    # Conversión de tipos numéricos y booleanos
+    try:
+        edad = int(data.get('edad')) if data.get('edad') not in [None, ''] else None
+    except ValueError:
+        edad = None
+
+    try:
+        peso = float(data.get('peso')) if data.get('peso') not in [None, ''] else None
+    except ValueError:
+        peso = None
+
+    esterilizado = str(data.get('esterilizado')).lower() in ['true', '1', 'on', 'yes']
+
+    # Validaciones obligatorias
+    if not cliente_id or not nombre or not especie:
+        msg = 'El cliente (dueño), nombre y especie son obligatorios.'
+        if is_ajax:
+            return jsonify({'success': False, 'error': msg}), 400
+        flash(msg, 'error')
+        return redirect(url_for('listar_mascotas'))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Validar que el cliente pertenezca al mismo tenant
+            cursor.execute("SELECT id FROM clientes WHERE id = %s AND tenant_id = %s AND activo = TRUE", (cliente_id, tenant_id))
+            if not cursor.fetchone():
+                msg = 'El cliente seleccionado no existe o no es válido.'
+                if is_ajax:
+                    return jsonify({'success': False, 'error': msg}), 400
+                flash(msg, 'error')
+                return redirect(url_for('listar_mascotas'))
+
+            # Insertar mascota
+            cursor.execute("""
+                INSERT INTO mascotas (
+                    cliente_id, nombre, especie, raza, edad, peso, color, 
+                    genero, esterilizado, observaciones, tenant_id, activo
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, 
+                    NULLIF(%s, '')::genero_enum, %s, %s, %s, TRUE
+                ) RETURNING id
+            """, (
+                cliente_id, nombre, especie, raza, edad, peso, color,
+                genero, esterilizado, observaciones, tenant_id
+            ))
+            mascota_id = cursor.fetchone()[0]
+
+        conexion.commit()
+        msg = f'Mascota "{nombre}" registrada correctamente.'
+        if is_ajax:
+            return jsonify({'success': True, 'message': msg, 'mascota_id': mascota_id})
+        flash(msg, 'success')
+
+    except Exception as e:
+        conexion.rollback()
+        logger.error(f"Error al crear mascota: {e}")
+        if is_ajax:
+            return jsonify({'success': False, 'error': str(e)}), 500
+        flash(f'Error al registrar mascota: {str(e)}', 'error')
+    finally:
+        conexion.close()
+
+    return redirect(url_for('listar_mascotas'))
+
+
+@app.route('/mascotas/editar/<int:mascota_id>', methods=['POST'])
+def editar_mascota(mascota_id):
+    if session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        flash('Sin permisos.', 'error')
+        return redirect(url_for('listar_mascotas'))
+
+    tenant_id = session.get('tenant_id', 1)
+    data = request.form
+
+    cliente_id = data.get('cliente_id')
+    nombre = (data.get('nombre') or '').strip()
+    especie = (data.get('especie') or '').strip()
+    raza = (data.get('raza') or '').strip()
+    color = (data.get('color') or '').strip()
+    genero = (data.get('genero') or '').strip()
+    observaciones = (data.get('observaciones') or '').strip()
+
+    try:
+        edad = int(data.get('edad')) if data.get('edad') not in [None, ''] else None
+    except ValueError:
+        edad = None
+
+    try:
+        peso = float(data.get('peso')) if data.get('peso') not in [None, ''] else None
+    except ValueError:
+        peso = None
+
+    esterilizado = str(data.get('esterilizado')).lower() in ['true', '1', 'on', 'yes']
+
+    if not cliente_id or not nombre or not especie:
+        flash('El cliente (dueño), nombre y especie son obligatorios.', 'error')
+        return redirect(url_for('listar_mascotas'))
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE mascotas 
+                SET cliente_id = %s, nombre = %s, especie = %s, raza = %s, 
+                    edad = %s, peso = %s, color = %s, genero = NULLIF(%s, '')::genero_enum, 
+                    esterilizado = %s, observaciones = %s
+                WHERE id = %s AND tenant_id = %s
+            """, (
+                cliente_id, nombre, especie, raza, edad, peso, color,
+                genero, esterilizado, observaciones, mascota_id, tenant_id
+            ))
+        conexion.commit()
+        flash('Información de la mascota actualizada.', 'success')
+    except Exception as e:
+        conexion.rollback()
+        logger.error(f"Error al editar mascota ID={mascota_id}: {e}")
+        flash(f'Error al editar mascota: {str(e)}', 'error')
+    finally:
+        conexion.close()
+
+    return redirect(url_for('listar_mascotas'))
+
+
+@app.route('/mascotas/eliminar/<int:mascota_id>', methods=['POST', 'DELETE'])
+def eliminar_mascota(mascota_id):
+    if session.get('rol') not in ['admin', 'dueño']:
+        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+
+    tenant_id = session.get('tenant_id', 1)
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            # Borrado lógico desactivando la mascota
+            cursor.execute("""
+                UPDATE mascotas 
+                SET activo = FALSE 
+                WHERE id = %s AND tenant_id = %s
+            """, (mascota_id, tenant_id))
+        conexion.commit()
+        return jsonify({'success': True, 'message': 'Mascota eliminada correctamente.'})
+    except Exception as e:
+        conexion.rollback()
+        logger.error(f"Error al eliminar mascota ID={mascota_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        conexion.close()
+
+
+@app.route('/api/mascotas/buscar-clientes')
+def buscar_clientes_para_mascota():
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    q = request.args.get('q', '').strip()
+    tenant_id = session.get('tenant_id', 1)
+    clientes = []
+
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            if q:
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(documento, '')
+                    FROM clientes
+                    WHERE tenant_id = %s AND activo = TRUE
+                      AND (LOWER(nombre) LIKE LOWER(%s) OR documento LIKE %s)
+                    ORDER BY nombre ASC LIMIT 10
+                """, (tenant_id, f'%{q}%', f'%{q}%'))
+            else:
+                cursor.execute("""
+                    SELECT id, nombre, COALESCE(documento, '')
+                    FROM clientes
+                    WHERE tenant_id = %s AND activo = TRUE
+                    ORDER BY nombre ASC LIMIT 10
+                """, (tenant_id,))
+
+            rows = cursor.fetchall()
+            for r in rows:
+                clientes.append({'id': r[0], 'nombre': r[1], 'documento': r[2]})
+
+    except Exception as e:
+        logger.error(f"Error buscando clientes para mascota: {e}")
+    finally:
+        conexion.close()
+
+    return jsonify({'success': True, 'clientes': clientes})
+
 
 # ─── FIDELIZACIÓN Y TENANTS ──────────────────────────────────────────────────
 

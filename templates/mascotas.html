@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de Mascotas - MASKOT{% endblock %}
+
+{% block content %}
+<section class="pets-section py-5">
+    <div class="container">
+        <div class="section-header mb-5">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="display-5 fw-bold mb-3">
+                        <i class="fas fa-paw me-3 text-primary"></i>
+                        Lista de <span class="text-gradient">Mascotas</span>
+                    </h1>
+                    <p class="lead text-muted">
+                        Gestiona la información de todas las mascotas registradas y sus dueños
+                    </p>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="section-stats me-4">
+                        <div class="stat-card">
+                            <div class="stat-number">{{ mascotas|length }}</div>
+                            <div class="stat-label">Total Mascotas</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-lg" id="openCrearMascotaBtn">
+                        <i class="fas fa-plus-circle me-2"></i>Agregar Mascota
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% if mascotas %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-dog me-2"></i>
+                    Mascotas Registradas
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col"><i class="fas fa-paw me-2"></i>Mascota</th>
+                                <th scope="col"><i class="fas fa-user me-2"></i>Dueño (Cliente)</th>
+                                <th scope="col"><i class="fas fa-info-circle me-2"></i>Detalles</th>
+                                <th scope="col"><i class="fas fa-venus-mars me-2"></i>Género</th>
+                                <th scope="col"><i class="fas fa-notes-medical me-2"></i>Esterilizado</th>
+                                <th scope="col" class="text-center"><i class="fas fa-cogs me-2"></i>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in mascotas %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-circle me-3 bg-light text-primary d-flex align-items-center justify-content-center"
+                                            style="width: 40px; height: 40px; border-radius: 50%;">
+                                            <i
+                                                class="fas {% if m.especie|lower == 'gato' %}fa-cat{% else %}fa-dog{% endif %}"></i>
+                                        </div>
+                                        <div>
+                                            <strong>{{ m.nombre }}</strong>
+                                            <div class="small text-muted">{{ m.especie|capitalize }} {% if m.raza %}- {{
+                                                m.raza }}{% endif %}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div>
+                                        <strong class="text-dark"><i class="fas fa-user text-muted me-1"></i>{{
+                                            m.cliente_nombre }}</strong>
+                                        {% if m.cliente_documento %}
+                                        <div class="small text-muted"><i class="fas fa-id-card me-1"></i>{{
+                                            m.cliente_documento }}</div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="d-block"><i class="fas fa-birthday-cake text-warning me-1"></i> {{
+                                        m.edad or '0' }} años</span>
+                                    <span class="d-block small text-muted"><i class="fas fa-weight me-1"></i> {{ m.peso
+                                        or '0.0' }} kg</span>
+                                </td>
+                                <td>
+                                    {% if m.genero|lower == 'macho' %}
+                                    <span class="badge bg-info text-dark"><i class="fas fa-mars me-1"></i>Macho</span>
+                                    {% elif m.genero|lower == 'hembra' %}
+                                    <span class="badge bg-danger"><i class="fas fa-venus me-1"></i>Hembra</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if m.esterilizado %}
+                                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Sí</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-dark"><i class="fas fa-times me-1"></i>No</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary btn-sm"
+                                            title="Editar mascota"
+                                            onclick="editarMascota({{ m.id }}, {{ m.cliente_id }}, '{{ m.nombre|e }}', '{{ m.especie|e }}', '{{ m.raza|e }}', {{ m.edad or 0 }}, {{ m.peso or 0.0 }}, '{{ m.color|e }}', '{{ m.genero|e }}', {{ 'true' if m.esterilizado else 'false' }}, '{{ m.observaciones|e }}')">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger btn-sm"
+                                            title="Eliminar mascota"
+                                            onclick="eliminarMascota({{ m.id }}, '{{ m.nombre|e }}')">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state text-center py-5">
+            <div class="empty-icon mb-4">
+                <i class="fas fa-paw fa-5x text-muted"></i>
+            </div>
+            <h3 class="text-muted mb-3">No hay mascotas registradas</h3>
+            <p class="text-muted mb-4">
+                Las mascotas registradas aparecerán aquí asociadas a sus respectivos dueños.
+            </p>
+            <button type="button" class="btn btn-primary"
+                onclick="document.getElementById('openCrearMascotaBtn').click()">
+                <i class="fas fa-plus-circle me-2"></i>Agregar Primera Mascota
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Modal Crear Mascota -->
+<div class="modal fade" id="crearMascotaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-paw me-2"></i>Agregar Mascota
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formCrearMascotaModal" method="POST" action="{{ url_for('crear_mascota') }}"
+                    class="no-animation">
+
+                    <div class="mb-3">
+                        <label for="modal_cliente_id" class="form-label">Dueño / Cliente *</label>
+                        <select id="modal_cliente_id" name="cliente_id" class="form-select" required>
+                            <option value="" disabled selected>-- Seleccione un cliente --</option>
+                            {% for c in clientes %}
+                            <option value="{{ c.id }}">{{ c.nombre }} {% if c.documento %}(Doc: {{ c.documento }}){%
+                                endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_nombre" class="form-label">Nombre de la Mascota *</label>
+                            <input type="text" id="modal_nombre" name="nombre" class="form-control"
+                                placeholder="Ej. Firulais" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_especie" class="form-label">Especie *</label>
+                            <input type="text" id="modal_especie" name="especie" class="form-control"
+                                placeholder="Ej. Perro, Gato, Ave" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_raza" class="form-label">Raza</label>
+                            <input type="text" id="modal_raza" name="raza" class="form-control"
+                                placeholder="Ej. Labrador">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="modal_color" class="form-label">Color</label>
+                            <input type="text" id="modal_color" name="color" class="form-control"
+                                placeholder="Ej. Marrón / Blanco">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="modal_edad" class="form-label">Edad (Años)</label>
+                            <input type="number" id="modal_edad" name="edad" class="form-control" min="0" max="50"
+                                placeholder="0">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="modal_peso" class="form-label">Peso (Kg)</label>
+                            <input type="number" step="0.1" id="modal_peso" name="peso" class="form-control" min="0"
+                                placeholder="0.0">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="modal_genero" class="form-label">Género</label>
+                            <select id="modal_genero" name="genero" class="form-select">
+                                <option value="">-- Seleccionar --</option>
+                                <option value="macho">Macho</option>
+                                <option value="hembra">Hembra</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="modal_esterilizado" name="esterilizado"
+                            value="true">
+                        <label class="form-check-label fw-bold" for="modal_esterilizado">
+                            ¿Está Esterilizado / Castrado?
+                        </label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="modal_observaciones" class="form-label">Observaciones / Alergias</label>
+                        <textarea id="modal_observaciones" name="observaciones" class="form-control" rows="2"
+                            placeholder="Notas adicionales sobre la mascota..."></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary me-2"
+                            data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Guardar Mascota
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Mascota -->
+<div class="modal fade" id="editarMascotaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>Editar Mascota
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarMascotaModal" method="POST" action="" class="no-animation">
+                    <input type="hidden" id="edit_mascota_id" name="mascota_id">
+
+                    <div class="mb-3">
+                        <label for="edit_cliente_id" class="form-label">Dueño / Cliente *</label>
+                        <select id="edit_cliente_id" name="cliente_id" class="form-select" required>
+                            <option value="" disabled>-- Seleccione un cliente --</option>
+                            {% for c in clientes %}
+                            <option value="{{ c.id }}">{{ c.nombre }} {% if c.documento %}(Doc: {{ c.documento }}){%
+                                endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_nombre" class="form-label">Nombre de la Mascota *</label>
+                            <input type="text" id="edit_nombre" name="nombre" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_especie" class="form-label">Especie *</label>
+                            <input type="text" id="edit_especie" name="especie" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_raza" class="form-label">Raza</label>
+                            <input type="text" id="edit_raza" name="raza" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_color" class="form-label">Color</label>
+                            <input type="text" id="edit_color" name="color" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_edad" class="form-label">Edad (Años)</label>
+                            <input type="number" id="edit_edad" name="edad" class="form-control" min="0" max="50">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_peso" class="form-label">Peso (Kg)</label>
+                            <input type="number" step="0.1" id="edit_peso" name="peso" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_genero" class="form-label">Género</label>
+                            <select id="edit_genero" name="genero" class="form-select">
+                                <option value="">-- Seleccionar --</option>
+                                <option value="macho">Macho</option>
+                                <option value="hembra">Hembra</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="edit_esterilizado" name="esterilizado"
+                            value="true">
+                        <label class="form-check-label fw-bold" for="edit_esterilizado">
+                            ¿Está Esterilizado / Castrado?
+                        </label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_observaciones" class="form-label">Observaciones / Alergias</label>
+                        <textarea id="edit_observaciones" name="observaciones" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-outline-secondary me-2"
+                            data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-save me-2"></i>Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const openBtn = document.getElementById('openCrearMascotaBtn');
+        const modalEl = document.getElementById('crearMascotaModal');
+
+        if (openBtn && modalEl) {
+            openBtn.addEventListener('click', function () {
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+                const form = document.getElementById('formCrearMascotaModal');
+                if (form) form.reset();
+            });
+        }
+    });
+
+    function editarMascota(id, clienteId, nombre, especie, raza, edad, peso, color, genero, esterilizado, observaciones) {
+        const form = document.getElementById('formEditarMascotaModal');
+        form.action = '/mascotas/editar/' + id;
+
+        document.getElementById('edit_mascota_id').value = id;
+        document.getElementById('edit_cliente_id').value = clienteId;
+        document.getElementById('edit_nombre').value = nombre;
+        document.getElementById('edit_especie').value = especie;
+        document.getElementById('edit_raza').value = raza;
+        document.getElementById('edit_edad').value = edad;
+        document.getElementById('edit_peso').value = peso;
+        document.getElementById('edit_color').value = color;
+        document.getElementById('edit_genero').value = genero;
+        document.getElementById('edit_esterilizado').checked = Boolean(esterilizado);
+        document.getElementById('edit_observaciones').value = observaciones;
+
+        new bootstrap.Modal(document.getElementById('editarMascotaModal')).show();
+    }
+
+    function eliminarMascota(id, nombre) {
+        if (confirm(`¿Estás seguro de que deseas eliminar a la mascota "${nombre}"?`)) {
+            fetch('/mascotas/eliminar/' + id, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'No se pudo eliminar la mascota.'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ocurrió un error al procesar la solicitud.');
+                });
+        }
+    }
+</script>
+{% endblock %}
