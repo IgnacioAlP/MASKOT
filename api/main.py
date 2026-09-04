@@ -10,6 +10,7 @@ import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter    
+import traceback
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
@@ -1072,7 +1073,7 @@ def historial_servicios():
 
 
 # ==========================================
-# HISTORIAL DE VENTAS (ADAPTATIVO)
+# HISTORIAL DE VENTAS (COMPATIBILIDAD TOTAL)
 # ==========================================
 @app.route('/historial_ventas', endpoint='historial_ventas')
 @app.route('/historial-ventas')
@@ -1100,44 +1101,62 @@ def historial_ventas():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Inspeccionar qué columnas existen REALMENTE en la tabla 'ventas'
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'ventas';
-            """)
-            columnas = [r[0].lower() for r in cursor.fetchall()]
+            # 1. Obtener lista de columnas reales de la tabla 'ventas' (compatible con Tuple/DictCursor)
+            columnas = []
+            try:
+                cursor.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'ventas';
+                """)
+                col_rows = cursor.fetchall()
+                for r in col_rows:
+                    if isinstance(r, dict) or hasattr(r, 'get'):
+                        columnas.append(str(r.get('column_name', '')).lower())
+                    elif hasattr(r, '__getitem__'):
+                        columnas.append(str(r[0]).lower())
+            except Exception as e_col:
+                print(f"⚠️ Aviso al consultar information_schema: {e_col}")
 
-            # Si la consulta no trae columnas (por ej. diferencia de mayúsculas/minúsculas), consultar con LIMIT 0
+            # Fallback en caso de que information_schema no devuelva resultados
             if not columnas:
-                cursor.execute("SELECT * FROM ventas LIMIT 0;")
-                columnas = [desc[0].lower() for desc in cursor.description]
+                try:
+                    cursor.execute("SELECT * FROM ventas LIMIT 0;")
+                    if cursor.description:
+                        columnas = [desc[0].lower() for desc in cursor.description]
+                except Exception as e_desc:
+                    print(f"⚠️ Aviso en fallback SELECT LIMIT 0: {e_desc}")
 
-            # 2. Construir expresiones dinámicas según columnas disponibles
+            # 2. Determinar columna de fecha disponible
             col_fecha = next((c for c in ['fecha', 'fecha_venta', 'created_at', 'fecha_registro'] if c in columnas), None)
-            expr_fecha = f"TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM')" if col_fecha else "'01/01/2026 12:00 AM'"
+            
+            # 3. Construir expresiones SELECT utilizando únicamente columnas existentes
+            select_id = "v.id" if 'id' in columnas else "1"
+            
+            comp_cols = [f"v.{c}::text" for c in ['nro_boleta', 'numero_venta', 'comprobante', 'nro_comprobante', 'codigo'] if c in columnas]
+            select_comp = f"COALESCE({', '.join(comp_cols)}, 'N/A')" if comp_cols else "'N/A'"
 
-            cols_comprobante = [c for c in ['nro_boleta', 'numero_venta', 'comprobante', 'nro_comprobante', 'codigo'] if c in columnas]
-            expr_comprobante = f"COALESCE({', '.join(['v.' + c for c in cols_comprobante])}, 'N/A')" if cols_comprobante else "'N/A'"
+            cli_cols = [f"v.{c}::text" for c in ['cliente', 'cliente_nombre', 'nombre_cliente', 'comprador'] if c in columnas]
+            select_cli = f"COALESCE({', '.join(cli_cols)}, 'Cliente General')" if cli_cols else "'Cliente General'"
 
-            cols_cliente = [c for c in ['cliente', 'cliente_nombre', 'nombre_cliente', 'comprador'] if c in columnas]
-            expr_cliente = f"COALESCE({', '.join(['v.' + c for c in cols_cliente])}, 'Cliente General')" if cols_cliente else "'Cliente General'"
+            serv_cols = [f"v.{c}::text" for c in ['servicio_descripcion', 'descripcion', 'concepto', 'producto', 'servicio'] if c in columnas]
+            select_serv = f"COALESCE({', '.join(serv_cols)}, 'Venta General')" if serv_cols else "'Venta General'"
 
-            cols_servicio = [c for c in ['servicio_descripcion', 'descripcion', 'concepto', 'producto'] if c in columnas]
-            expr_servicio = f"COALESCE({', '.join(['v.' + c for c in cols_servicio])}, 'Venta General')" if cols_servicio else "'Venta General'"
+            pers_cols = [f"v.{c}::text" for c in ['vendedor_nombre', 'vendedor', 'personal', 'usuario'] if c in columnas]
+            select_pers = f"COALESCE({', '.join(pers_cols)}, 'Atendido')" if pers_cols else "'Atendido'"
 
-            cols_personal = [c for c in ['vendedor_nombre', 'vendedor', 'personal', 'usuario'] if c in columnas]
-            expr_personal = f"COALESCE({', '.join(['v.' + c for c in cols_personal])}, 'Atendido')" if cols_personal else "'Atendido'"
+            pago_cols = [f"v.{c}::text" for c in ['metodo_pago', 'forma_pago', 'pago'] if c in columnas]
+            select_pago = f"COALESCE({', '.join(pago_cols)}, 'efectivo')" if pago_cols else "'efectivo'"
 
-            cols_pago = [c for c in ['metodo_pago', 'forma_pago', 'pago'] if c in columnas]
-            expr_pago = f"COALESCE({', '.join(['v.' + c for c in cols_pago])}, 'efectivo')" if cols_pago else "'efectivo'"
+            tot_cols = [f"v.{c}" for c in ['total', 'monto_total', 'monto', 'precio_total'] if c in columnas]
+            select_tot = f"COALESCE({tot_cols[0]}, 0.00)" if tot_cols else "0.00"
 
-            cols_total = [c for c in ['total', 'monto_total', 'monto', 'precio_total'] if c in columnas]
-            expr_total = f"COALESCE(v.{cols_total[0]}, 0.00)" if cols_total else "0.00"
+            select_estado = "COALESCE(v.estado::text, 'completado')" if 'estado' in columnas else "'completado'"
 
-            expr_estado = "COALESCE(v.estado::text, 'completado')" if 'estado' in columnas else "'completado'"
+            select_fecha = f"TO_CHAR(v.{col_fecha}, 'DD/MM/YYYY HH12:MI AM')" if col_fecha else "'01/01/2026 12:00 AM'"
+            order_by = f"ORDER BY v.{col_fecha} DESC" if col_fecha else ("ORDER BY v.id DESC" if 'id' in columnas else "")
 
-            # 3. Construir filtro WHERE seguro
+            # 4. Construir cláusula WHERE
             condiciones = []
             params = []
 
@@ -1154,58 +1173,79 @@ def historial_ventas():
                 params.append(fecha_fin)
 
             if busqueda:
-                busq_conds = []
-                for col_b in cols_cliente + cols_servicio + cols_comprobante:
-                    busq_conds.append(f"COALESCE(v.{col_b}::text, '') ILIKE %s")
-                    params.append(f"%{busqueda}%")
-                if busq_conds:
+                searchable = [c for c in ['cliente', 'cliente_nombre', 'nombre_cliente', 'servicio_descripcion', 'descripcion', 'nro_boleta', 'numero_venta', 'comprobante'] if c in columnas]
+                if searchable:
+                    busq_conds = [f"COALESCE(v.{c}::text, '') ILIKE %s" for c in searchable]
                     condiciones.append(f"({' OR '.join(busq_conds)})")
+                    params.extend([f"%{busqueda}%"] * len(searchable))
 
             where_clause = (" WHERE " + " AND ".join(condiciones)) if condiciones else ""
-            order_by = f"ORDER BY v.{col_fecha} DESC" if col_fecha else "ORDER BY v.id DESC"
 
-            # 4. Consulta SQL final
+            # 5. Ejecutar la consulta SQL
             query = f"""
                 SELECT 
-                    v.id,
-                    {expr_comprobante} AS comprobante,
-                    {expr_fecha} AS fecha,
-                    {expr_cliente} AS cliente,
-                    {expr_servicio} AS servicio,
-                    {expr_personal} AS personal,
-                    {expr_pago} AS pago,
-                    {expr_total} AS total,
-                    {expr_estado} AS estado
+                    {select_id} AS id,
+                    {select_comp} AS comprobante,
+                    {select_fecha} AS fecha,
+                    {select_cli} AS cliente,
+                    {select_serv} AS servicio,
+                    {select_pers} AS personal,
+                    {select_pago} AS pago,
+                    {select_tot} AS total,
+                    {select_estado} AS estado
                 FROM ventas v
                 {where_clause}
                 {order_by}
                 LIMIT 200
             """
-            
+
             cursor.execute(query, tuple(params))
-            
-            for r in cursor.fetchall():
-                v_id, v_num, v_fecha, v_cliente, v_servicio, v_personal, v_pago, v_total_val, v_estado = r
-                v_total = float(v_total_val) if v_total_val is not None else 0.0
-                v_estado_str = str(v_estado).lower()
+            rows = cursor.fetchall()
+
+            # 6. Mapeo adaptativo de resultados (compatible con Dict/Tuple)
+            for r in rows:
+                if isinstance(r, dict) or hasattr(r, 'get'):
+                    v_id = r.get('id', 0)
+                    v_num = r.get('comprobante') or 'N/A'
+                    v_fecha = r.get('fecha') or ''
+                    v_cliente = r.get('cliente') or 'Cliente General'
+                    v_servicio = r.get('servicio') or 'Venta General'
+                    v_personal = r.get('personal') or 'Atendido'
+                    v_pago = r.get('pago') or 'efectivo'
+                    v_total_raw = r.get('total')
+                    v_estado_raw = r.get('estado') or 'completado'
+                else:
+                    v_id = r[0] if len(r) > 0 else 0
+                    v_num = r[1] if len(r) > 1 and r[1] else 'N/A'
+                    v_fecha = r[2] if len(r) > 2 and r[2] else ''
+                    v_cliente = r[3] if len(r) > 3 and r[3] else 'Cliente General'
+                    v_servicio = r[4] if len(r) > 4 and r[4] else 'Venta General'
+                    v_personal = r[5] if len(r) > 5 and r[5] else 'Atendido'
+                    v_pago = r[6] if len(r) > 6 and r[6] else 'efectivo'
+                    v_total_raw = r[7] if len(r) > 7 else 0.0
+                    v_estado_raw = r[8] if len(r) > 8 and r[8] else 'completado'
+
+                v_total = float(v_total_raw) if v_total_raw is not None else 0.0
+                v_estado_str = str(v_estado_raw).lower()
 
                 ventas_lista.append({
                     'id': v_id,
-                    'numero_comprobante': v_num or 'N/A',
-                    'fecha': v_fecha or '',
-                    'cliente_nombre': v_cliente or 'Cliente General',
-                    'servicio_descripcion': v_servicio or 'Venta General',
-                    'personal': v_personal or 'Atendido',
-                    'metodo_pago': v_pago or 'efectivo',
+                    'numero_comprobante': v_num,
+                    'fecha': str(v_fecha),
+                    'cliente_nombre': v_cliente,
+                    'servicio_descripcion': v_servicio,
+                    'personal': v_personal,
+                    'metodo_pago': v_pago,
                     'total': v_total,
                     'estado': v_estado_str,
-                    0: v_id, 1: v_num, 2: v_fecha, 3: v_cliente, 4: v_servicio, 5: v_personal, 6: v_pago, 7: v_total, 8: v_estado_str
+                    0: v_id, 1: v_num, 2: str(v_fecha), 3: v_cliente, 4: v_servicio, 5: v_personal, 6: v_pago, 7: v_total, 8: v_estado_str
                 })
 
     except Exception as e:
         if conexion:
             conexion.rollback()
         print(f"❌ Error en historial_ventas: {e}")
+        traceback.print_exc()
     finally:
         if conexion:
             conexion.close()
