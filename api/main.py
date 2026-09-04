@@ -9,6 +9,7 @@ from functools import wraps
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+import io
 
 from flask import (
     Flask, render_template, request, redirect, url_for, 
@@ -3295,7 +3296,10 @@ def procesar_pago():
             venta_id = cursor.fetchone()[0]
 
             for item in items:
-                cursor.execute("UPDATE productos SET stock = GREATEST(stock - %s, 0) WHERE id = %s", (item['cantidad'], item['id']))
+                cursor.execute(
+    "UPDATE productos SET cantidad = GREATEST(COALESCE(cantidad, 0) - %s, 0) WHERE id = %s",
+    (item['cantidad'], item['id']),
+)
 
         conexion.commit()
         conexion.close()
