@@ -843,17 +843,26 @@ def procesar_venta():
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     try:
-        data = request.get_json(silent=True) or {}
-        
+        # Acepta tanto JSON como solicitudes Form-Data
+        if request.is_json:
+            data = request.get_json() or {}
+        else:
+            data = request.form.to_dict()
+            if 'items' in data and isinstance(data['items'], str):
+                try:
+                    data['items'] = json.loads(data['items'])
+                except Exception:
+                    pass
+
+        print("\n=================== DEBUG POS ===================")
+        print("DATOS RECIBIDOS DEL CLIENTE:", data)
+        print("=================================================\n")
+
         items = data.get('items') or data.get('productos') or []
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
 
-        # 1. Capturar ID del cliente
-        raw_id = data.get('cliente_id') or data.get('id_cliente') or data.get('client_id')
-        cliente_id = int(raw_id) if (raw_id is not None and str(raw_id).isdigit()) else None
-
-        # 2. Capturar Nombre del cliente
+        # 1. Capturar el Nombre del Cliente
         raw_nombre = (
             data.get('cliente_nombre') or 
             data.get('nombre_cliente') or 
@@ -864,36 +873,47 @@ def procesar_venta():
             raw_nombre = raw_nombre.get('nombre', '')
 
         cliente_nombre = str(raw_nombre).strip()
+        if not cliente_nombre:
+            cliente_nombre = 'Cliente General'
+
+        # 2. Capturar el ID del Cliente
+        raw_id = data.get('cliente_id') or data.get('id_cliente') or data.get('client_id')
+        cliente_id = None
+        if raw_id is not None and str(raw_id).isdigit() and int(raw_id) > 0:
+            cliente_id = int(raw_id)
 
         conexion = obtener_conexion()
         tenant_id = session.get('tenant_id', 1)
 
         with conexion.cursor() as cursor:
-            # Si se recibió un ID de cliente válido, confirmar los datos desde la BD
-            if cliente_id:
-                cursor.execute("SELECT id, nombre FROM clientes WHERE id = %s", (cliente_id,))
-                cli_db = cursor.fetchone()
-                if cli_db:
-                    cliente_id = cli_db[0]
-                    if cli_db[1] and cli_db[1].strip():
-                        cliente_nombre = cli_db[1].strip()
-            
-            # Si no hay ID pero hay un nombre ingresado, intentar vincularlo por coincidencia de texto
-            elif cliente_nombre and cliente_nombre.lower() != 'cliente general':
-                cursor.execute(
-                    "SELECT id, nombre FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) LIMIT 1",
-                    (cliente_nombre,)
-                )
-                cli_db = cursor.fetchone()
-                if cli_db:
-                    cliente_id = cli_db[0]
-                    cliente_nombre = cli_db[1]
+            # SI SE INGRESÓ UN NOMBRE DISTINTO A 'Cliente General'
+            if cliente_nombre.lower() != 'cliente general':
+                if not cliente_id:
+                    # A. Buscar si el cliente ya existe en la tabla 'clientes' por su nombre
+                    cursor.execute(
+                        "SELECT id, nombre FROM clientes WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) LIMIT 1",
+                        (cliente_nombre,)
+                    )
+                    cli = cursor.fetchone()
+                    if cli:
+                        cliente_id = cli[0]
+                        cliente_nombre = cli[1]
+                        print(f"-> Cliente existente encontrado en BD: ID {cliente_id} | {cliente_nombre}")
+                    else:
+                        # B. Si no existe en la BD, CREARLO automáticamente para asignarle un ID
+                        try:
+                            cursor.execute(
+                                "INSERT INTO clientes (nombre, tenant_id) VALUES (%s, %s) RETURNING id",
+                                (cliente_nombre, tenant_id)
+                            )
+                            cliente_id = cursor.fetchone()[0]
+                            print(f"-> Cliente '{cliente_nombre}' CREADO automáticamente con ID: {cliente_id}")
+                        except Exception as err_cli:
+                            print(f"-> No se pudo auto-crear cliente: {err_cli}")
 
-            # Solo asigna 'Cliente General' si el campo vino totalmente vacío
-            if not cliente_nombre:
-                cliente_nombre = 'Cliente General'
+            print(f"-> VENTA FINAL A GUARDAR -> ID Cliente: {cliente_id} | Nombre: '{cliente_nombre}'")
 
-            # Datos numéricos
+            # Datos económicos
             subtotal = float(data.get('subtotal', 0.0))
             igv = float(data.get('igv', 0.0))
             total = float(data.get('total', 0.0))
@@ -907,7 +927,7 @@ def procesar_venta():
             fecha_actual = datetime.now(ZONA_HORARIA_PERU)
             productos_json = json.dumps(items, ensure_ascii=False)
 
-            # Insertar Venta
+            # Insertar en la tabla ventas
             cursor.execute("""
                 INSERT INTO ventas (
                     numero_venta, fecha_venta, cliente_id, cliente_nombre, 
@@ -937,6 +957,7 @@ def procesar_venta():
         return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': f"/venta/ticket/{venta_id}"})
 
     except Exception as e:
+        print(f"❌ ERROR EN PROCESAR VENTA: {e}")
         logger.error(f"Error procesando venta: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 

@@ -693,7 +693,7 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
         }
 
-        // CAPTURA DIRECTA Y GARANTIZADA DE DATOS DEL CLIENTE
+        // Captura del campo de texto
         const clienteNombreInput = (document.getElementById('cliente_nombre')?.value || '').trim();
         const clienteIdInput = (document.getElementById('cliente_id')?.value || '').trim();
         const clienteFinal = clienteNombreInput || 'Cliente General';
@@ -708,28 +708,25 @@
         const subtotalCalc = window.total / 1.18;
         const igvCalc = window.total - subtotalCalc;
 
-        // Payload exhaustivo con todas las claves posibles que el backend pueda requerir
         const payload = {
             items: window.carrito,
             productos: window.carrito,
-            detalles: window.carrito,
 
             cliente_id: clienteIdInput ? parseInt(clienteIdInput) : null,
             id_cliente: clienteIdInput ? parseInt(clienteIdInput) : null,
             cliente_nombre: clienteFinal,
             nombre_cliente: clienteFinal,
-            cliente: clienteIdInput ? parseInt(clienteIdInput) : clienteFinal,
-            client_name: clienteFinal,
+            cliente: clienteFinal,
 
             metodo_pago: metodoPago,
-            forma_pago: metodoPago,
-            metodo: metodoPago,
             monto_recibido: montoRecibido,
             subtotal: parseFloat(subtotalCalc.toFixed(2)),
             igv: parseFloat(igvCalc.toFixed(2)),
             total: parseFloat(window.total.toFixed(2)),
             cambio: parseFloat(cambioVal.toFixed(2))
         };
+
+        console.log(">>> ENVIANDO PAYLOAD DESDE POS:", payload);
 
         fetch('/ventas/procesar', {
             method: 'POST',
@@ -743,21 +740,19 @@
             .then(data => {
                 if (data.success) {
                     window.ultimaVenta = data;
-
                     const resumen = document.getElementById('resumen-venta');
                     if (resumen) {
                         resumen.innerHTML = `
-                        <p style="margin-bottom:6px;"><strong>Cliente:</strong> ${clienteFinal}</p>
-                        <p style="margin-bottom:6px;"><strong>Total:</strong> S/ ${window.total.toFixed(2)}</p>
-                        <p style="margin-bottom:6px;"><strong>Método:</strong> ${metodoPago.toUpperCase()}</p>
-                        <p style="margin-bottom:0;"><strong>Comprobante:</strong> Venta #${data.venta_id || data.id || ' OK'}</p>
-                    `;
+                    <p style="margin-bottom:6px;"><strong>Cliente:</strong> ${clienteFinal}</p>
+                    <p style="margin-bottom:6px;"><strong>Total:</strong> S/ ${window.total.toFixed(2)}</p>
+                    <p style="margin-bottom:6px;"><strong>Método:</strong> ${metodoPago.toUpperCase()}</p>
+                    <p style="margin-bottom:0;"><strong>Comprobante:</strong> Venta #${data.venta_id || ' OK'}</p>
+                `;
                     }
-
                     document.getElementById('modal-confirmacion').style.display = 'block';
                     posToast('✅ Venta guardada exitosamente', '#28a745');
                 } else {
-                    alert('Error al procesar la venta: ' + (data.error || data.mensaje || 'Error desconocido'));
+                    alert('Error: ' + (data.error || 'Error procesando la venta'));
                     if (btn) {
                         btn.disabled = false;
                         btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
@@ -765,8 +760,8 @@
                 }
             })
             .catch(err => {
-                console.error('Error procesando pago:', err);
-                alert('Ocurrió un problema de conexión al guardar la venta.');
+                console.error('Error:', err);
+                alert('Ocurrió un error al guardar la venta.');
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
