@@ -3441,8 +3441,11 @@ def procesar_venta_pos():
 
 # ─── MÓDULO DE MASCOTAS ──────────────────────────────────────────────────────
 
+# ─── MÓDULO DE MASCOTAS ──────────────────────────────────────────────────────
+
 @app.route('/mascotas', endpoint='mascota')
 @app.route('/mascotas/lista', endpoint='mascotas')
+@app.route('/mascotas/listar', endpoint='listar_mascotas')
 def listar_mascotas():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
@@ -3519,7 +3522,6 @@ def listar_mascotas():
         conexion.close()
 
     return render_template('mascotas.html', mascotas=mascotas, clientes=clientes)
-
 
 @app.route('/mascotas/crear', methods=['POST'])
 def crear_mascota():
