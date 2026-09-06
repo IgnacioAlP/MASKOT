@@ -3,44 +3,47 @@
 {% block title %}Lista de Clientes - MASKOT{% endblock %}
 
 {% block content %}
-<section class="clients-section py-5">
-    <div class="container">
-        <div class="section-header mb-5">
-            <div class="d-flex justify-content-between align-items-center">
+<section class="clients-section py-3 py-md-5">
+    <div class="container-fluid container-lg">
+        <!-- Encabezado Responsivo -->
+        <div class="section-header mb-4">
+            <div
+                class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
                 <div>
-                    <h1 class="display-5 fw-bold mb-3">
-                        <i class="fas fa-users me-3 text-primary"></i>
-                        Lista de <span class="text-gradient">Clientes</span>
+                    <h1 class="h2 fw-bold mb-1">
+                        <i class="fas fa-users me-2 text-primary"></i>
+                        Lista de <span class="text-primary">Clientes</span>
                     </h1>
-                    <p class="lead text-muted">
+                    <p class="text-muted mb-0 small">
                         Gestiona la información de todos tus clientes registrados
                     </p>
                 </div>
-                <div class="d-flex align-items-center">
-                    <div class="section-stats me-4">
-                        <div class="stat-card">
-                            <div class="stat-number">{{ clientes|length }}</div>
-                            <div class="stat-label">Total Clientes</div>
+                <div
+                    class="d-flex align-items-center justify-content-between justify-content-md-end w-100 w-md-auto gap-3">
+                    <div class="section-stats">
+                        <div class="stat-card px-3 py-2 bg-light rounded border text-center">
+                            <div class="stat-number fw-bold text-primary">{{ clientes|length }}</div>
+                            <div class="stat-label text-muted" style="font-size: 0.75rem;">Total Clientes</div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-primary btn-lg" id="openCrearClienteBtn">
-                        <i class="fas fa-user-plus me-2"></i>Agregar Cliente
+                    <button type="button" class="btn btn-primary" id="openCrearClienteBtn">
+                        <i class="fas fa-user-plus me-1"></i><span class="d-inline">Agregar Cliente</span>
                     </button>
                 </div>
             </div>
         </div>
 
         {% if clientes %}
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white py-3">
+                <h5 class="mb-0 fs-6 fw-bold">
                     <i class="fas fa-address-book me-2"></i>
                     Clientes Registrados
                 </h5>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover align-middle mb-0 text-nowrap">
                         <thead class="table-light">
                             <tr>
                                 <th scope="col"><i class="fas fa-user me-2"></i>Nombre</th>
@@ -62,10 +65,11 @@
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <div class="avatar-circle me-3">
+                                        <div class="avatar-circle me-2 me-md-3 bg-light text-primary d-flex align-items-center justify-content-center flex-shrink-0"
+                                            style="width: 36px; height: 36px; border-radius: 50%;">
                                             <i class="fas fa-user"></i>
                                         </div>
-                                        <strong>{{ c_nom }}</strong>
+                                        <strong class="d-block">{{ c_nom }}</strong>
                                     </div>
                                 </td>
                                 <td>
@@ -113,12 +117,12 @@
             </div>
         </div>
         {% else %}
-        <div class="empty-state text-center py-5">
-            <div class="empty-icon mb-4">
-                <i class="fas fa-users fa-5x text-muted"></i>
+        <div class="empty-state text-center py-5 px-3">
+            <div class="empty-icon mb-3">
+                <i class="fas fa-users fa-4x text-muted"></i>
             </div>
-            <h3 class="text-muted mb-3">No hay clientes registrados</h3>
-            <p class="text-muted mb-4">
+            <h4 class="text-muted mb-2">No hay clientes registrados</h4>
+            <p class="text-muted mb-4 small">
                 Los clientes aparecerán aquí cuando realicen citas o se registren en el sistema.
             </p>
             <button type="button" class="btn btn-primary"
@@ -135,41 +139,41 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title">
+                <h5 class="modal-title fs-6">
                     <i class="fas fa-user-plus me-2"></i>Agregar Cliente
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body p-3 p-md-4">
                 <form id="formCrearClienteModal" method="POST" action="{{ url_for('crear_cliente') }}"
                     class="no-animation">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="modal_nombre" class="form-label">Nombre Completo *</label>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="modal_nombre" class="form-label fw-bold small">Nombre Completo *</label>
                             <input type="text" id="modal_nombre" name="nombre" class="form-control" required>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="modal_email" class="form-label">Correo Electrónico *</label>
+                        <div class="col-12 col-md-6">
+                            <label for="modal_email" class="form-label fw-bold small">Correo Electrónico *</label>
                             <input type="email" id="modal_email" name="email" class="form-control" required>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="modal_telefono" class="form-label">Teléfono</label>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="modal_telefono" class="form-label fw-bold small">Teléfono</label>
                             <input type="tel" id="modal_telefono" name="telefono" class="form-control">
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="modal_documento" class="form-label">Documento</label>
+                        <div class="col-12 col-md-6">
+                            <label for="modal_documento" class="form-label fw-bold small">Documento</label>
                             <input type="text" id="modal_documento" name="documento" class="form-control"
                                 placeholder="DNI / RUC">
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="modal_direccion" class="form-label">Dirección</label>
+                        <label for="modal_direccion" class="form-label fw-bold small">Dirección</label>
                         <textarea id="modal_direccion" name="direccion" class="form-control" rows="2"></textarea>
                     </div>
-                    <div class="d-flex justify-content-end">
-                        <button type="button" class="btn btn-outline-secondary me-2"
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary"
                             data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-primary" id="submitCrearCliente">
                             <i class="fas fa-save me-2"></i>Crear Cliente
@@ -186,41 +190,41 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title">
+                <h5 class="modal-title fs-6 fw-bold">
                     <i class="fas fa-edit me-2"></i>Editar Cliente
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body p-3 p-md-4">
                 <form id="formEditarClienteModal" method="POST" action="{{ url_for('editar_cliente') }}"
                     class="no-animation">
                     <input type="hidden" id="edit_cliente_id" name="cliente_id">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="edit_nombre" class="form-label">Nombre Completo *</label>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="edit_nombre" class="form-label fw-bold small">Nombre Completo *</label>
                             <input type="text" id="edit_nombre" name="nombre" class="form-control" required>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="edit_email" class="form-label">Correo Electrónico *</label>
+                        <div class="col-12 col-md-6">
+                            <label for="edit_email" class="form-label fw-bold small">Correo Electrónico *</label>
                             <input type="email" id="edit_email" name="email" class="form-control" required>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="edit_telefono" class="form-label">Teléfono</label>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="edit_telefono" class="form-label fw-bold small">Teléfono</label>
                             <input type="tel" id="edit_telefono" name="telefono" class="form-control">
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="edit_documento" class="form-label">Documento</label>
+                        <div class="col-12 col-md-6">
+                            <label for="edit_documento" class="form-label fw-bold small">Documento</label>
                             <input type="text" id="edit_documento" name="documento" class="form-control">
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="edit_direccion" class="form-label">Dirección</label>
+                        <label for="edit_direccion" class="form-label fw-bold small">Dirección</label>
                         <textarea id="edit_direccion" name="direccion" class="form-control" rows="2"></textarea>
                     </div>
-                    <div class="d-flex justify-content-end">
-                        <button type="button" class="btn btn-outline-secondary me-2"
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary"
                             data-bs-dismiss="modal">Cancelar</button>
                         <button type="submit" class="btn btn-warning">
                             <i class="fas fa-save me-2"></i>Guardar Cambios
