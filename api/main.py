@@ -1878,7 +1878,14 @@ def productos():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     
-    lista = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
+    tenant_id = session.get('tenant_id', 1)
+    if hasattr(productos_controlador, 'obtener_productos'):
+        try:
+            lista = productos_controlador.obtener_productos(tenant_id)
+        except TypeError:
+            lista = productos_controlador.obtener_productos()
+    else:
+        lista = []
     return render_template('productos.html', productos=lista)
 
 
@@ -1889,6 +1896,8 @@ def almacen():
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
+
+    tenant_id = session.get('tenant_id', 1)
 
     if request.method == 'POST':
         try:
@@ -1916,12 +1925,13 @@ def almacen():
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
+                cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1")
 
                 if codigo_barra:
                     if producto_id:
-                        cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s AND id != %s", (codigo_barra, producto_id))
+                        cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s AND id != %s AND (tenant_id = %s OR tenant_id IS NULL)", (codigo_barra, producto_id, tenant_id))
                     else:
-                        cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s", (codigo_barra,))
+                        cursor.execute("SELECT nombre FROM productos WHERE codigo_barra = %s AND (tenant_id = %s OR tenant_id IS NULL)", (codigo_barra, tenant_id))
                     
                     existente = cursor.fetchone()
                     if existente:
@@ -1931,7 +1941,7 @@ def almacen():
 
                 if producto_id:
                     if not tipo:
-                        cursor.execute("SELECT tipo::text FROM productos WHERE id = %s", (producto_id,))
+                        cursor.execute("SELECT tipo::text FROM productos WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)", (producto_id, tenant_id))
                         res_tipo = cursor.fetchone()
                         if res_tipo and res_tipo[0]:
                             tipo = str(res_tipo[0]).strip().lower()
@@ -1941,8 +1951,8 @@ def almacen():
                     cursor.execute("""
                         UPDATE productos 
                         SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s, stock_minimo = %s
-                        WHERE id = %s
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, producto_id))
+                        WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, producto_id, tenant_id))
                     
                     mensaje = f'Producto "{nombre}" actualizado correctamente.' if cursor.rowcount > 0 else f'Producto ID {producto_id} no encontrado.'
                     categoria = 'success' if cursor.rowcount > 0 else 'warning'
@@ -1951,9 +1961,9 @@ def almacen():
                         tipo = 'stock'
 
                     cursor.execute("""
-                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo))
+                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, tenant_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, tenant_id))
                     mensaje = f'Producto "{nombre}" registrado correctamente.'
                     categoria = 'success'
 
@@ -1974,17 +1984,18 @@ def almacen():
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1")
 
-            sql_query = "SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra FROM productos "
+            sql_query = "SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra FROM productos WHERE (tenant_id = %s OR tenant_id IS NULL)"
 
             if tipo_filtro == 'stock':
-                sql_query += " WHERE LOWER(COALESCE(tipo::text, 'stock')) = 'stock' "
+                sql_query += " AND LOWER(COALESCE(tipo::text, 'stock')) = 'stock' "
             elif tipo_filtro == 'venta':
-                sql_query += " WHERE LOWER(tipo::text) = 'venta' "
+                sql_query += " AND LOWER(tipo::text) = 'venta' "
 
             sql_query += " ORDER BY id ASC "
 
-            cursor.execute(sql_query)
+            cursor.execute(sql_query, (tenant_id,))
             for r in cursor.fetchall():
                 p_id, nombre = r[0], r[1] or ''
                 tipo = str(r[2]).strip().lower() if r[2] is not None else 'stock'
@@ -2008,7 +2019,20 @@ def almacen():
 
 @app.route('/producto/<int:producto_id>')
 def ver_producto(producto_id):
-    producto = productos_controlador.obtener_producto_por_id(producto_id) if hasattr(productos_controlador, 'obtener_producto_por_id') else None
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    tenant_id = session.get('tenant_id', 1)
+
+    if hasattr(productos_controlador, 'obtener_producto_por_id'):
+        try:
+            producto = productos_controlador.obtener_producto_por_id(producto_id, tenant_id)
+        except TypeError:
+            producto = productos_controlador.obtener_producto_por_id(producto_id)
+    else:
+        producto = None
+
     if not producto:
         flash('Producto no encontrado.', 'error')
         return redirect(url_for('productos'))
