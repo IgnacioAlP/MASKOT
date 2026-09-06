@@ -109,41 +109,8 @@
 
                 <!-- Panel Productos -->
                 <div id="panel-productos">
-                    <!-- Categorías -->
-                    <div style="padding: 15px 20px 0 20px;">
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
-                            <button onclick="filtrarPorCategoria('todos')" class="filtro-btn" data-categoria="todos"
-                                style="background: linear-gradient(135deg, #ffa301, #e6920e); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
-                                <i class="fas fa-th-large"></i> Todos
-                            </button>
-                            <button onclick="filtrarPorCategoria('alimento')" class="filtro-btn"
-                                data-categoria="alimento"
-                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
-                                <i class="fas fa-bone"></i> Alimentos
-                            </button>
-                            <button onclick="filtrarPorCategoria('medicina')" class="filtro-btn"
-                                data-categoria="medicina"
-                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
-                                <i class="fas fa-pills"></i> Medicinas
-                            </button>
-                            <button onclick="filtrarPorCategoria('accesorio')" class="filtro-btn"
-                                data-categoria="accesorio"
-                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
-                                <i class="fas fa-tags"></i> Accesorios
-                            </button>
-                            <button onclick="filtrarPorCategoria('juguete')" class="filtro-btn" data-categoria="juguete"
-                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
-                                <i class="fas fa-baseball-ball"></i> Juguetes
-                            </button>
-                            <button onclick="filtrarPorCategoria('higiene')" class="filtro-btn" data-categoria="higiene"
-                                style="background: #6c757d; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 13px; cursor: pointer;">
-                                <i class="fas fa-bath"></i> Higiene
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- Buscador -->
-                    <div style="padding: 0 20px 15px 20px;">
+                    <div style="padding: 20px 20px 15px 20px;">
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <div style="position: relative; flex: 1;">
                                 <input type="text" id="filtro-productos"
@@ -957,16 +924,6 @@
         const q = (document.getElementById('filtro-servicios')?.value || '').toLowerCase();
         document.querySelectorAll('.servicio-card').forEach(card => {
             card.style.display = card.dataset.nombre.includes(q) ? 'flex' : 'none';
-        });
-    }
-
-    function filtrarPorCategoria(cat) {
-        document.querySelectorAll('.producto-card').forEach(card => {
-            if (cat === 'todos' || card.dataset.categoria === cat) {
-                card.style.display = 'flex';
-            } else {
-                card.style.display = 'none';
-            }
         });
     }
 
