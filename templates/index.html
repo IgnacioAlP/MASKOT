@@ -1,468 +1,949 @@
 {% extends "base.html" %}
 
-{% block title %}MASKOT - Petshop y Grooming | Tu compañero de confianza{% endblock %}
+{% block title %}MASKOT - Petshop, Grooming & Movilidad | Cuidado Profesional para tu Mascota{% endblock %}
 
 {% block extra_css %}
 <style>
-    :root { --maskot-ink: #2c3e50; --maskot-orange: #ffa301; --maskot-orange-dark: #e6920e; --maskot-sky: #6ccae2; --maskot-paper: #f5f5f5; --maskot-line: rgba(44, 62, 80, .12); --maskot-shadow: 0 18px 50px rgba(44, 62, 80, .12); }
-    html { scroll-behavior: smooth; }
-    body { background: var(--maskot-paper); overflow-x: hidden; }
-    .maskot-navbar { transition: background .35s ease, box-shadow .35s ease, padding .35s ease; }
-    .maskot-login-link { border: 1px solid var(--maskot-orange); border-radius: 999px; color: var(--maskot-ink) !important; font-weight: 700; padding: .55rem 1rem !important; transition: all .3s cubic-bezier(.4, 0, .2, 1); }
-    .maskot-login-link:hover { background: var(--maskot-orange); color: #fff !important; transform: translateY(-2px); }
-    .maskot-hero { min-height: calc(100vh - 80px); display: grid; align-items: center; position: relative; isolation: isolate; overflow: hidden; background: radial-gradient(circle at 88% 20%, rgba(108, 202, 226, .28), transparent 32%), linear-gradient(135deg, #fff 0%, #fff 48%, #fff7e8 100%); }
-    .maskot-hero::before { content: ''; position: absolute; width: 42vw; height: 42vw; max-width: 620px; max-height: 620px; right: -10vw; bottom: -18vw; background: rgba(255,163,1,.14); border-radius: 50%; z-index: -1; }
-    .maskot-hero .container { padding-top: 4rem; padding-bottom: 4rem; }
-    .hero-content { animation: reveal-up .8s both; }
-    .hero-kicker, .section-badge { display: inline-flex; align-items: center; gap: .5rem; color: var(--maskot-orange-dark); background: rgba(255,163,1,.12); border: 1px solid rgba(255,163,1,.24); border-radius: 999px; padding: .55rem .9rem; font-size: .76rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-    .hero-title { color: var(--maskot-ink); font-size: clamp(3rem, 7vw, 6.7rem); line-height: .94; letter-spacing: -.04em; font-weight: 800; max-width: 720px; }
-    .hero-title .text-gradient { color: var(--maskot-orange); background: linear-gradient(110deg, var(--maskot-orange), var(--maskot-sky)); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero-description { max-width: 570px; color: #617182; font-size: clamp(1rem, 1.5vw, 1.18rem); }
-    .hero-buttons .btn { border-radius: 999px; padding: .85rem 1.25rem; font-weight: 700; transition: all .3s cubic-bezier(.4, 0, .2, 1); }
-    .hero-buttons .btn:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(44,62,80,.15); }
-    .hero-visual { position: relative; min-height: 480px; display: grid; place-items: center; animation: reveal-scale .9s .15s both; }
-    .hero-photo { width: min(100%, 510px); aspect-ratio: 1 / 1.05; object-fit: cover; border-radius: 48% 48% 22% 22%; border: 12px solid #fff; box-shadow: var(--maskot-shadow); transform: rotate(3deg); }
-    .hero-sticker { position: absolute; display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; color: #fff; background: var(--maskot-orange); font-weight: 800; text-align: center; line-height: 1.1; box-shadow: 0 14px 30px rgba(255,163,1,.3); animation: breathe 3s ease-in-out infinite; }
-    .hero-sticker.top { top: 4%; right: 4%; background: var(--maskot-sky); }
-    .hero-sticker.bottom { bottom: 5%; left: 3%; font-size: .8rem; }
-    .hero-stats { display: flex; gap: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--maskot-line); max-width: 530px; }
-    .stat-number { color: var(--maskot-ink); font-size: 1.45rem; font-weight: 800; }
-    .stat-label { color: #718096; font-size: .75rem; }
-    .services-section, .productos-section { background: #fff; }
-    .section-title { color: var(--maskot-ink); font-size: clamp(2rem, 4vw, 3.6rem); font-weight: 800; letter-spacing: -.035em; }
-    .section-description { color: #718096; max-width: 620px; margin: 0 auto; }
-    .service-card-modern, .product-card-modern { border: 1px solid var(--maskot-line); border-radius: 22px; box-shadow: 0 8px 25px rgba(44,62,80,.06); transition: all .3s cubic-bezier(.4,0,.2,1); }
-    .service-card-modern:hover, .product-card-modern:hover { transform: translateY(-8px); border-color: rgba(255,163,1,.55); box-shadow: var(--maskot-shadow); }
-    .appointment-section { background: #fff7e8; }
-    .appointment-form-card, .cta-card { border-radius: 24px; box-shadow: var(--maskot-shadow); }
-    .cta-section { background: #fff; }
-    @keyframes reveal-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-    @keyframes reveal-scale { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
-    @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-    @media (max-width: 767px) { .maskot-hero .container { padding-top: 2rem; } .hero-visual { min-height: 360px; margin-top: 1rem; } .hero-sticker { width: 82px; height: 82px; font-size: .72rem; } .hero-stats { gap: 1rem; } }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+    /* ==========================================================================
+       VARIABLES Y SISTEMA DE DISEÑO CREATIVO (MASKOT PALETTE)
+       ========================================================================== */
+    :root {
+        --maskot-ink: #2c3e50;
+        --maskot-ink-light: #4a627a;
+        --maskot-orange: #ffa301;
+        --maskot-orange-dark: #e6920e;
+        --maskot-orange-soft: rgba(255, 163, 1, 0.12);
+        --maskot-sky: #6ccae2;
+        --maskot-sky-dark: #41b3d1;
+        --maskot-sky-soft: rgba(108, 202, 226, 0.15);
+        --maskot-paper: #f8fafc;
+        --maskot-card-bg: rgba(255, 255, 255, 0.88);
+        --maskot-line: rgba(44, 62, 80, 0.08);
+        --maskot-glass-border: rgba(255, 255, 255, 0.6);
+        --maskot-shadow-sm: 0 8px 20px rgba(44, 62, 80, 0.06);
+        --maskot-shadow-lg: 0 20px 40px rgba(44, 62, 80, 0.12);
+        --maskot-shadow-glow: 0 10px 30px rgba(255, 163, 1, 0.25);
+        --maskot-transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        --maskot-radius-lg: 24px;
+        --maskot-radius-md: 16px;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background-color: var(--maskot-paper);
+        color: var(--maskot-ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        overflow-x: hidden;
+    }
+
+    /* ==========================================================================
+       NAVEGACIÓN GLASSMORPHISM Y BOTÓN LOGIN
+       ========================================================================== */
+    .maskot-glass-nav {
+        background: rgba(255, 255, 255, 0.85) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--maskot-line);
+        transition: var(--maskot-transition);
+    }
+
+    .maskot-login-link {
+        border: 2px solid var(--maskot-orange);
+        border-radius: 999px;
+        color: var(--maskot-ink) !important;
+        font-weight: 700;
+        padding: 0.5rem 1.3rem !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        transition: var(--maskot-transition);
+        box-shadow: 0 4px 12px rgba(255, 163, 1, 0.15);
+    }
+
+    .maskot-login-link:hover {
+        background: var(--maskot-orange);
+        color: #ffffff !important;
+        transform: translateY(-2px);
+        box-shadow: var(--maskot-shadow-glow);
+    }
+
+    /* ==========================================================================
+       HERO SECTION Y ANIMACIONES DINÁMICAS
+       ========================================================================== */
+    .maskot-hero {
+        min-height: calc(100vh - 76px);
+        display: flex;
+        align-items: center;
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        background:
+            radial-gradient(circle at 85% 15%, var(--maskot-sky-soft) 0%, transparent 40%),
+            radial-gradient(circle at 10% 90%, var(--maskot-orange-soft) 0%, transparent 45%),
+            linear-gradient(135deg, #ffffff 0%, #fefcf7 100%);
+        padding: 3rem 0;
+    }
+
+    .hero-kicker,
+    .section-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        color: var(--maskot-orange-dark);
+        background: var(--maskot-orange-soft);
+        border: 1px solid rgba(255, 163, 1, 0.28);
+        border-radius: 999px;
+        padding: 0.5rem 1.1rem;
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .hero-title {
+        color: var(--maskot-ink);
+        font-size: clamp(2.5rem, 5vw + 1rem, 4.8rem);
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+        font-weight: 800;
+    }
+
+    .text-gradient-orange {
+        background: linear-gradient(110deg, var(--maskot-orange), var(--maskot-orange-dark));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .text-gradient-sky {
+        background: linear-gradient(110deg, var(--maskot-sky-dark), var(--maskot-sky));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .hero-description {
+        color: var(--maskot-ink-light);
+        font-size: clamp(1.05rem, 1.2vw, 1.25rem);
+        line-height: 1.6;
+    }
+
+    .btn-maskot-primary {
+        background: linear-gradient(135deg, var(--maskot-orange) 0%, var(--maskot-orange-dark) 100%);
+        color: #ffffff !important;
+        border: none;
+        border-radius: 999px;
+        padding: 0.9rem 1.8rem;
+        font-weight: 700;
+        box-shadow: 0 10px 20px rgba(255, 163, 1, 0.3);
+        transition: var(--maskot-transition);
+    }
+
+    .btn-maskot-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 30px rgba(255, 163, 1, 0.45);
+        color: #ffffff;
+    }
+
+    .btn-maskot-outline {
+        background: transparent;
+        border: 2px solid var(--maskot-ink);
+        color: var(--maskot-ink) !important;
+        border-radius: 999px;
+        padding: 0.85rem 1.7rem;
+        font-weight: 700;
+        transition: var(--maskot-transition);
+    }
+
+    .btn-maskot-outline:hover {
+        background: var(--maskot-ink);
+        color: #ffffff !important;
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(44, 62, 80, 0.2);
+    }
+
+    /* Composición Visual interactiva del Hero */
+    .hero-visual-wrapper {
+        position: relative;
+        display: grid;
+        place-items: center;
+    }
+
+    .hero-photo-main {
+        width: 100%;
+        max-width: 440px;
+        aspect-ratio: 4 / 5;
+        object-fit: cover;
+        border-radius: 36px;
+        border: 8px solid #ffffff;
+        box-shadow: var(--maskot-shadow-lg);
+        transform: rotate(-2deg);
+        transition: var(--maskot-transition);
+    }
+
+    .hero-visual-wrapper:hover .hero-photo-main {
+        transform: rotate(0deg) scale(1.02);
+    }
+
+    .hero-photo-secondary {
+        position: absolute;
+        bottom: -20px;
+        right: -10px;
+        width: 180px;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border-radius: 24px;
+        border: 6px solid #ffffff;
+        box-shadow: var(--maskot-shadow-lg);
+        transform: rotate(4deg);
+    }
+
+    .hero-badge-floating {
+        position: absolute;
+        top: 20px;
+        left: -15px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--maskot-glass-border);
+        padding: 0.85rem 1.25rem;
+        border-radius: var(--maskot-radius-md);
+        box-shadow: var(--maskot-shadow-sm);
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        animation: float 4s ease-in-out infinite;
+    }
+
+    /* ==========================================================================
+       TARJETAS DE VALOR AGREGADO (Movilidad, Capacitación, Promos, Comida)
+       ========================================================================== */
+    .feature-card {
+        background: #ffffff;
+        border: 1px solid var(--maskot-line);
+        border-radius: var(--maskot-radius-lg);
+        padding: 1.8rem;
+        height: 100%;
+        transition: var(--maskot-transition);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .feature-card:hover {
+        transform: translateY(-8px);
+        box-shadow: var(--maskot-shadow-lg);
+        border-color: var(--maskot-orange);
+    }
+
+    .feature-icon-wrapper {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        font-size: 1.5rem;
+        margin-bottom: 1.2rem;
+    }
+
+    .bg-orange-soft {
+        background: var(--maskot-orange-soft);
+        color: var(--maskot-orange-dark);
+    }
+
+    .bg-sky-soft {
+        background: var(--maskot-sky-soft);
+        color: var(--maskot-sky-dark);
+    }
+
+    /* ==========================================================================
+       SECCIÓN DE SERVICIOS Y PRODUCTOS
+       ========================================================================== */
+    .services-section,
+    .products-section,
+    .features-highlight-section {
+        padding: 5rem 0;
+    }
+
+    .service-card-modern,
+    .product-card-modern {
+        background: #ffffff;
+        border: 1px solid var(--maskot-line);
+        border-radius: var(--maskot-radius-lg);
+        overflow: hidden;
+        transition: var(--maskot-transition);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .service-card-modern:hover,
+    .product-card-modern:hover {
+        transform: translateY(-8px);
+        box-shadow: var(--maskot-shadow-lg);
+        border-color: rgba(255, 163, 1, 0.4);
+    }
+
+    .service-img-header {
+        position: relative;
+        height: 200px;
+        overflow: hidden;
+    }
+
+    .service-img-header img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.6s ease;
+    }
+
+    .service-card-modern:hover .service-img-header img {
+        transform: scale(1.08);
+    }
+
+    .service-content,
+    .product-content {
+        padding: 1.5rem;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .service-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: var(--maskot-ink);
+        margin-bottom: 0.6rem;
+    }
+
+    /* ==========================================================================
+       SECCIÓN DE CITAS Y FORMULARIO DINÁMICO
+       ========================================================================== */
+    .appointment-section {
+        background: linear-gradient(180deg, #fffcf5 0%, #fef4e2 100%);
+        padding: 5rem 0;
+    }
+
+    .appointment-form-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 163, 1, 0.2);
+        border-radius: 28px;
+        padding: 2.2rem;
+        box-shadow: var(--maskot-shadow-lg);
+    }
+
+    .form-floating>label {
+        color: var(--maskot-ink-light);
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: var(--maskot-orange);
+        box-shadow: 0 0 0 0.25rem rgba(255, 163, 1, 0.2);
+    }
+
+    .mascota-form,
+    .servicio-form {
+        background: var(--maskot-paper);
+        border: 1px solid var(--maskot-line) !important;
+        border-radius: var(--maskot-radius-md);
+        transition: var(--maskot-transition);
+    }
+
+    /* ==========================================================================
+       ANIMACIONES SCROLL REVEAL Y KEYFRAMES
+       ========================================================================== */
+    [data-reveal] {
+        opacity: 0;
+        transform: translateY(30px);
+        transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-reveal].is-visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    @keyframes float {
+
+        0%,
+        100% {
+            transform: translateY(0px);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    @keyframes pulse-soft {
+
+        0%,
+        100% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+    }
+
+    .pulse-badge {
+        animation: pulse-soft 3s ease-in-out infinite;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Hero Section -->
+
+<!-- ==========================================================================
+     1. HERO SECTION
+     ========================================================================== -->
 <section class="maskot-hero">
     <div class="container">
         <div class="row align-items-center g-5">
-            <div class="col-lg-6">
+            <div class="col-lg-6" data-reveal>
                 <div class="hero-content">
-                    <div class="hero-kicker mb-4">
-                        <i class="fas fa-sparkles"></i> Cuidado con intención
+                    <div class="hero-kicker mb-3">
+                        <i class="fas fa-sparkles"></i> El estándar de oro en Pet Care
                     </div>
-                    <h1 class="hero-title mb-4">Cada mascota merece sentirse <span class="text-gradient">extraordinaria.</span></h1>
-                    <p class="hero-description mb-5">
-                        Grooming profesional, productos seleccionados y un equipo que conoce el lenguaje de tu mejor amigo.
+                    <h1 class="hero-title mb-4">
+                        Cuidado experto, <span class="text-gradient-orange">grooming</span> y <span
+                            class="text-gradient-sky">amor real.</span>
+                    </h1>
+                    <p class="hero-description mb-4">
+                        En MASKOT nos especializamos en baños medicinales, cortes estilizados de alta competencia,
+                        alimento balanceado premium y transporte profesional para que tu mejor amigo disfrute sin
+                        estresarse.
                     </p>
-                    <div class="hero-buttons">
-                        <a href="#citas" class="btn btn-maskot-primary btn-lg me-3">
-                            <i class="fas fa-calendar-plus me-2"></i>
-                            Agendar Cita
+
+                    <div class="d-flex flex-wrap gap-3 mb-5">
+                        <a href="#citas" class="btn btn-maskot-primary btn-lg">
+                            <i class="fas fa-calendar-alt me-2"></i>Agendar Cita
                         </a>
-                        <a href="{{ url_for('login') }}" class="btn btn-maskot-outline btn-lg">
-                            <i class="fas fa-user-circle me-2"></i>Acceso clientes
+                        <a href="{{ url_for('login') }}" class="maskot-login-link text-decoration-none">
+                            <i class="fas fa-user-circle fa-lg"></i> Acceso Clientes
                         </a>
                     </div>
-                    <div class="hero-stats mt-5">
-                        <div><div class="stat-number">500+</div><div class="stat-label">Mascotas felices</div></div>
-                        <div><div class="stat-number">5.0</div><div class="stat-label">Valoración media</div></div>
-                        <div><div class="stat-number">10 años</div><div class="stat-label">Cuidando historias</div></div>
+
+                    <div class="row g-3 border-top pt-4">
+                        <div class="col-4">
+                            <h4 class="fw-bold mb-0 text-dark">100%</h4>
+                            <small class="text-muted">Groomers Certificados</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="fw-bold mb-0 text-dark">5.0 ★</h4>
+                            <small class="text-muted">Reseñas Clientes</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="fw-bold mb-0 text-dark">VIP</h4>
+                            <small class="text-muted">Movilidad Propia</small>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="hero-visual">
-                    <img src="{{ url_for('static', filename='img/antes1.jpeg') }}" alt="Mascota después de su sesión de cuidado" class="hero-photo" onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-                    <div class="hero-sticker top"><i class="fas fa-heart fa-lg mb-1"></i><span>Amor<br>real</span></div>
-                    <div class="hero-sticker bottom"><i class="fas fa-paw fa-lg mb-1"></i><span>Hecho<br>en MASKOT</span></div>
+
+            <div class="col-lg-6" data-reveal>
+                <div class="hero-visual-wrapper">
+                    <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Mascota con grooming perfecto"
+                        class="hero-photo-main"
+                        onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+
+                    <img src="{{ url_for('static', filename='img/antes1.jpeg') }}" alt="Mascota antes del baño"
+                        class="hero-photo-secondary d-none d-sm-block"
+                        onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+
+                    <div class="hero-badge-floating pulse-badge">
+                        <div class="bg-orange-soft p-2 rounded-circle">
+                            <i class="fas fa-award text-warning fa-lg"></i>
+                        </div>
+                        <div>
+                            <span class="d-block fw-bold fs-7">Corte de Competencia</span>
+                            <small class="text-muted">Personal capacitado constante</small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Services Section -->
-<section id="servicios" class="services-section py-5" data-reveal>
+<!-- ==========================================================================
+     2. PILARES & VALOR AGREGADO (Propuestas de Valor)
+     ========================================================================== -->
+<section class="features-highlight-section">
     <div class="container">
-        <div class="text-center mb-5">
-            <div class="section-badge mb-3">
-                <i class="fas fa-star me-2"></i>Servicios Destacados
+        <div class="text-center mb-5" data-reveal>
+            <div class="section-badge mb-2">
+                <i class="fas fa-paw me-1"></i> Beneficios Exclusivos
             </div>
-            <h2 class="section-title">
-                Los <span style="color: #ffa301; font-weight: 700;">más solicitados</span><br>
-                por nuestros clientes
-            </h2>
-            <p class="section-description">
-                Descubre nuestros 3 servicios más populares, elegidos por su calidad excepcional
-                y la satisfacción de nuestros clientes.
-            </p>
+            <h2 class="fw-extrabold fs-1">¿Por qué elegir MASKOT?</h2>
+            <p class="text-muted">Ofrecemos un servicio integral diseñado para el confort total de tu mascota y tu
+                tranquilidad.</p>
         </div>
 
         <div class="row g-4">
-            {% for servicio in servicios %}
-            <div class="col-lg-4 col-md-6">
-                <div class="service-card-modern">
-                    <div class="service-icon-modern">
-                        {% if 'Baño' in servicio[1] and 'Corte' in servicio[1] %}
-                        <i class="fas fa-cut"></i>
-                        {% elif 'Grooming' in servicio[1] %}
-                        <i class="fas fa-spa"></i>
-                        {% elif 'Medicado' in servicio[1] %}
-                        <i class="fas fa-pills"></i>
-                        {% elif 'Revisión' in servicio[1] %}
-                        <i class="fas fa-stethoscope"></i>
-                        {% elif 'Consulta' in servicio[1] %}
-                        <i class="fas fa-user-md"></i>
-                        {% else %}
-                        <i class="fas fa-paw"></i>
-                        {% endif %}
+            <!-- Movilidad -->
+            <div class="col-md-6 col-lg-3" data-reveal>
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper bg-sky-soft">
+                        <i class="fas fa-shuttle-van"></i>
                     </div>
-                    <div class="featured-service-badge">
-                        <i class="fas fa-crown me-1"></i>#{{ loop.index }}
+                    <h5 class="fw-bold">Movilidad Especializada</h5>
+                    <p class="text-muted small">Transporte adaptado, climatizado y seguro. Recogemos y llevamos a tu
+                        mascota hasta la puerta de tu hogar.</p>
+                </div>
+            </div>
+            <!-- Groomers Capacitados -->
+            <div class="col-md-6 col-lg-3" data-reveal>
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper bg-orange-soft">
+                        <i class="fas fa-user-graduate"></i>
+                    </div>
+                    <h5 class="fw-bold">Capacitación Constante</h5>
+                    <p class="text-muted small">Nuestro equipo se actualiza constantemente en seminarios y competencias
+                        internacionales de grooming.</p>
+                </div>
+            </div>
+            <!-- Alimentación Premium -->
+            <div class="col-md-6 col-lg-3" data-reveal>
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper bg-sky-soft">
+                        <i class="fas fa-bone"></i>
+                    </div>
+                    <h5 class="fw-bold">Comida Especializada</h5>
+                    <p class="text-muted small">PetShop surtido con alimentos de prescripción y nutrición balanceada
+                        para cualquier especie o condición.</p>
+                </div>
+            </div>
+            <!-- Promociones Especiales -->
+            <div class="col-md-6 col-lg-3" data-reveal>
+                <div class="feature-card">
+                    <div class="feature-icon-wrapper bg-orange-soft">
+                        <i class="fas fa-tags"></i>
+                    </div>
+                    <h5 class="fw-bold">Promociones Exclusivas</h5>
+                    <p class="text-muted small">Descuentos para clientes frecuentes, paquetes mensuales de baño y
+                        beneficios por agendamiento web.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==========================================================================
+     3. SERVICIOS DESTACADOS (Baños, Cortes y Salud)
+     ========================================================================== -->
+<section id="servicios" class="services-section bg-white" data-reveal>
+    <div class="container">
+        <div class="text-center mb-5">
+            <div class="section-badge mb-2">
+                <i class="fas fa-cut me-1"></i> Grooming & Spa
+            </div>
+            <h2 class="fw-extrabold fs-1">Nuestros Servicios Principales</h2>
+            <p class="text-muted">Servicios diseñados bajo estrictos estándares de higiene y bienestar animal.</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Servicio 1: Baño Tradicional e Hidratante -->
+            <div class="col-lg-4 col-md-6" data-reveal>
+                <div class="service-card-modern">
+                    <div class="service-img-header">
+                        <img src="{{ url_for('static', filename='img/bano1.jpeg') }}" alt="Baño relajante"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
                     </div>
                     <div class="service-content">
-                        <h4 class="service-title">{{ servicio[1] }}</h4>
-                        <p class="service-description">
-                            {{ servicio[2] or 'Servicio profesional especializado para el bienestar y cuidado integral
-                            de tu mascota.' }}
-                        </p>
-                        <div class="service-features">
-                            <div class="feature">
-                                <i class="fas fa-check-circle text-success me-2"></i>
-                                Profesionales certificados
-                            </div>
-                            <div class="feature">
-                                <i class="fas fa-calendar-day text-primary me-2"></i>
-                                Máximo {{ servicio[3] }} citas por día
-                            </div>
-                            <div class="feature">
-                                <i class="fas fa-award text-warning me-2"></i>
-                                Garantía de calidad
-                            </div>
-                        </div>
-                    </div>
-                    <div class="service-action">
-                        <button class="btn btn-maskot-outline w-100"
-                            onclick="selectService({{ loop.index }}, '{{ servicio[1] }}')">
-                            <i class="fas fa-plus me-2"></i>Seleccionar Servicio
+                        <h4 class="service-title">Baño e Higiene Profunda</h4>
+                        <p class="text-muted small mb-3">Incluye champú dermoprotector, cepillado de deslanado, limpieza
+                            de oídos y corte de uñas preciso.</p>
+                        <ul class="list-unstyled small mb-4">
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Agua templada regulada</li>
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Secado silencioso anti-estrés
+                            </li>
+                        </ul>
+                        <button class="btn btn-maskot-outline w-100 mt-auto" onclick="selectServiceByName('Baño')">
+                            <i class="fas fa-calendar-plus me-1"></i> Agendar Baño
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Servicio 2: Baño y Corte Estilizado -->
+            <div class="col-lg-4 col-md-6" data-reveal>
+                <div class="service-card-modern">
+                    <div class="service-img-header">
+                        <img src="{{ url_for('static', filename='img/corteCompetencia.jpeg') }}" alt="Corte estilizado"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Baño + Corte Estilizado</h4>
+                        <p class="text-muted small mb-3">Estilismo canino y felino acorde a la raza o solicitud del
+                            propietario, realizado por groomers certificados.</p>
+                        <ul class="list-unstyled small mb-4">
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Tijera y máquina profesional
+                            </li>
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Acabado de exposición</li>
+                        </ul>
+                        <button class="btn btn-maskot-outline w-100 mt-auto"
+                            onclick="selectServiceByName('Baño y Corte')">
+                            <i class="fas fa-calendar-plus me-1"></i> Agendar Corte
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Servicio 3: Baños Medicados -->
+            <div class="col-lg-4 col-md-6" data-reveal>
+                <div class="service-card-modern">
+                    <div class="service-img-header">
+                        <img src="{{ url_for('static', filename='img/bano3.jpeg') }}" alt="Baño medicado"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                    </div>
+                    <div class="service-content">
+                        <h4 class="service-title">Baños Medicados & Tratamientos</h4>
+                        <p class="text-muted small mb-3">Tratamientos dermatológicos especializados para alergias,
+                            hongos, seborrea o control antiparasitario.</p>
+                        <ul class="list-unstyled small mb-4">
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Champús medicados aprobados
+                            </li>
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Tiempo de reposo asistido
+                            </li>
+                        </ul>
+                        <button class="btn btn-maskot-outline w-100 mt-auto" onclick="selectServiceByName('Medicado')">
+                            <i class="fas fa-calendar-plus me-1"></i> Agendar Medicado
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if servicios %}
+        <!-- Servicios Dinámicos Inyectados desde la Base de Datos -->
+        <div class="row g-4 mt-2">
+            {% for servicio in servicios %}
+            <div class="col-lg-4 col-md-6" data-reveal>
+                <div class="service-card-modern">
+                    <div class="service-content">
+                        <div class="badge bg-warning text-dark w-fit-content mb-2">Populares #{{ loop.index }}</div>
+                        <h4 class="service-title">{{ servicio[1] }}</h4>
+                        <p class="text-muted small mb-3">{{ servicio[2] or 'Servicio profesional especializado para el
+                            cuidado integral de tu mascota.' }}</p>
+                        <div class="mt-auto">
+                            <button class="btn btn-maskot-outline w-100"
+                                onclick="selectService('{{ servicio[0] }}', '{{ servicio[1] }}')">
+                                <i class="fas fa-plus me-2"></i>Seleccionar Servicio
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
+        {% endif %}
 
-        <!-- Ver todos los servicios button (Endpoint corregido a 'servicios') -->
         <div class="text-center mt-5">
             <a href="{{ url_for('servicios') }}" class="btn btn-maskot-primary btn-lg">
-                <i class="fas fa-concierge-bell me-2"></i>Ver Todos los Servicios
+                <i class="fas fa-th-list me-2"></i>Ver Catálogo Completo de Servicios
             </a>
         </div>
     </div>
 </section>
 
-<!-- Products Section -->
+<!-- ==========================================================================
+     4. SECCIÓN DESTACADA DE MOVILIDAD Y CAPACITACIÓN
+     ========================================================================== -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-6" data-reveal>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <img src="{{ url_for('static', filename='img/transporteMaskot.jpeg') }}"
+                            class="img-fluid rounded-4 shadow-sm mb-3" alt="Transporte MASKOT 1"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                        <img src="{{ url_for('static', filename='img/capacitacion1.jpeg') }}"
+                            class="img-fluid rounded-4 shadow-sm" alt="Capacitación Grooming"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                    </div>
+                    <div class="col-6 pt-4">
+                        <img src="{{ url_for('static', filename='img/transporteMaskot2.jpeg') }}"
+                            class="img-fluid rounded-4 shadow-sm mb-3" alt="Transporte MASKOT 2"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                        <img src="{{ url_for('static', filename='img/capacitacion2.jpeg') }}"
+                            class="img-fluid rounded-4 shadow-sm" alt="Capacitación Grooming 2"
+                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6" data-reveal>
+                <div class="section-badge mb-3">
+                    <i class="fas fa-truck-monster me-2"></i>Sin complicaciones
+                </div>
+                <h2 class="hero-title fs-2 mb-4">Servicio de Movilidad y Equipo Profesional Certificado</h2>
+                <p class="hero-description mb-4">
+                    ¿No tienes tiempo para traer a tu amigo? Nuestro servicio de <strong>Movilidad Especializada
+                        MASKOT</strong> recoge a tu mascota en la puerta de tu casa y la regresa feliz, limpia y
+                    relajada.
+                </p>
+                <div class="d-flex flex-column gap-3">
+                    <div class="d-flex gap-3 align-items-center">
+                        <div class="bg-orange-soft p-3 rounded-circle text-warning fw-bold fs-4">1</div>
+                        <div>
+                            <h6 class="mb-0 fw-bold">Unidades adaptadas e higienizadas</h6>
+                            <small class="text-muted">Espacios cómodos y seguros para perros y gatos.</small>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-3 align-items-center">
+                        <div class="bg-sky-soft p-3 rounded-circle text-info fw-bold fs-4">2</div>
+                        <div>
+                            <h6 class="mb-0 fw-bold">Personal en constante capacitación</h6>
+                            <small class="text-muted">Nos perfeccionamos continuamente en manejo etológico y
+                                estilismo.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==========================================================================
+     5. SECCIÓN PRODUCTOS / PETSHOP (Si existen en BD)
+     ========================================================================== -->
 {% if productos_venta %}
-<section id="productos" class="productos-section py-5" data-reveal>
+<section id="productos" class="products-section" data-reveal>
     <div class="container">
         <div class="text-center mb-5">
-            <div class="section-badge mb-3">
-                <i class="fas fa-shopping-bag me-2"></i>Productos Premium
+            <div class="section-badge mb-2">
+                <i class="fas fa-shopping-basket me-1"></i> PetShop Seleccionado
             </div>
-            <h2 class="section-title">
-                Los <span
-                    style="color: #6ccae2; font-weight: 800; background: linear-gradient(45deg, #6ccae2, #8dd4ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 1.3em; text-transform: uppercase; letter-spacing: 1px;">más
-                    vendidos</span><br>
-                para tu mascota
-            </h2>
-            <p class="section-description">
-                Descubre nuestra selección de los 4 productos más populares entre nuestros clientes
+            <h2 class="fw-extrabold fs-1">Alimentación y Productos Premium</h2>
+            <p class="text-muted">Comida para todas las especies y etapas de vida, además de accesorios de alta calidad.
             </p>
         </div>
 
         <div class="row g-4">
             {% for producto in productos_venta %}
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-3 col-md-6" data-reveal>
                 <div class="product-card-modern">
-                    <div class="product-image">
+                    <div class="service-img-header bg-light d-flex align-items-center justify-content-center">
                         {% if producto[7] %}
-                        <img src="{{ url_for('static', filename='images/' ~ producto[7]) }}" alt="{{ producto[1] }}"
-                            class="img-fluid">
+                        <img src="{{ url_for('static', filename='images/' ~ producto[7]) }}" alt="{{ producto[1] }}">
                         {% else %}
-                        <div class="no-image-placeholder">
-                            <i class="fas fa-box"></i>
-                        </div>
+                        <i class="fas fa-box-open fa-3x text-muted"></i>
                         {% endif %}
-                        <div class="product-badge">
-                            <i class="fas fa-fire text-danger"></i>
-                        </div>
-                        <div class="bestseller-badge">
-                            <i class="fas fa-medal me-1"></i>Top {{ loop.index }}
-                        </div>
                     </div>
                     <div class="product-content">
-                        <h5 class="product-title">{{ producto[1] }}</h5>
-                        <div class="product-stock">
-                            <i class="fas fa-boxes me-2"></i>
-                            {{ producto[3] }} disponibles
+                        <h5 class="fw-bold text-dark mb-2">{{ producto[1] }}</h5>
+                        <small class="text-muted mb-3"><i class="fas fa-boxes me-1"></i> Stock: {{ producto[3] }}
+                            unidades</small>
+
+                        <div class="mt-auto">
+                            <a href="{{ url_for('ver_producto', id=producto[0]) }}"
+                                class="btn btn-maskot-outline w-100 btn-sm">
+                                <i class="fas fa-eye me-1"></i> Ver Detalles
+                            </a>
                         </div>
-                    </div>
-                    {% if producto[3] == 0 %}
-                    <div class="sold-out-badge-index">
-                        <i class="fas fa-times-circle me-1"></i>AGOTADO
-                    </div>
-                    {% endif %}
-                    <div class="product-action">
-                        <a href="{{ url_for('ver_producto', id=producto[0]) }}" class="btn btn-maskot-secondary w-100">
-                            <i class="fas fa-shopping-cart me-2"></i>Consultar
-                        </a>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
 
-        <!-- Ver todos los productos button -->
         <div class="text-center mt-5">
             <a href="{{ url_for('productos') }}" class="btn btn-maskot-primary btn-lg">
-                <i class="fas fa-th-large me-2"></i>Ver Todos los Productos
+                <i class="fas fa-store me-2"></i> Explorar Tienda Completa
             </a>
         </div>
     </div>
 </section>
 {% endif %}
 
-<!-- Appointment Section -->
-<section id="citas" class="appointment-section py-5" data-reveal>
+<!-- ==========================================================================
+     6. FORMULARIO DE RESERVA / CITAS DINÁMICO
+     ========================================================================== -->
+<section id="citas" class="appointment-section" data-reveal>
     <div class="container">
-        <div class="row align-items-center">
-            <div class="col-lg-6">
-                <div class="appointment-content">
-                    <div class="section-badge mb-3">
-                        <i class="fas fa-calendar-check me-2"></i>Agendar Cita
-                    </div>
-                    <h2 class="section-title mb-4">
-                        ¡Tu mascota merece <span
-                            style="color: #ffa301; font-weight: 800; background: linear-gradient(45deg, #ffa301, #ffb733); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 1px;">lo
-                            mejor</span>!
-                    </h2>
-                    <p class="mb-4">
-                        Agenda una cita con nuestros expertos y dale a tu mascota la experiencia
-                        de cuidado que se merece. Proceso rápido y sencillo.
-                    </p>
-                    <div class="appointment-benefits">
-                        <div class="benefit-item">
-                            <i class="fas fa-clock text-primary me-3"></i>
-                            <div>
-                                <h6>Horarios flexibles</h6>
-                                <small class="text-muted">Disponibilidad de lunes a domingo</small>
-                            </div>
-                        </div>
-                        <div class="benefit-item">
-                            <i class="fas fa-user-md text-success me-3"></i>
-                            <div>
-                                <h6>Profesionales certificados</h6>
-                                <small class="text-muted">Equipo especializado en cuidado animal</small>
-                            </div>
-                        </div>
-                        <div class="benefit-item">
-                            <i class="fas fa-heart text-danger me-3"></i>
-                            <div>
-                                <h6>Trato personalizado</h6>
-                                <small class="text-muted">Cada mascota recibe atención individual</small>
-                            </div>
+        <div class="row g-5 align-items-center">
+            <div class="col-lg-5">
+                <div class="section-badge mb-3">
+                    <i class="fas fa-calendar-check me-2"></i> Reserva Online
+                </div>
+                <h2 class="hero-title fs-2 mb-4">Agenda la atención de tu mascota en segundos</h2>
+                <p class="text-muted mb-4">
+                    Completa los datos del propietario, añade una o más mascotas y los servicios requeridos. Nos
+                    pondremos en contacto para confirmar tu horario.
+                </p>
+
+                <div class="bg-white p-4 rounded-4 border shadow-sm mb-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="fas fa-headset fa-2x text-warning"></i>
+                        <div>
+                            <h6 class="fw-bold mb-0">¿Soporte o dudas rápidas?</h6>
+                            <small class="text-muted">Accede a tu cuenta de cliente o escríbenos directamente.</small>
                         </div>
                     </div>
                 </div>
+
+                <a href="{{ url_for('login') }}" class="maskot-login-link w-100 justify-content-center py-3">
+                    <i class="fas fa-sign-in-alt me-2"></i> ¿Ya tienes cuenta? Inicia Sesión Aquí
+                </a>
             </div>
-            <div class="col-lg-6">
+
+            <div class="col-lg-7">
                 <div class="appointment-form-card">
-                    <h4 class="form-title mb-4">
-                        <i class="fas fa-paw me-2"></i>Reserva tu cita
+                    <h4 class="fw-extrabold text-dark mb-4">
+                        <i class="fas fa-paw text-warning me-2"></i> Formulario de Cita
                     </h4>
-                    <form method="POST" action="{{ url_for('agendar_cita') }}"
-                        class="appointment-form-modern no-animation">
-                        <div class="row g-3">
+
+                    <form method="POST" action="{{ url_for('agendar_cita') }}" class="needs-validation">
+
+                        <!-- DATOS DEL PROPIETARIO -->
+                        <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="text" class="form-control" id="cliente_nombre" name="cliente_nombre"
-                                        placeholder="Nombre del propietario" required>
-                                    <label for="cliente_nombre">
-                                        <i class="fas fa-user me-2"></i>Nombre del propietario
-                                    </label>
+                                        placeholder="Tu Nombre" required>
+                                    <label for="cliente_nombre"><i class="fas fa-user me-2"></i>Nombre del
+                                        Propietario</label>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="email" class="form-control" id="cliente_email" name="cliente_email"
-                                        placeholder="Email de contacto" required>
-                                    <label for="cliente_email">
-                                        <i class="fas fa-envelope me-2"></i>Email de contacto
-                                    </label>
+                                        placeholder="Correo" required>
+                                    <label for="cliente_email"><i class="fas fa-envelope me-2"></i>Correo
+                                        Electrónico</label>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="tel" class="form-control" id="cliente_telefono" name="cliente_telefono"
-                                        placeholder="Teléfono de contacto" required>
-                                    <label for="cliente_telefono">
-                                        <i class="fas fa-phone me-2"></i>Teléfono de contacto
-                                    </label>
+                                        placeholder="Teléfono" required>
+                                    <label for="cliente_telefono"><i class="fas fa-phone me-2"></i>Teléfono de
+                                        Contacto</label>
                                 </div>
                             </div>
-                            <div class="col-12">
+                            <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="text" class="form-control" id="cliente_direccion"
-                                        name="cliente_direccion" placeholder="Dirección del cliente" required>
-                                    <label for="cliente_direccion">
-                                        <i class="fas fa-map-marker-alt me-2"></i>Dirección
-                                    </label>
+                                        name="cliente_direccion" placeholder="Dirección" required>
+                                    <label for="cliente_direccion"><i class="fas fa-map-marker-alt me-2"></i>Dirección
+                                        (para Movilidad)</label>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Información de las Mascotas -->
-                            <div class="col-12">
-                                <hr class="my-3">
-                                <h6 class="text-primary mb-3">
-                                    <i class="fas fa-paw me-2"></i>Información de las Mascotas
-                                </h6>
-                            </div>
-
-                            <div id="mascotas-container" class="col-12">
-                                <div class="mascota-form border rounded p-3 mb-3" data-mascota="0">
+                        <!-- MASCOTAS DINÁMICAS -->
+                        <div class="mb-4">
+                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-dog me-2"></i>Mascotas a Atender</h6>
+                            <div id="mascotas-container">
+                                <div class="mascota-form p-3 mb-3" data-mascota="0">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="text-secondary mb-0">
-                                            <i class="fas fa-heart me-2"></i>Mascota 1
-                                        </h6>
+                                        <span class="fw-bold text-dark small"><i
+                                                class="fas fa-heart text-danger me-1"></i> Mascota 1</span>
                                     </div>
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <div class="form-floating">
-                                                <input type="text" class="form-control mascota-nombre"
-                                                    name="mascota_nombre[]" placeholder="Nombre de la mascota" required>
-                                                <label><i class="fas fa-heart me-2"></i>Nombre de la mascota</label>
+                                                <input type="text" class="form-control" name="mascota_nombre[]"
+                                                    placeholder="Nombre" required>
+                                                <label>Nombre de la Mascota</label>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="form-floating">
-                                                <select class="form-select mascota-especie" name="mascota_especie[]"
-                                                    required>
-                                                    <option value="">Selecciona la especie</option>
+                                                <select class="form-select" name="mascota_especie[]" required>
+                                                    <option value="">Selecciona especie</option>
                                                     <option value="perro">🐕 Perro</option>
                                                     <option value="gato">🐱 Gato</option>
                                                     <option value="conejo">🐰 Conejo</option>
                                                     <option value="ave">🐦 Ave</option>
-                                                    <option value="reptil">🦎 Reptil</option>
                                                     <option value="otro">🐾 Otro</option>
                                                 </select>
-                                                <label><i class="fas fa-paw me-2"></i>Especie</label>
+                                                <label>Especie</label>
                                             </div>
                                         </div>
                                         <div class="col-md-4">
                                             <div class="form-floating">
-                                                <input type="text" class="form-control mascota-raza"
-                                                    name="mascota_raza[]" placeholder="Raza de la mascota">
-                                                <label><i class="fas fa-dna me-2"></i>Raza (opcional)</label>
+                                                <input type="text" class="form-control" name="mascota_raza[]"
+                                                    placeholder="Raza">
+                                                <label>Raza</label>
                                             </div>
                                         </div>
                                         <div class="col-md-4">
                                             <div class="form-floating">
-                                                <input type="number" class="form-control mascota-edad"
-                                                    name="mascota_edad[]" min="0" max="30" placeholder="Edad en años">
-                                                <label><i class="fas fa-birthday-cake me-2"></i>Edad (años)</label>
+                                                <input type="number" class="form-control" name="mascota_edad[]"
+                                                    placeholder="Edad">
+                                                <label>Edad (Años)</label>
                                             </div>
                                         </div>
                                         <div class="col-md-4">
                                             <div class="form-floating">
-                                                <input type="number" class="form-control mascota-peso"
-                                                    name="mascota_peso[]" step="0.1" min="0" max="100"
-                                                    placeholder="Peso en kg">
-                                                <label><i class="fas fa-weight me-2"></i>Peso (kg)</label>
+                                                <input type="number" step="0.1" class="form-control"
+                                                    name="mascota_peso[]" placeholder="Peso">
+                                                <label>Peso (Kg)</label>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
+                                onclick="agregarMascota()">
+                                <i class="fas fa-plus me-1"></i> Añadir otra mascota
+                            </button>
+                        </div>
 
-                            <div class="col-12 mb-3">
-                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="agregarMascota()">
-                                    <i class="fas fa-plus me-2"></i>Agregar otra mascota
-                                </button>
-                            </div>
-
-                            <!-- Servicios -->
-                            <div class="col-12">
-                                <hr class="my-3">
-                                <h6 class="text-primary mb-3">
-                                    <i class="fas fa-concierge-bell me-2"></i>Servicios Solicitados
-                                </h6>
-                            </div>
-
-                            <div id="servicios-container" class="col-12">
-                                <div class="servicio-form border rounded p-3 mb-3" data-servicio="0">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="text-secondary mb-0">
-                                            <i class="fas fa-concierge-bell me-2"></i>Servicio 1
-                                        </h6>
-                                    </div>
-                                    <div class="row g-3">
-                                        <div class="col-12">
-                                            <div class="form-floating">
-                                                <select class="form-select servicio-select" name="servicio_id[]"
-                                                    required>
-                                                    <option value="">Selecciona un servicio</option>
-                                                    {% for servicio in servicios %}
-                                                    <option value="{{ servicio[0] }}">{{ servicio[1] }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                                <label><i class="fas fa-concierge-bell me-2"></i>Servicio</label>
-                                            </div>
-                                        </div>
+                        <!-- SERVICIOS DINÁMICOS -->
+                        <div class="mb-4">
+                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-concierge-bell me-2"></i>Servicios
+                                Requeridos</h6>
+                            <div id="servicios-container">
+                                <div class="servicio-form p-3 mb-3" data-servicio="0">
+                                    <div class="form-floating">
+                                        <select class="form-select servicio-select" name="servicio_id[]" required>
+                                            <option value="">Selecciona un servicio</option>
+                                            {% if servicios %}
+                                            {% for servicio in servicios %}
+                                            <option value="{{ servicio[0] }}">{{ servicio[1] }}</option>
+                                            {% endfor %}
+                                            {% else %}
+                                            <option value="1">Baño e Higiene Profunda</option>
+                                            <option value="2">Baño + Corte Estilizado</option>
+                                            <option value="3">Baño Medicado</option>
+                                            <option value="4">Servicio de Movilidad / Recojo</option>
+                                            {% endif %}
+                                        </select>
+                                        <label>Servicio</label>
                                     </div>
                                 </div>
                             </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill"
+                                onclick="agregarServicio()">
+                                <i class="fas fa-plus me-1"></i> Añadir otro servicio
+                            </button>
+                        </div>
 
-                            <div class="col-12 mb-3">
-                                <button type="button" class="btn btn-outline-secondary btn-sm"
-                                    onclick="agregarServicio()">
-                                    <i class="fas fa-plus me-2"></i>Agregar otro servicio
-                                </button>
-                            </div>
-
-                            <!-- Fecha y Hora -->
-                            <div class="col-12">
-                                <hr class="my-3">
-                                <h6 class="text-primary mb-3">
-                                    <i class="fas fa-calendar me-2"></i>Fecha y Hora de la Cita
-                                </h6>
-                            </div>
+                        <!-- FECHA Y HORA -->
+                        <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="date" class="form-control" id="fecha" name="fecha" required>
-                                    <label for="fecha">
-                                        <i class="fas fa-calendar-day me-2"></i>Fecha
-                                    </label>
+                                    <label for="fecha"><i class="fas fa-calendar-day me-2"></i>Fecha Preferida</label>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-floating">
                                     <input type="time" class="form-control" id="hora" name="hora" required>
-                                    <label for="hora">
-                                        <i class="fas fa-clock me-2"></i>Hora
-                                    </label>
+                                    <label for="hora"><i class="fas fa-clock me-2"></i>Hora Estimada</label>
                                 </div>
                             </div>
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-maskot-primary btn-lg w-100" id="btn-agendar-cita">
-                                    <i class="fas fa-calendar-plus me-2"></i>
-                                    Agendar Mi Cita
-                                </button>
-                            </div>
                         </div>
+
+                        <button type="submit" class="btn btn-maskot-primary btn-lg w-100 py-3 fs-6">
+                            <i class="fas fa-check-circle me-2"></i> Confirmar y Agendar Cita
+                        </button>
                     </form>
                 </div>
             </div>
@@ -470,95 +951,90 @@
     </div>
 </section>
 
-<!-- CTA Section -->
-<section class="cta-section py-5" data-reveal>
+<!-- ==========================================================================
+     7. CTA CONTACTO DIRECTO (WHATSAPP)
+     ========================================================================== -->
+<section class="py-5 bg-white">
     <div class="container">
-        <div class="cta-card">
-            <div class="row align-items-center">
-                <div class="col-lg-8">
-                    <h3 class="cta-title">
-                        <i class="fas fa-mobile-alt me-3"></i>
-                        ¿Necesitas ayuda inmediata?
-                    </h3>
-                    <p class="cta-text mb-0">
-                        Contáctanos por WhatsApp para consultas urgentes o dudas sobre nuestros servicios
-                    </p>
+        <div class="p-4 p-md-5 rounded-4 bg-dark text-white shadow-lg position-relative overflow-hidden">
+            <div class="row align-items-center isolation-relative">
+                <div class="col-lg-8 mb-3 mb-lg-0">
+                    <h3 class="fw-extrabold mb-2"><i class="fab fa-whatsapp text-success me-2"></i> ¿Consultas Urgentes
+                        o Emergencias?</h3>
+                    <p class="text-light-50 mb-0">Atención personalizada por WhatsApp. Escríbenos directamente para
+                        coordinar transporte inmediato o consultas de petshop.</p>
                 </div>
                 <div class="col-lg-4 text-lg-end">
-                    <a href="https://wa.me/1234567890" class="btn btn-success btn-lg" target="_blank">
-                        <i class="fab fa-whatsapp me-2"></i>
-                        WhatsApp
+                    <a href="https://wa.me/1234567890" target="_blank" class="btn btn-success btn-lg rounded-pill px-4">
+                        <i class="fab fa-whatsapp me-2"></i> Chatear con MASKOT
                     </a>
                 </div>
             </div>
         </div>
     </div>
 </section>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+    // Contador global para elementos dinámicos
     let mascotaCounter = 1;
     let servicioCounter = 1;
 
+    // Asignar fecha mínima en el selector de fecha al día actual
     document.getElementById('fecha').min = new Date().toISOString().split('T')[0];
 
+    // Función para agregar campos de otra mascota
     function agregarMascota() {
         const container = document.getElementById('mascotas-container');
         const mascotaDiv = document.createElement('div');
-        mascotaDiv.className = 'mascota-form border rounded p-3 mb-3';
+        mascotaDiv.className = 'mascota-form p-3 mb-3';
         mascotaDiv.dataset.mascota = mascotaCounter;
 
         mascotaDiv.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="text-secondary mb-0">
-                    <i class="fas fa-heart me-2"></i>Mascota ${mascotaCounter + 1}
-                </h6>
-                <button type="button" class="btn btn-outline-danger btn-sm" onclick="eliminarMascota(this)">
+                <span class="fw-bold text-dark small"><i class="fas fa-heart text-danger me-1"></i> Mascota ${mascotaCounter + 1}</span>
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle" onclick="this.closest('.mascota-form').remove()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="row g-3">
                 <div class="col-md-6">
                     <div class="form-floating">
-                        <input type="text" class="form-control mascota-nombre" name="mascota_nombre[]" 
-                               placeholder="Nombre de la mascota" required>
-                        <label><i class="fas fa-heart me-2"></i>Nombre de la mascota</label>
+                        <input type="text" class="form-control" name="mascota_nombre[]" placeholder="Nombre" required>
+                        <label>Nombre de la Mascota</label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-floating">
-                        <select class="form-select mascota-especie" name="mascota_especie[]" required>
-                            <option value="">Selecciona la especie</option>
+                        <select class="form-select" name="mascota_especie[]" required>
+                            <option value="">Selecciona especie</option>
                             <option value="perro">🐕 Perro</option>
                             <option value="gato">🐱 Gato</option>
                             <option value="conejo">🐰 Conejo</option>
                             <option value="ave">🐦 Ave</option>
-                            <option value="reptil">🦎 Reptil</option>
                             <option value="otro">🐾 Otro</option>
                         </select>
-                        <label><i class="fas fa-paw me-2"></i>Especie</label>
+                        <label>Especie</label>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-floating">
-                        <input type="text" class="form-control mascota-raza" name="mascota_raza[]" 
-                               placeholder="Raza de la mascota">
-                        <label><i class="fas fa-dna me-2"></i>Raza (opcional)</label>
+                        <input type="text" class="form-control" name="mascota_raza[]" placeholder="Raza">
+                        <label>Raza</label>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-floating">
-                        <input type="number" class="form-control mascota-edad" name="mascota_edad[]" 
-                               min="0" max="30" placeholder="Edad en años">
-                        <label><i class="fas fa-birthday-cake me-2"></i>Edad (años)</label>
+                        <input type="number" class="form-control" name="mascota_edad[]" placeholder="Edad">
+                        <label>Edad (Años)</label>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="form-floating">
-                        <input type="number" class="form-control mascota-peso" name="mascota_peso[]" 
-                               step="0.1" min="0" max="100" placeholder="Peso en kg">
-                        <label><i class="fas fa-weight me-2"></i>Peso (kg)</label>
+                        <input type="number" step="0.1" class="form-control" name="mascota_peso[]" placeholder="Peso">
+                        <label>Peso (Kg)</label>
                     </div>
                 </div>
             </div>
@@ -568,37 +1044,32 @@
         mascotaCounter++;
     }
 
-    function eliminarMascota(button) {
-        button.closest('.mascota-form').remove();
-    }
-
+    // Función para agregar otro selector de servicio
     function agregarServicio() {
         const container = document.getElementById('servicios-container');
+        const primerSelect = document.querySelector('.servicio-select');
         const servicioDiv = document.createElement('div');
-        servicioDiv.className = 'servicio-form border rounded p-3 mb-3';
-        servicioDiv.dataset.servicio = servicioCounter;
+        servicioDiv.className = 'servicio-form p-3 mb-3';
+
+        let opcionesHTML = primerSelect ? primerSelect.innerHTML : `
+            <option value="">Selecciona un servicio</option>
+            <option value="1">Baño e Higiene Profunda</option>
+            <option value="2">Baño + Corte Estilizado</option>
+            <option value="3">Baño Medicado</option>
+        `;
 
         servicioDiv.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="text-secondary mb-0">
-                    <i class="fas fa-concierge-bell me-2"></i>Servicio ${servicioCounter + 1}
-                </h6>
-                <button type="button" class="btn btn-outline-danger btn-sm" onclick="eliminarServicio(this)">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold text-secondary small">Servicio Adicional</span>
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle" onclick="this.closest('.servicio-form').remove()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="row g-3">
-                <div class="col-12">
-                    <div class="form-floating">
-                        <select class="form-select servicio-select" name="servicio_id[]" required>
-                            <option value="">Selecciona un servicio</option>
-                            {% for servicio in servicios %}
-                            <option value="{{ servicio[0] }}">{{ servicio[1] }}</option>
-                            {% endfor %}
-                        </select>
-                        <label><i class="fas fa-concierge-bell me-2"></i>Servicio</label>
-                    </div>
-                </div>
+            <div class="form-floating">
+                <select class="form-select servicio-select" name="servicio_id[]" required>
+                    ${opcionesHTML}
+                </select>
+                <label>Servicio</label>
             </div>
         `;
 
@@ -606,17 +1077,22 @@
         servicioCounter++;
     }
 
-    function eliminarServicio(button) {
-        button.closest('.servicio-form').remove();
+    // Seleccionar servicio por ID y desplazar al formulario
+    function selectService(id, name) {
+        const select = document.querySelector('.servicio-select');
+        if (select) {
+            select.value = id;
+        }
+        document.querySelector('#citas').scrollIntoView({ behavior: 'smooth' });
     }
 
-    function selectService(index, serviceName) {
-        const firstServiceSelect = document.querySelector('.servicio-select');
-        if (firstServiceSelect) {
-            const options = firstServiceSelect.options;
-            for (let i = 0; i < options.length; i++) {
-                if (options[i].text === serviceName) {
-                    firstServiceSelect.value = options[i].value;
+    // Seleccionar servicio por nombre parcial
+    function selectServiceByName(term) {
+        const select = document.querySelector('.servicio-select');
+        if (select) {
+            for (let option of select.options) {
+                if (option.text.toLowerCase().includes(term.toLowerCase())) {
+                    select.value = option.value;
                     break;
                 }
             }
@@ -624,16 +1100,18 @@
         document.querySelector('#citas').scrollIntoView({ behavior: 'smooth' });
     }
 
-    const revealItems = document.querySelectorAll('[data-reveal]');
-    const revealObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('is-visible');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, { threshold: 0.12 });
+    // IntersectionObserver para animaciones de entrada al hacer scroll
+    document.addEventListener("DOMContentLoaded", () => {
+        const revealElements = document.querySelectorAll('[data-reveal]');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                }
+            });
+        }, { threshold: 0.1 });
 
-    revealItems.forEach((item) => revealObserver.observe(item));
+        revealElements.forEach(el => observer.observe(el));
+    });
 </script>
 {% endblock %}
