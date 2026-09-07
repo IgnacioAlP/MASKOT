@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}MASKOT - Petshop, Grooming & Movilidad | Cuidado Profesional para tu Mascota{% endblock %}
+{% block title %}MASKOT - Petshop, Grooming & Movilidad | Tu compañero de confianza{% endblock %}
 
 {% block extra_css %}
 <style>
     /* ==========================================================================
-       VARIABLES Y SISTEMA DE DISEÑO CREATIVO (MASKOT PALETTE)
+       1. VARIABLES Y ESTILOS BASE
        ========================================================================== */
     :root {
         --maskot-ink: #2c3e50;
-        --maskot-ink-light: #4a627a;
+        --maskot-ink-light: #526475;
         --maskot-orange: #ffa301;
         --maskot-orange-dark: #e6920e;
         --maskot-orange-soft: rgba(255, 163, 1, 0.12);
@@ -17,15 +17,11 @@
         --maskot-sky-dark: #41b3d1;
         --maskot-sky-soft: rgba(108, 202, 226, 0.15);
         --maskot-paper: #f8fafc;
-        --maskot-card-bg: rgba(255, 255, 255, 0.88);
         --maskot-line: rgba(44, 62, 80, 0.08);
-        --maskot-glass-border: rgba(255, 255, 255, 0.6);
-        --maskot-shadow-sm: 0 8px 20px rgba(44, 62, 80, 0.06);
-        --maskot-shadow-lg: 0 20px 40px rgba(44, 62, 80, 0.12);
-        --maskot-shadow-glow: 0 10px 30px rgba(255, 163, 1, 0.25);
+        --maskot-radius: 20px;
+        --maskot-shadow: 0 12px 35px rgba(44, 62, 80, 0.08);
+        --maskot-shadow-hover: 0 20px 45px rgba(44, 62, 80, 0.15);
         --maskot-transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-        --maskot-radius-lg: 24px;
-        --maskot-radius-md: 16px;
     }
 
     html {
@@ -37,17 +33,60 @@
         color: var(--maskot-ink);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         overflow-x: hidden;
+        padding-top: 80px;
     }
 
     /* ==========================================================================
-       NAVEGACIÓN GLASSMORPHISM Y BOTÓN LOGIN
+       2. NAVBAR FLOTANTE CON LOGO OCULTO Y NAVEGACIÓN INTERNA
        ========================================================================== */
     .maskot-glass-nav {
-        background: rgba(255, 255, 255, 0.85) !important;
+        background: rgba(255, 255, 255, 0.92) !important;
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
         border-bottom: 1px solid var(--maskot-line);
         transition: var(--maskot-transition);
+        z-index: 1050;
+    }
+
+    .maskot-brand-stealth {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+
+    .maskot-brand-logo {
+        height: 46px;
+        width: auto;
+        object-fit: contain;
+        transition: var(--maskot-transition);
+    }
+
+    .maskot-brand-stealth:hover .maskot-brand-logo {
+        transform: scale(1.06) rotate(-3deg);
+    }
+
+    .maskot-brand-title {
+        color: var(--maskot-ink);
+        font-weight: 800;
+        font-size: 1.6rem;
+        letter-spacing: -0.03em;
+    }
+
+    .maskot-nav-link {
+        color: var(--maskot-ink) !important;
+        font-weight: 600;
+        font-size: 0.98rem;
+        padding: 0.5rem 1rem !important;
+        border-radius: 999px;
+        transition: var(--maskot-transition);
+    }
+
+    .maskot-nav-link:hover,
+    .maskot-nav-link:focus {
+        color: var(--maskot-orange-dark) !important;
+        background: var(--maskot-orange-soft);
     }
 
     .maskot-login-link {
@@ -55,36 +94,36 @@
         border-radius: 999px;
         color: var(--maskot-ink) !important;
         font-weight: 700;
-        padding: 0.5rem 1.3rem !important;
+        padding: 0.55rem 1.3rem !important;
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
         background: transparent;
         transition: var(--maskot-transition);
-        box-shadow: 0 4px 12px rgba(255, 163, 1, 0.15);
+        box-shadow: 0 4px 14px rgba(255, 163, 1, 0.18);
     }
 
     .maskot-login-link:hover {
         background: var(--maskot-orange);
         color: #ffffff !important;
         transform: translateY(-2px);
-        box-shadow: var(--maskot-shadow-glow);
+        box-shadow: 0 8px 22px rgba(255, 163, 1, 0.35);
     }
 
     /* ==========================================================================
-       HERO SECTION Y ANIMACIONES DINÁMICAS
+       3. HERO SECTION
        ========================================================================== */
     .maskot-hero {
-        min-height: calc(100vh - 76px);
+        min-height: calc(100vh - 80px);
         display: flex;
         align-items: center;
         position: relative;
         isolation: isolate;
         overflow: hidden;
         background:
-            radial-gradient(circle at 85% 15%, var(--maskot-sky-soft) 0%, transparent 40%),
-            radial-gradient(circle at 10% 90%, var(--maskot-orange-soft) 0%, transparent 45%),
-            linear-gradient(135deg, #ffffff 0%, #fefcf7 100%);
+            radial-gradient(circle at 90% 10%, var(--maskot-sky-soft) 0%, transparent 35%),
+            radial-gradient(circle at 10% 85%, var(--maskot-orange-soft) 0%, transparent 40%),
+            linear-gradient(135deg, #ffffff 0%, #fcf8f0 100%);
         padding: 3rem 0;
     }
 
@@ -92,13 +131,13 @@
     .section-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.6rem;
+        gap: 0.5rem;
         color: var(--maskot-orange-dark);
         background: var(--maskot-orange-soft);
-        border: 1px solid rgba(255, 163, 1, 0.28);
+        border: 1px solid rgba(255, 163, 1, 0.25);
         border-radius: 999px;
         padding: 0.5rem 1.1rem;
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 800;
         letter-spacing: 0.06em;
         text-transform: uppercase;
@@ -106,7 +145,7 @@
 
     .hero-title {
         color: var(--maskot-ink);
-        font-size: clamp(2.5rem, 5vw + 1rem, 4.8rem);
+        font-size: clamp(2.5rem, 5.5vw, 4.6rem);
         line-height: 1.05;
         letter-spacing: -0.035em;
         font-weight: 800;
@@ -126,7 +165,7 @@
 
     .hero-description {
         color: var(--maskot-ink-light);
-        font-size: clamp(1.05rem, 1.2vw, 1.25rem);
+        font-size: clamp(1.05rem, 1.2vw, 1.2rem);
         line-height: 1.6;
     }
 
@@ -135,15 +174,15 @@
         color: #ffffff !important;
         border: none;
         border-radius: 999px;
-        padding: 0.9rem 1.8rem;
+        padding: 0.85rem 1.8rem;
         font-weight: 700;
-        box-shadow: 0 10px 20px rgba(255, 163, 1, 0.3);
+        box-shadow: 0 10px 22px rgba(255, 163, 1, 0.28);
         transition: var(--maskot-transition);
     }
 
     .btn-maskot-primary:hover {
         transform: translateY(-3px);
-        box-shadow: 0 15px 30px rgba(255, 163, 1, 0.45);
+        box-shadow: 0 15px 30px rgba(255, 163, 1, 0.42);
         color: #ffffff;
     }
 
@@ -152,7 +191,7 @@
         border: 2px solid var(--maskot-ink);
         color: var(--maskot-ink) !important;
         border-radius: 999px;
-        padding: 0.85rem 1.7rem;
+        padding: 0.8rem 1.6rem;
         font-weight: 700;
         transition: var(--maskot-transition);
     }
@@ -164,104 +203,51 @@
         box-shadow: 0 10px 25px rgba(44, 62, 80, 0.2);
     }
 
-    /* Composición Visual interactiva del Hero */
-    .hero-visual-wrapper {
+    .hero-visual-container {
         position: relative;
         display: grid;
         place-items: center;
     }
 
-    .hero-photo-main {
+    .hero-main-card {
         width: 100%;
-        max-width: 440px;
-        aspect-ratio: 4 / 5;
+        max-width: 450px;
+        aspect-ratio: 4/5;
         object-fit: cover;
-        border-radius: 36px;
+        border-radius: 32px;
         border: 8px solid #ffffff;
-        box-shadow: var(--maskot-shadow-lg);
+        box-shadow: var(--maskot-shadow-hover);
         transform: rotate(-2deg);
         transition: var(--maskot-transition);
     }
 
-    .hero-visual-wrapper:hover .hero-photo-main {
+    .hero-visual-container:hover .hero-main-card {
         transform: rotate(0deg) scale(1.02);
     }
 
-    .hero-photo-secondary {
+    .hero-floating-badge {
         position: absolute;
-        bottom: -20px;
-        right: -10px;
-        width: 180px;
-        aspect-ratio: 1;
-        object-fit: cover;
-        border-radius: 24px;
-        border: 6px solid #ffffff;
-        box-shadow: var(--maskot-shadow-lg);
-        transform: rotate(4deg);
-    }
-
-    .hero-badge-floating {
-        position: absolute;
-        top: 20px;
-        left: -15px;
-        background: rgba(255, 255, 255, 0.92);
+        bottom: 20px;
+        left: -10px;
+        background: rgba(255, 255, 255, 0.95);
         backdrop-filter: blur(12px);
-        border: 1px solid var(--maskot-glass-border);
         padding: 0.85rem 1.25rem;
-        border-radius: var(--maskot-radius-md);
-        box-shadow: var(--maskot-shadow-sm);
+        border-radius: 18px;
+        box-shadow: var(--maskot-shadow);
+        border: 1px solid rgba(255, 255, 255, 0.8);
         display: flex;
         align-items: center;
         gap: 0.8rem;
-        animation: float 4s ease-in-out infinite;
+        animation: floatAnimation 4s ease-in-out infinite;
     }
 
     /* ==========================================================================
-       TARJETAS DE VALOR AGREGADO (Movilidad, Capacitación, Promos, Comida)
-       ========================================================================== */
-    .feature-card {
-        background: #ffffff;
-        border: 1px solid var(--maskot-line);
-        border-radius: var(--maskot-radius-lg);
-        padding: 1.8rem;
-        height: 100%;
-        transition: var(--maskot-transition);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .feature-card:hover {
-        transform: translateY(-8px);
-        box-shadow: var(--maskot-shadow-lg);
-        border-color: var(--maskot-orange);
-    }
-
-    .feature-icon-wrapper {
-        width: 56px;
-        height: 56px;
-        border-radius: 16px;
-        display: grid;
-        place-items: center;
-        font-size: 1.5rem;
-        margin-bottom: 1.2rem;
-    }
-
-    .bg-orange-soft {
-        background: var(--maskot-orange-soft);
-        color: var(--maskot-orange-dark);
-    }
-
-    .bg-sky-soft {
-        background: var(--maskot-sky-soft);
-        color: var(--maskot-sky-dark);
-    }
-
-    /* ==========================================================================
-       SECCIÓN DE SERVICIOS Y PRODUCTOS
+       4. CARDS DE SERVICIOS (ADAPTACIÓN DE IMÁGENES PERFECTA)
        ========================================================================== */
     .services-section,
     .products-section,
-    .features-highlight-section {
+    .gallery-section,
+    .features-section {
         padding: 5rem 0;
     }
 
@@ -269,107 +255,198 @@
     .product-card-modern {
         background: #ffffff;
         border: 1px solid var(--maskot-line);
-        border-radius: var(--maskot-radius-lg);
+        border-radius: var(--maskot-radius);
         overflow: hidden;
         transition: var(--maskot-transition);
         height: 100%;
         display: flex;
         flex-direction: column;
+        box-shadow: var(--maskot-shadow);
     }
 
     .service-card-modern:hover,
     .product-card-modern:hover {
         transform: translateY(-8px);
-        box-shadow: var(--maskot-shadow-lg);
+        box-shadow: var(--maskot-shadow-hover);
         border-color: rgba(255, 163, 1, 0.4);
     }
 
-    .service-img-header {
+    /* Ajuste responsivo y encuadre uniforme para imágenes en cards */
+    .card-img-wrapper {
         position: relative;
-        height: 200px;
+        width: 100%;
+        height: 220px;
         overflow: hidden;
+        background-color: #f1f5f9;
     }
 
-    .service-img-header img {
+    .card-img-wrapper img {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        transition: transform 0.6s ease;
+        object-position: center;
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .service-card-modern:hover .service-img-header img {
+    .service-card-modern:hover .card-img-wrapper img,
+    .product-card-modern:hover .card-img-wrapper img {
         transform: scale(1.08);
     }
 
-    .service-content,
-    .product-content {
-        padding: 1.5rem;
+    .service-card-body,
+    .product-card-body {
+        padding: 1.6rem;
         flex-grow: 1;
         display: flex;
         flex-direction: column;
     }
 
     .service-title {
-        font-size: 1.35rem;
+        font-size: 1.3rem;
         font-weight: 800;
         color: var(--maskot-ink);
         margin-bottom: 0.6rem;
     }
 
     /* ==========================================================================
-       SECCIÓN DE CITAS Y FORMULARIO DINÁMICO
+       5. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA DE ALTO IMPACTO
        ========================================================================== */
-    .appointment-section {
-        background: linear-gradient(180deg, #fffcf5 0%, #fef4e2 100%);
-        padding: 5rem 0;
+    .gallery-filter-btn {
+        background: #ffffff;
+        border: 1px solid var(--maskot-line);
+        color: var(--maskot-ink);
+        padding: 0.55rem 1.4rem;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        transition: var(--maskot-transition);
+        cursor: pointer;
     }
 
-    .appointment-form-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 163, 1, 0.2);
-        border-radius: 28px;
-        padding: 2.2rem;
-        box-shadow: var(--maskot-shadow-lg);
-    }
-
-    .form-floating>label {
-        color: var(--maskot-ink-light);
-    }
-
-    .form-control:focus,
-    .form-select:focus {
+    .gallery-filter-btn:hover,
+    .gallery-filter-btn.active {
+        background: var(--maskot-orange);
+        color: #ffffff;
         border-color: var(--maskot-orange);
-        box-shadow: 0 0 0 0.25rem rgba(255, 163, 1, 0.2);
+        box-shadow: 0 6px 18px rgba(255, 163, 1, 0.3);
     }
 
-    .mascota-form,
-    .servicio-form {
-        background: var(--maskot-paper);
-        border: 1px solid var(--maskot-line) !important;
-        border-radius: var(--maskot-radius-md);
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .gallery-item {
+        position: relative;
+        border-radius: var(--maskot-radius);
+        overflow: hidden;
+        aspect-ratio: 4/3;
+        box-shadow: var(--maskot-shadow);
+        cursor: pointer;
+        background: #000;
+    }
+
+    .gallery-item img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+        opacity: 0.92;
+    }
+
+    .gallery-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(44, 62, 80, 0.85) 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 1.4rem;
+        color: #ffffff;
+        opacity: 0;
+        transform: translateY(15px);
         transition: var(--maskot-transition);
     }
 
-    /* ==========================================================================
-       ANIMACIONES SCROLL REVEAL Y KEYFRAMES
-       ========================================================================== */
-    [data-reveal] {
-        opacity: 0;
-        transform: translateY(30px);
-        transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    .gallery-item:hover img {
+        transform: scale(1.12);
+        opacity: 1;
     }
 
-    [data-reveal].is-visible {
+    .gallery-item:hover .gallery-overlay {
         opacity: 1;
         transform: translateY(0);
     }
 
-    @keyframes float {
+    .gallery-badge {
+        align-self: flex-start;
+        background: var(--maskot-orange);
+        color: #ffffff;
+        font-size: 0.72rem;
+        font-weight: 800;
+        padding: 0.25rem 0.7rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        margin-bottom: 0.4rem;
+    }
+
+    /* Ticker/Carrusel Continuo de Galería Superior */
+    .infinite-marquee-wrapper {
+        overflow: hidden;
+        white-space: nowrap;
+        position: relative;
+        padding: 1rem 0;
+        mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+        -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+    }
+
+    .infinite-marquee-track {
+        display: inline-flex;
+        gap: 1.2rem;
+        animation: marqueeScroll 35s linear infinite;
+    }
+
+    .infinite-marquee-track:hover {
+        animation-play-state: paused;
+    }
+
+    .marquee-card {
+        width: 200px;
+        height: 140px;
+        border-radius: 16px;
+        overflow: hidden;
+        flex-shrink: 0;
+        box-shadow: var(--maskot-shadow);
+        border: 3px solid #ffffff;
+    }
+
+    .marquee-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* ==========================================================================
+       6. SECCIÓN DE CONTACTO & PIE DE PÁGINA
+       ========================================================================== */
+    .contact-card {
+        background: linear-gradient(135deg, #ffffff 0%, #fff7e8 100%);
+        border: 1px solid rgba(255, 163, 1, 0.25);
+        border-radius: 28px;
+        padding: 3rem 2rem;
+        box-shadow: var(--maskot-shadow-hover);
+    }
+
+    /* ==========================================================================
+       7. ANIMACIONES KEYFRAMES
+       ========================================================================== */
+    @keyframes floatAnimation {
 
         0%,
         100% {
-            transform: translateY(0px);
+            transform: translateY(0);
         }
 
         50% {
@@ -377,20 +454,25 @@
         }
     }
 
-    @keyframes pulse-soft {
-
-        0%,
-        100% {
-            transform: scale(1);
+    @keyframes marqueeScroll {
+        0% {
+            transform: translateX(0);
         }
 
-        50% {
-            transform: scale(1.05);
+        100% {
+            transform: translateX(-50%);
         }
     }
 
-    .pulse-badge {
-        animation: pulse-soft 3s ease-in-out infinite;
+    [data-reveal] {
+        opacity: 0;
+        transform: translateY(25px);
+        transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-reveal].is-visible {
+        opacity: 1;
+        transform: translateY(0);
     }
 </style>
 {% endblock %}
@@ -398,69 +480,97 @@
 {% block content %}
 
 <!-- ==========================================================================
+     NAVBAR PRINCIPAL CON LOGO OCULTO A LOGIN Y NAVEGACIÓN INTERNA
+     ========================================================================== -->
+<nav class="navbar navbar-expand-lg maskot-glass-nav fixed-top py-2">
+    <div class="container">
+        <!-- Logo de MASKOT como botón oculto hacia /login -->
+        <a class="maskot-brand-stealth" href="{{ url_for('login') }}" title="Acceso Panel MASKOT">
+            <img src="{{ url_for('static', filename='img/LOGOTIPO EDITABLE MASKOT_Mesa de trabajo 1 copia.png') }}"
+                alt="Maskot Petshop" class="maskot-brand-logo"
+                onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+            <span class="maskot-brand-title">Maskot</span>
+        </a>
+
+        <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse"
+            data-bs-target="#maskotNavbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="maskotNavbar">
+            <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-1 text-center">
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#inicio">Inicio</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#servicios">Servicios</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#galeria">Galería</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#productos">Productos</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#contacto">Contacto</a></li>
+            </ul>
+
+            <div class="d-flex justify-content-center">
+                <a href="{{ url_for('login') }}" class="maskot-login-link text-decoration-none">
+                    <i class="fas fa-user-circle fa-lg"></i> Acceso Clientes
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- ==========================================================================
      1. HERO SECTION
      ========================================================================== -->
-<section class="maskot-hero">
+<section id="inicio" class="maskot-hero">
     <div class="container">
         <div class="row align-items-center g-5">
             <div class="col-lg-6" data-reveal>
-                <div class="hero-content">
-                    <div class="hero-kicker mb-3">
-                        <i class="fas fa-sparkles"></i> El estándar de oro en Pet Care
-                    </div>
-                    <h1 class="hero-title mb-4">
-                        Cuidado experto, <span class="text-gradient-orange">grooming</span> y <span
-                            class="text-gradient-sky">amor real.</span>
-                    </h1>
-                    <p class="hero-description mb-4">
-                        En MASKOT nos especializamos en baños medicinales, cortes estilizados de alta competencia,
-                        alimento balanceado premium y transporte profesional para que tu mejor amigo disfrute sin
-                        estresarse.
-                    </p>
+                <div class="hero-kicker mb-3">
+                    <i class="fas fa-sparkles"></i> Tu compañero de confianza
+                </div>
+                <h1 class="hero-title mb-4">
+                    Cada mascota merece sentirse <span class="text-gradient-orange">extraordinaria.</span>
+                </h1>
+                <p class="hero-description mb-4">
+                    Grooming profesional, corte de competencia, productos seleccionados y movilidad especializada. Un
+                    equipo con verdadera pasión que conoce el lenguaje de tu mejor amigo.
+                </p>
 
-                    <div class="d-flex flex-wrap gap-3 mb-5">
-                        <a href="#citas" class="btn btn-maskot-primary btn-lg">
-                            <i class="fas fa-calendar-alt me-2"></i>Agendar Cita
-                        </a>
-                        <a href="{{ url_for('login') }}" class="maskot-login-link text-decoration-none">
-                            <i class="fas fa-user-circle fa-lg"></i> Acceso Clientes
-                        </a>
-                    </div>
+                <div class="d-flex flex-wrap gap-3 mb-5">
+                    <a href="#servicios" class="btn btn-maskot-primary btn-lg">
+                        <i class="fas fa-paw me-2"></i>Nuestros Servicios
+                    </a>
+                    <a href="#galeria" class="btn btn-maskot-outline btn-lg">
+                        <i class="fas fa-images me-2"></i>Ver Galería
+                    </a>
+                </div>
 
-                    <div class="row g-3 border-top pt-4">
-                        <div class="col-4">
-                            <h4 class="fw-bold mb-0 text-dark">100%</h4>
-                            <small class="text-muted">Groomers Certificados</small>
-                        </div>
-                        <div class="col-4">
-                            <h4 class="fw-bold mb-0 text-dark">5.0 ★</h4>
-                            <small class="text-muted">Reseñas Clientes</small>
-                        </div>
-                        <div class="col-4">
-                            <h4 class="fw-bold mb-0 text-dark">VIP</h4>
-                            <small class="text-muted">Movilidad Propia</small>
-                        </div>
+                <div class="row g-3 border-top pt-4">
+                    <div class="col-4">
+                        <h4 class="fw-bold mb-0 text-dark">500+</h4>
+                        <small class="text-muted">Mascotas Felices</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="fw-bold mb-0 text-dark">5.0 ★</h4>
+                        <small class="text-muted">Valoración Media</small>
+                    </div>
+                    <div class="col-4">
+                        <h4 class="fw-bold mb-0 text-dark">100%</h4>
+                        <small class="text-muted">Groomers Certificados</small>
                     </div>
                 </div>
             </div>
 
             <div class="col-lg-6" data-reveal>
-                <div class="hero-visual-wrapper">
-                    <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Mascota con grooming perfecto"
-                        class="hero-photo-main"
+                <div class="hero-visual-container">
+                    <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Mascota con grooming completo"
+                        class="hero-main-card"
                         onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
 
-                    <img src="{{ url_for('static', filename='img/antes1.jpeg') }}" alt="Mascota antes del baño"
-                        class="hero-photo-secondary d-none d-sm-block"
-                        onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-
-                    <div class="hero-badge-floating pulse-badge">
-                        <div class="bg-orange-soft p-2 rounded-circle">
-                            <i class="fas fa-award text-warning fa-lg"></i>
+                    <div class="hero-floating-badge">
+                        <div class="bg-warning text-white p-2 rounded-circle">
+                            <i class="fas fa-heart fa-lg"></i>
                         </div>
                         <div>
-                            <span class="d-block fw-bold fs-7">Corte de Competencia</span>
-                            <small class="text-muted">Personal capacitado constante</small>
+                            <span class="d-block fw-bold text-dark fs-7">Amor & Cuidado Real</span>
+                            <small class="text-muted">Atención personalizada sin estrés</small>
                         </div>
                     </div>
                 </div>
@@ -470,62 +580,65 @@
 </section>
 
 <!-- ==========================================================================
-     2. PILARES & VALOR AGREGADO (Propuestas de Valor)
+     2. PILARES & VALORES (Movilidad, Capacitación, Comida)
      ========================================================================== -->
-<section class="features-highlight-section">
+<section class="features-section bg-white">
     <div class="container">
         <div class="text-center mb-5" data-reveal>
             <div class="section-badge mb-2">
-                <i class="fas fa-paw me-1"></i> Beneficios Exclusivos
+                <i class="fas fa-star me-1"></i> Beneficios Exclusivos
             </div>
             <h2 class="fw-extrabold fs-1">¿Por qué elegir MASKOT?</h2>
-            <p class="text-muted">Ofrecemos un servicio integral diseñado para el confort total de tu mascota y tu
-                tranquilidad.</p>
+            <p class="text-muted">Ofrecemos una experiencia integral pensada en la comodidad y tranquilidad de tu
+                mascota.</p>
         </div>
 
         <div class="row g-4">
-            <!-- Movilidad -->
             <div class="col-md-6 col-lg-3" data-reveal>
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper bg-sky-soft">
+                <div class="service-card-modern p-4">
+                    <div class="bg-warning text-white p-3 rounded-4 w-fit-content mb-3 fs-4"
+                        style="width: 54px; height: 54px; display: grid; place-items: center;">
                         <i class="fas fa-shuttle-van"></i>
                     </div>
-                    <h5 class="fw-bold">Movilidad Especializada</h5>
-                    <p class="text-muted small">Transporte adaptado, climatizado y seguro. Recogemos y llevamos a tu
-                        mascota hasta la puerta de tu hogar.</p>
+                    <h5 class="fw-bold text-dark">Movilidad Especializada</h5>
+                    <p class="text-muted small mb-0">Contamos con unidades adaptadas para recoger y trasladar a tu
+                        mascota con total seguridad y confort.</p>
                 </div>
             </div>
-            <!-- Groomers Capacitados -->
+
             <div class="col-md-6 col-lg-3" data-reveal>
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper bg-orange-soft">
+                <div class="service-card-modern p-4">
+                    <div class="bg-info text-white p-3 rounded-4 w-fit-content mb-3 fs-4"
+                        style="width: 54px; height: 54px; display: grid; place-items: center;">
                         <i class="fas fa-user-graduate"></i>
                     </div>
-                    <h5 class="fw-bold">Capacitación Constante</h5>
-                    <p class="text-muted small">Nuestro equipo se actualiza constantemente en seminarios y competencias
-                        internacionales de grooming.</p>
+                    <h5 class="fw-bold text-dark">Capacitación Constante</h5>
+                    <p class="text-muted small mb-0">Nuestro equipo se actualiza continuamente en técnicas avanzadas de
+                        estética y estilismo canino.</p>
                 </div>
             </div>
-            <!-- Alimentación Premium -->
+
             <div class="col-md-6 col-lg-3" data-reveal>
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper bg-sky-soft">
+                <div class="service-card-modern p-4">
+                    <div class="bg-success text-white p-3 rounded-4 w-fit-content mb-3 fs-4"
+                        style="width: 54px; height: 54px; display: grid; place-items: center;">
                         <i class="fas fa-bone"></i>
                     </div>
-                    <h5 class="fw-bold">Comida Especializada</h5>
-                    <p class="text-muted small">PetShop surtido con alimentos de prescripción y nutrición balanceada
-                        para cualquier especie o condición.</p>
+                    <h5 class="fw-bold text-dark">Comida Especializada</h5>
+                    <p class="text-muted small mb-0">Alimentos seleccionados para todo tipo de razas, edades y
+                        necesidades nutricionales específicas.</p>
                 </div>
             </div>
-            <!-- Promociones Especiales -->
+
             <div class="col-md-6 col-lg-3" data-reveal>
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper bg-orange-soft">
+                <div class="service-card-modern p-4">
+                    <div class="bg-danger text-white p-3 rounded-4 w-fit-content mb-3 fs-4"
+                        style="width: 54px; height: 54px; display: grid; place-items: center;">
                         <i class="fas fa-tags"></i>
                     </div>
-                    <h5 class="fw-bold">Promociones Exclusivas</h5>
-                    <p class="text-muted small">Descuentos para clientes frecuentes, paquetes mensuales de baño y
-                        beneficios por agendamiento web.</p>
+                    <h5 class="fw-bold text-dark">Promociones Especiales</h5>
+                    <p class="text-muted small mb-0">Descuentos frecuentes y paquetes acumulables para la higiene y
+                        bienestar continuo de tus mascotas.</p>
                 </div>
             </div>
         </div>
@@ -533,62 +646,69 @@
 </section>
 
 <!-- ==========================================================================
-     3. SERVICIOS DESTACADOS (Baños, Cortes y Salud)
+     3. SERVICIOS DESTACADOS (IMÁGENES ADAPTADAS PERFECTAMENTE)
      ========================================================================== -->
-<section id="servicios" class="services-section bg-white" data-reveal>
+<section id="servicios" class="services-section" data-reveal>
     <div class="container">
         <div class="text-center mb-5">
             <div class="section-badge mb-2">
                 <i class="fas fa-cut me-1"></i> Grooming & Spa
             </div>
             <h2 class="fw-extrabold fs-1">Nuestros Servicios Principales</h2>
-            <p class="text-muted">Servicios diseñados bajo estrictos estándares de higiene y bienestar animal.</p>
+            <p class="text-muted">Cuidado integral profesional adaptable a las necesidades de tu engreído.</p>
         </div>
 
         <div class="row g-4">
-            <!-- Servicio 1: Baño Tradicional e Hidratante -->
+            <!-- Servicio 1: Baño e Higiene -->
             <div class="col-lg-4 col-md-6" data-reveal>
                 <div class="service-card-modern">
-                    <div class="service-img-header">
-                        <img src="{{ url_for('static', filename='img/bano1.jpeg') }}" alt="Baño relajante"
+                    <div class="card-img-wrapper">
+                        <img src="{{ url_for('static', filename='img/bano1.jpeg') }}" alt="Baño profesional e Higiene"
                             onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
                     </div>
-                    <div class="service-content">
+                    <div class="service-card-body">
                         <h4 class="service-title">Baño e Higiene Profunda</h4>
-                        <p class="text-muted small mb-3">Incluye champú dermoprotector, cepillado de deslanado, limpieza
-                            de oídos y corte de uñas preciso.</p>
-                        <ul class="list-unstyled small mb-4">
+                        <p class="text-muted small mb-3">
+                            Incluye champú dermoprotector, cepillado de deslanado, limpieza profunda de oídos y corte de
+                            uñas preciso.
+                        </p>
+                        <ul class="list-unstyled small text-muted mb-4 mt-auto">
                             <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Agua templada regulada</li>
                             <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Secado silencioso anti-estrés
                             </li>
                         </ul>
-                        <button class="btn btn-maskot-outline w-100 mt-auto" onclick="selectServiceByName('Baño')">
-                            <i class="fas fa-calendar-plus me-1"></i> Agendar Baño
-                        </button>
+                        <a href="https://wa.me/1234567890?text=Hola%20MASKOT,%20deseo%20consultar%20por%20el%20servicio%20de%20Baño%20e%20Higiene"
+                            target="_blank" class="btn btn-maskot-outline w-100">
+                            <i class="fab fa-whatsapp me-2"></i>Consultar por WhatsApp
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Servicio 2: Baño y Corte Estilizado -->
+            <!-- Servicio 2: Baño + Corte -->
             <div class="col-lg-4 col-md-6" data-reveal>
                 <div class="service-card-modern">
-                    <div class="service-img-header">
-                        <img src="{{ url_for('static', filename='img/corteCompetencia.jpeg') }}" alt="Corte estilizado"
+                    <div class="card-img-wrapper">
+                        <img src="{{ url_for('static', filename='img/corteCompetencia.jpeg') }}"
+                            alt="Corte de competencia y estilismo"
                             onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
                     </div>
-                    <div class="service-content">
+                    <div class="service-card-body">
                         <h4 class="service-title">Baño + Corte Estilizado</h4>
-                        <p class="text-muted small mb-3">Estilismo canino y felino acorde a la raza o solicitud del
-                            propietario, realizado por groomers certificados.</p>
-                        <ul class="list-unstyled small mb-4">
+                        <p class="text-muted small mb-3">
+                            Estilismo canino y felino acorde a la raza o solicitud del propietario, realizado por
+                            groomers certificados.
+                        </p>
+                        <ul class="list-unstyled small text-muted mb-4 mt-auto">
                             <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Tijera y máquina profesional
                             </li>
-                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Acabado de exposición</li>
+                            <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Acabado de alta exposición
+                            </li>
                         </ul>
-                        <button class="btn btn-maskot-outline w-100 mt-auto"
-                            onclick="selectServiceByName('Baño y Corte')">
-                            <i class="fas fa-calendar-plus me-1"></i> Agendar Corte
-                        </button>
+                        <a href="https://wa.me/1234567890?text=Hola%20MASKOT,%20deseo%20consultar%20por%20el%20servicio%20de%20Corte%20Estilizado"
+                            target="_blank" class="btn btn-maskot-outline w-100">
+                            <i class="fab fa-whatsapp me-2"></i>Consultar por WhatsApp
+                        </a>
                     </div>
                 </div>
             </div>
@@ -596,153 +716,245 @@
             <!-- Servicio 3: Baños Medicados -->
             <div class="col-lg-4 col-md-6" data-reveal>
                 <div class="service-card-modern">
-                    <div class="service-img-header">
-                        <img src="{{ url_for('static', filename='img/bano3.jpeg') }}" alt="Baño medicado"
+                    <div class="card-img-wrapper">
+                        <img src="{{ url_for('static', filename='img/bano3.jpeg') }}"
+                            alt="Baños Medicados Especializados"
                             onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
                     </div>
-                    <div class="service-content">
+                    <div class="service-card-body">
                         <h4 class="service-title">Baños Medicados & Tratamientos</h4>
-                        <p class="text-muted small mb-3">Tratamientos dermatológicos especializados para alergias,
-                            hongos, seborrea o control antiparasitario.</p>
-                        <ul class="list-unstyled small mb-4">
+                        <p class="text-muted small mb-3">
+                            Tratamientos dermatológicos especializados para alergias, hongos, seborrea o control
+                            antiparasitario.
+                        </p>
+                        <ul class="list-unstyled small text-muted mb-4 mt-auto">
                             <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Champús medicados aprobados
                             </li>
                             <li class="mb-1"><i class="fas fa-check text-success me-2"></i>Tiempo de reposo asistido
                             </li>
                         </ul>
-                        <button class="btn btn-maskot-outline w-100 mt-auto" onclick="selectServiceByName('Medicado')">
-                            <i class="fas fa-calendar-plus me-1"></i> Agendar Medicado
-                        </button>
+                        <a href="https://wa.me/1234567890?text=Hola%20MASKOT,%20deseo%20consultar%20por%20Baños%20Medicados"
+                            target="_blank" class="btn btn-maskot-outline w-100">
+                            <i class="fab fa-whatsapp me-2"></i>Consultar por WhatsApp
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
 
         {% if servicios %}
-        <!-- Servicios Dinámicos Inyectados desde la Base de Datos -->
+        <!-- Servicios adicionales dinámicos desde Base de Datos -->
         <div class="row g-4 mt-2">
             {% for servicio in servicios %}
             <div class="col-lg-4 col-md-6" data-reveal>
-                <div class="service-card-modern">
-                    <div class="service-content">
-                        <div class="badge bg-warning text-dark w-fit-content mb-2">Populares #{{ loop.index }}</div>
-                        <h4 class="service-title">{{ servicio[1] }}</h4>
-                        <p class="text-muted small mb-3">{{ servicio[2] or 'Servicio profesional especializado para el
-                            cuidado integral de tu mascota.' }}</p>
-                        <div class="mt-auto">
-                            <button class="btn btn-maskot-outline w-100"
-                                onclick="selectService('{{ servicio[0] }}', '{{ servicio[1] }}')">
-                                <i class="fas fa-plus me-2"></i>Seleccionar Servicio
-                            </button>
-                        </div>
-                    </div>
+                <div class="service-card-modern p-4">
+                    <h5 class="fw-bold text-dark mb-2">{{ servicio[1] }}</h5>
+                    <p class="text-muted small mb-3">{{ servicio[2] or 'Servicio profesional especializado para tu
+                        mascota.' }}</p>
+                    <a href="https://wa.me/1234567890?text=Hola%20MASKOT,%20deseo%20informacion%20sobre%20{{ servicio[1] }}"
+                        target="_blank" class="btn btn-maskot-outline btn-sm w-100 mt-auto">
+                        Más Información
+                    </a>
                 </div>
             </div>
             {% endfor %}
         </div>
         {% endif %}
-
-        <div class="text-center mt-5">
-            <a href="{{ url_for('servicios') }}" class="btn btn-maskot-primary btn-lg">
-                <i class="fas fa-th-list me-2"></i>Ver Catálogo Completo de Servicios
-            </a>
-        </div>
     </div>
 </section>
 
 <!-- ==========================================================================
-     4. SECCIÓN DESTACADA DE MOVILIDAD Y CAPACITACIÓN
+     4. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA DIVERTIMENTE DINÁMICA
      ========================================================================== -->
-<section class="py-5 bg-light">
+<section id="galeria" class="gallery-section bg-white">
     <div class="container">
-        <div class="row align-items-center g-5">
-            <div class="col-lg-6" data-reveal>
-                <div class="row g-3">
-                    <div class="col-6">
-                        <img src="{{ url_for('static', filename='img/transporteMaskot.jpeg') }}"
-                            class="img-fluid rounded-4 shadow-sm mb-3" alt="Transporte MASKOT 1"
-                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-                        <img src="{{ url_for('static', filename='img/capacitacion1.jpeg') }}"
-                            class="img-fluid rounded-4 shadow-sm" alt="Capacitación Grooming"
-                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-                    </div>
-                    <div class="col-6 pt-4">
-                        <img src="{{ url_for('static', filename='img/transporteMaskot2.jpeg') }}"
-                            class="img-fluid rounded-4 shadow-sm mb-3" alt="Transporte MASKOT 2"
-                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-                        <img src="{{ url_for('static', filename='img/capacitacion2.jpeg') }}"
-                            class="img-fluid rounded-4 shadow-sm" alt="Capacitación Grooming 2"
-                            onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-                    </div>
+        <div class="text-center mb-4" data-reveal>
+            <div class="section-badge mb-2">
+                <i class="fas fa-camera me-1"></i> Momentos MASKOT
+            </div>
+            <h2 class="fw-extrabold fs-1">Álbum de Fotos y Experiencias</h2>
+            <p class="text-muted">Explora nuestras transformaciones, sesiones de grooming, movilidad y capacitaciones.
+            </p>
+        </div>
+
+        <!-- Ticker Infinito Horizontal en Movimiento Continuo -->
+        <div class="infinite-marquee-wrapper mb-5" data-reveal>
+            <div class="infinite-marquee-track">
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/antes1.jpeg') }}"
+                        alt="Antes grooming"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/despues1.jpeg') }}"
+                        alt="Después grooming"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/bano1.jpeg') }}"
+                        alt="Baño relajante"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/bano2.jpeg') }}"
+                        alt="Sesión de spa"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/corteCompetencia.jpeg') }}"
+                        alt="Corte exposición"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/transporteMaskot.jpeg') }}"
+                        alt="Movilidad Maskot"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/capacitacion1.jpeg') }}"
+                        alt="Capacitación"></div>
+                <!-- Duplicados para ciclo fluido -->
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/antes1.jpeg') }}"
+                        alt="Antes grooming"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/despues1.jpeg') }}"
+                        alt="Después grooming"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/bano1.jpeg') }}"
+                        alt="Baño relajante"></div>
+                <div class="marquee-card"><img src="{{ url_for('static', filename='img/bano2.jpeg') }}"
+                        alt="Sesión de spa"></div>
+            </div>
+        </div>
+
+        <!-- Botones de Filtro para la Galería Grid -->
+        <div class="d-flex flex-wrap justify-content-center gap-2 mb-4" data-reveal>
+            <button class="gallery-filter-btn active" onclick="filterGallery('todos', this)">Todos</button>
+            <button class="gallery-filter-btn" onclick="filterGallery('grooming', this)">Grooming & Spa</button>
+            <button class="gallery-filter-btn" onclick="filterGallery('movilidad', this)">Movilidad VIP</button>
+            <button class="gallery-filter-btn" onclick="filterGallery('capacitacion', this)">Capacitación</button>
+        </div>
+
+        <!-- Mosaico / Grid Interactivo de Imágenes con Animación Zoom Hover -->
+        <div class="gallery-grid" id="galleryContainer" data-reveal>
+
+            <!-- Foto 1: Resultado Grooming -->
+            <div class="gallery-item" data-category="grooming">
+                <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Resultado Grooming MASKOT"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge">Grooming & Spa</span>
+                    <h6 class="fw-bold mb-1">Corte & Acabado Final</h6>
+                    <small class="text-light-50">Sesión de estética completa</small>
                 </div>
             </div>
-            <div class="col-lg-6" data-reveal>
-                <div class="section-badge mb-3">
-                    <i class="fas fa-truck-monster me-2"></i>Sin complicaciones
-                </div>
-                <h2 class="hero-title fs-2 mb-4">Servicio de Movilidad y Equipo Profesional Certificado</h2>
-                <p class="hero-description mb-4">
-                    ¿No tienes tiempo para traer a tu amigo? Nuestro servicio de <strong>Movilidad Especializada
-                        MASKOT</strong> recoge a tu mascota en la puerta de tu casa y la regresa feliz, limpia y
-                    relajada.
-                </p>
-                <div class="d-flex flex-column gap-3">
-                    <div class="d-flex gap-3 align-items-center">
-                        <div class="bg-orange-soft p-3 rounded-circle text-warning fw-bold fs-4">1</div>
-                        <div>
-                            <h6 class="mb-0 fw-bold">Unidades adaptadas e higienizadas</h6>
-                            <small class="text-muted">Espacios cómodos y seguros para perros y gatos.</small>
-                        </div>
-                    </div>
-                    <div class="d-flex gap-3 align-items-center">
-                        <div class="bg-sky-soft p-3 rounded-circle text-info fw-bold fs-4">2</div>
-                        <div>
-                            <h6 class="mb-0 fw-bold">Personal en constante capacitación</h6>
-                            <small class="text-muted">Nos perfeccionamos continuamente en manejo etológico y
-                                estilismo.</small>
-                        </div>
-                    </div>
+
+            <!-- Foto 2: Baño Spa -->
+            <div class="gallery-item" data-category="grooming">
+                <img src="{{ url_for('static', filename='img/bano1.jpeg') }}" alt="Baño de Burbujas"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge">Grooming & Spa</span>
+                    <h6 class="fw-bold mb-1">Baño Hidratante</h6>
+                    <small class="text-light-50">Limpieza profunda con champú dermo</small>
                 </div>
             </div>
+
+            <!-- Foto 3: Corte de Competencia -->
+            <div class="gallery-item" data-category="grooming">
+                <img src="{{ url_for('static', filename='img/corteCompetencia.jpeg') }}" alt="Corte de Competencia"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge">Grooming</span>
+                    <h6 class="fw-bold mb-1">Corte Estilizado Exposición</h6>
+                    <small class="text-light-50">Técnica a tijera profesional</small>
+                </div>
+            </div>
+
+            <!-- Foto 4: Movilidad MASKOT 1 -->
+            <div class="gallery-item" data-category="movilidad">
+                <img src="{{ url_for('static', filename='img/transporteMaskot.jpeg') }}" alt="Transporte Especializado"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge" style="background: var(--maskot-sky-dark);">Movilidad</span>
+                    <h6 class="fw-bold mb-1">Transporte Puerta a Puerta</h6>
+                    <small class="text-light-50">Unidad climatizada y segura</small>
+                </div>
+            </div>
+
+            <!-- Foto 5: Movilidad MASKOT 2 -->
+            <div class="gallery-item" data-category="movilidad">
+                <img src="{{ url_for('static', filename='img/transporteMaskot2.jpeg') }}" alt="Traslado Seguro"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge" style="background: var(--maskot-sky-dark);">Movilidad</span>
+                    <h6 class="fw-bold mb-1">Confort durante el viaje</h6>
+                    <small class="text-light-50">Mascotas relajadas en todo momento</small>
+                </div>
+            </div>
+
+            <!-- Foto 6: Capacitación 1 -->
+            <div class="gallery-item" data-category="capacitacion">
+                <img src="{{ url_for('static', filename='img/capacitacion1.jpeg') }}" alt="Seminario de Capacitación"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge" style="background: var(--maskot-ink);">Capacitación</span>
+                    <h6 class="fw-bold mb-1">Perfeccionamiento Continuo</h6>
+                    <small class="text-light-50">Seminarios con jueces internacionales</small>
+                </div>
+            </div>
+
+            <!-- Foto 7: Capacitación 2 -->
+            <div class="gallery-item" data-category="capacitacion">
+                <img src="{{ url_for('static', filename='img/capacitacion2.jpeg') }}" alt="Equipo MASKOT Capacitado"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge" style="background: var(--maskot-ink);">Capacitación</span>
+                    <h6 class="fw-bold mb-1">Equipo Certificado</h6>
+                    <small class="text-light-50">Manejo etológico y técnico</small>
+                </div>
+            </div>
+
+            <!-- Foto 8: Baño 2 -->
+            <div class="gallery-item" data-category="grooming">
+                <img src="{{ url_for('static', filename='img/bano2.jpeg') }}" alt="Sesión de Secado Anti-estrés"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge">Grooming</span>
+                    <h6 class="fw-bold mb-1">Secado Suave</h6>
+                    <small class="text-light-50">Sin ruidos agresivos</small>
+                </div>
+            </div>
+
+            <!-- Foto 9: Baño 4 -->
+            <div class="gallery-item" data-category="grooming">
+                <img src="{{ url_for('static', filename='img/bano4.jpeg') }}" alt="Atención Individual"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <div class="gallery-overlay">
+                    <span class="gallery-badge">Grooming</span>
+                    <h6 class="fw-bold mb-1">Higiene & Amor</h6>
+                    <small class="text-light-50">Cuidado individualizado</small>
+                </div>
+            </div>
+
         </div>
     </div>
 </section>
 
 <!-- ==========================================================================
-     5. SECCIÓN PRODUCTOS / PETSHOP (Si existen en BD)
+     5. PRODUCTOS (PETSHOP)
      ========================================================================== -->
 {% if productos_venta %}
 <section id="productos" class="products-section" data-reveal>
     <div class="container">
         <div class="text-center mb-5">
             <div class="section-badge mb-2">
-                <i class="fas fa-shopping-basket me-1"></i> PetShop Seleccionado
+                <i class="fas fa-shopping-bag me-1"></i> PetShop MASKOT
             </div>
-            <h2 class="fw-extrabold fs-1">Alimentación y Productos Premium</h2>
-            <p class="text-muted">Comida para todas las especies y etapas de vida, además de accesorios de alta calidad.
-            </p>
+            <h2 class="fw-extrabold fs-1">Alimentos y Accesorios Premium</h2>
+            <p class="text-muted">Variedad para todas las especies y etapas de vida de tu mascota.</p>
         </div>
 
         <div class="row g-4">
             {% for producto in productos_venta %}
             <div class="col-lg-3 col-md-6" data-reveal>
                 <div class="product-card-modern">
-                    <div class="service-img-header bg-light d-flex align-items-center justify-content-center">
+                    <div class="card-img-wrapper">
                         {% if producto[7] %}
                         <img src="{{ url_for('static', filename='images/' ~ producto[7]) }}" alt="{{ producto[1] }}">
                         {% else %}
-                        <i class="fas fa-box-open fa-3x text-muted"></i>
+                        <div class="w-100 h-100 d-flex align-items-center justify-content-center bg-light text-muted">
+                            <i class="fas fa-box fa-3x"></i>
+                        </div>
                         {% endif %}
                     </div>
-                    <div class="product-content">
+                    <div class="product-card-body">
                         <h5 class="fw-bold text-dark mb-2">{{ producto[1] }}</h5>
-                        <small class="text-muted mb-3"><i class="fas fa-boxes me-1"></i> Stock: {{ producto[3] }}
-                            unidades</small>
-
+                        <small class="text-muted mb-3"><i class="fas fa-cubes me-1"></i> Stock: {{ producto[3] }}
+                            disponibles</small>
                         <div class="mt-auto">
                             <a href="{{ url_for('ver_producto', id=producto[0]) }}"
-                                class="btn btn-maskot-outline w-100 btn-sm">
-                                <i class="fas fa-eye me-1"></i> Ver Detalles
+                                class="btn btn-maskot-outline btn-sm w-100">
+                                Consultar Detalle
                             </a>
                         </div>
                     </div>
@@ -753,7 +965,7 @@
 
         <div class="text-center mt-5">
             <a href="{{ url_for('productos') }}" class="btn btn-maskot-primary btn-lg">
-                <i class="fas fa-store me-2"></i> Explorar Tienda Completa
+                <i class="fas fa-store me-2"></i>Ver Todos los Productos
             </a>
         </div>
     </div>
@@ -761,213 +973,48 @@
 {% endif %}
 
 <!-- ==========================================================================
-     6. FORMULARIO DE RESERVA / CITAS DINÁMICO
+     6. SECCIÓN DE CONTACTO DIRECTO (WHATSAPP & UBICACIÓN)
      ========================================================================== -->
-<section id="citas" class="appointment-section" data-reveal>
+<section id="contacto" class="py-5" data-reveal>
     <div class="container">
-        <div class="row g-5 align-items-center">
-            <div class="col-lg-5">
-                <div class="section-badge mb-3">
-                    <i class="fas fa-calendar-check me-2"></i> Reserva Online
-                </div>
-                <h2 class="hero-title fs-2 mb-4">Agenda la atención de tu mascota en segundos</h2>
-                <p class="text-muted mb-4">
-                    Completa los datos del propietario, añade una o más mascotas y los servicios requeridos. Nos
-                    pondremos en contacto para confirmar tu horario.
-                </p>
-
-                <div class="bg-white p-4 rounded-4 border shadow-sm mb-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <i class="fas fa-headset fa-2x text-warning"></i>
-                        <div>
-                            <h6 class="fw-bold mb-0">¿Soporte o dudas rápidas?</h6>
-                            <small class="text-muted">Accede a tu cuenta de cliente o escríbenos directamente.</small>
-                        </div>
+        <div class="contact-card">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-7">
+                    <div class="section-badge mb-3">
+                        <i class="fas fa-headset me-2"></i> Contacto Directo
+                    </div>
+                    <h2 class="fw-extrabold text-dark fs-2 mb-3">¿Tienes dudas o deseas coordinar nuestro servicio de
+                        Movilidad?</h2>
+                    <p class="text-muted mb-4">
+                        Escríbenos directamente a WhatsApp para consultas sobre grooming, baños medicados,
+                        disponibilidad de alimento balanceado o programación de recojo a domicilio.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3">
+                        <a href="https://wa.me/1234567890" target="_blank"
+                            class="btn btn-success btn-lg rounded-pill px-4">
+                            <i class="fab fa-whatsapp me-2"></i>Chatear por WhatsApp
+                        </a>
+                        <a href="{{ url_for('login') }}" class="btn btn-maskot-outline btn-lg">
+                            <i class="fas fa-user-lock me-2"></i>Acceso Clientes Registrados
+                        </a>
                     </div>
                 </div>
 
-                <a href="{{ url_for('login') }}" class="maskot-login-link w-100 justify-content-center py-3">
-                    <i class="fas fa-sign-in-alt me-2"></i> ¿Ya tienes cuenta? Inicia Sesión Aquí
-                </a>
-            </div>
-
-            <div class="col-lg-7">
-                <div class="appointment-form-card">
-                    <h4 class="fw-extrabold text-dark mb-4">
-                        <i class="fas fa-paw text-warning me-2"></i> Formulario de Cita
-                    </h4>
-
-                    <form method="POST" action="{{ url_for('agendar_cita') }}" class="needs-validation">
-
-                        <!-- DATOS DEL PROPIETARIO -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control" id="cliente_nombre" name="cliente_nombre"
-                                        placeholder="Tu Nombre" required>
-                                    <label for="cliente_nombre"><i class="fas fa-user me-2"></i>Nombre del
-                                        Propietario</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="email" class="form-control" id="cliente_email" name="cliente_email"
-                                        placeholder="Correo" required>
-                                    <label for="cliente_email"><i class="fas fa-envelope me-2"></i>Correo
-                                        Electrónico</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="tel" class="form-control" id="cliente_telefono" name="cliente_telefono"
-                                        placeholder="Teléfono" required>
-                                    <label for="cliente_telefono"><i class="fas fa-phone me-2"></i>Teléfono de
-                                        Contacto</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control" id="cliente_direccion"
-                                        name="cliente_direccion" placeholder="Dirección" required>
-                                    <label for="cliente_direccion"><i class="fas fa-map-marker-alt me-2"></i>Dirección
-                                        (para Movilidad)</label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- MASCOTAS DINÁMICAS -->
-                        <div class="mb-4">
-                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-dog me-2"></i>Mascotas a Atender</h6>
-                            <div id="mascotas-container">
-                                <div class="mascota-form p-3 mb-3" data-mascota="0">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <span class="fw-bold text-dark small"><i
-                                                class="fas fa-heart text-danger me-1"></i> Mascota 1</span>
-                                    </div>
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <div class="form-floating">
-                                                <input type="text" class="form-control" name="mascota_nombre[]"
-                                                    placeholder="Nombre" required>
-                                                <label>Nombre de la Mascota</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="form-floating">
-                                                <select class="form-select" name="mascota_especie[]" required>
-                                                    <option value="">Selecciona especie</option>
-                                                    <option value="perro">🐕 Perro</option>
-                                                    <option value="gato">🐱 Gato</option>
-                                                    <option value="conejo">🐰 Conejo</option>
-                                                    <option value="ave">🐦 Ave</option>
-                                                    <option value="otro">🐾 Otro</option>
-                                                </select>
-                                                <label>Especie</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="form-floating">
-                                                <input type="text" class="form-control" name="mascota_raza[]"
-                                                    placeholder="Raza">
-                                                <label>Raza</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="form-floating">
-                                                <input type="number" class="form-control" name="mascota_edad[]"
-                                                    placeholder="Edad">
-                                                <label>Edad (Años)</label>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="form-floating">
-                                                <input type="number" step="0.1" class="form-control"
-                                                    name="mascota_peso[]" placeholder="Peso">
-                                                <label>Peso (Kg)</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
-                                onclick="agregarMascota()">
-                                <i class="fas fa-plus me-1"></i> Añadir otra mascota
-                            </button>
-                        </div>
-
-                        <!-- SERVICIOS DINÁMICOS -->
-                        <div class="mb-4">
-                            <h6 class="fw-bold text-primary mb-3"><i class="fas fa-concierge-bell me-2"></i>Servicios
-                                Requeridos</h6>
-                            <div id="servicios-container">
-                                <div class="servicio-form p-3 mb-3" data-servicio="0">
-                                    <div class="form-floating">
-                                        <select class="form-select servicio-select" name="servicio_id[]" required>
-                                            <option value="">Selecciona un servicio</option>
-                                            {% if servicios %}
-                                            {% for servicio in servicios %}
-                                            <option value="{{ servicio[0] }}">{{ servicio[1] }}</option>
-                                            {% endfor %}
-                                            {% else %}
-                                            <option value="1">Baño e Higiene Profunda</option>
-                                            <option value="2">Baño + Corte Estilizado</option>
-                                            <option value="3">Baño Medicado</option>
-                                            <option value="4">Servicio de Movilidad / Recojo</option>
-                                            {% endif %}
-                                        </select>
-                                        <label>Servicio</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill"
-                                onclick="agregarServicio()">
-                                <i class="fas fa-plus me-1"></i> Añadir otro servicio
-                            </button>
-                        </div>
-
-                        <!-- FECHA Y HORA -->
-                        <div class="row g-3 mb-4">
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="date" class="form-control" id="fecha" name="fecha" required>
-                                    <label for="fecha"><i class="fas fa-calendar-day me-2"></i>Fecha Preferida</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-floating">
-                                    <input type="time" class="form-control" id="hora" name="hora" required>
-                                    <label for="hora"><i class="fas fa-clock me-2"></i>Hora Estimada</label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn btn-maskot-primary btn-lg w-100 py-3 fs-6">
-                            <i class="fas fa-check-circle me-2"></i> Confirmar y Agendar Cita
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ==========================================================================
-     7. CTA CONTACTO DIRECTO (WHATSAPP)
-     ========================================================================== -->
-<section class="py-5 bg-white">
-    <div class="container">
-        <div class="p-4 p-md-5 rounded-4 bg-dark text-white shadow-lg position-relative overflow-hidden">
-            <div class="row align-items-center isolation-relative">
-                <div class="col-lg-8 mb-3 mb-lg-0">
-                    <h3 class="fw-extrabold mb-2"><i class="fab fa-whatsapp text-success me-2"></i> ¿Consultas Urgentes
-                        o Emergencias?</h3>
-                    <p class="text-light-50 mb-0">Atención personalizada por WhatsApp. Escríbenos directamente para
-                        coordinar transporte inmediato o consultas de petshop.</p>
-                </div>
-                <div class="col-lg-4 text-lg-end">
-                    <a href="https://wa.me/1234567890" target="_blank" class="btn btn-success btn-lg rounded-pill px-4">
-                        <i class="fab fa-whatsapp me-2"></i> Chatear con MASKOT
-                    </a>
+                <div class="col-lg-5">
+                    <div class="bg-white p-4 rounded-4 shadow-sm border">
+                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-store text-warning me-2"></i>Horarios y
+                            Atención</h5>
+                        <ul class="list-unstyled text-muted small mb-0">
+                            <li class="mb-2"><i class="fas fa-clock me-2 text-warning"></i> Lunes a Sábado: 8:30 AM -
+                                7:00 PM</li>
+                            <li class="mb-2"><i class="fas fa-clock me-2 text-warning"></i> Domingos: 9:00 AM - 2:00 PM
+                            </li>
+                            <li class="mb-2"><i class="fas fa-shuttle-van me-2 text-warning"></i> Servicio de Movilidad:
+                                Previa coordinación</li>
+                            <li><i class="fas fa-map-marker-alt me-2 text-warning"></i> Atención personalizada y espacio
+                                seguro</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -978,129 +1025,27 @@
 
 {% block scripts %}
 <script>
-    // Contador global para elementos dinámicos
-    let mascotaCounter = 1;
-    let servicioCounter = 1;
+    // Filtrado interactivo de fotos en la Galería
+    function filterGallery(category, button) {
+        // Actualizar clase activa en botones
+        document.querySelectorAll('.gallery-filter-btn').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
 
-    // Asignar fecha mínima en el selector de fecha al día actual
-    document.getElementById('fecha').min = new Date().toISOString().split('T')[0];
-
-    // Función para agregar campos de otra mascota
-    function agregarMascota() {
-        const container = document.getElementById('mascotas-container');
-        const mascotaDiv = document.createElement('div');
-        mascotaDiv.className = 'mascota-form p-3 mb-3';
-        mascotaDiv.dataset.mascota = mascotaCounter;
-
-        mascotaDiv.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <span class="fw-bold text-dark small"><i class="fas fa-heart text-danger me-1"></i> Mascota ${mascotaCounter + 1}</span>
-                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle" onclick="this.closest('.mascota-form').remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="form-floating">
-                        <input type="text" class="form-control" name="mascota_nombre[]" placeholder="Nombre" required>
-                        <label>Nombre de la Mascota</label>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="form-floating">
-                        <select class="form-select" name="mascota_especie[]" required>
-                            <option value="">Selecciona especie</option>
-                            <option value="perro">🐕 Perro</option>
-                            <option value="gato">🐱 Gato</option>
-                            <option value="conejo">🐰 Conejo</option>
-                            <option value="ave">🐦 Ave</option>
-                            <option value="otro">🐾 Otro</option>
-                        </select>
-                        <label>Especie</label>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-floating">
-                        <input type="text" class="form-control" name="mascota_raza[]" placeholder="Raza">
-                        <label>Raza</label>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-floating">
-                        <input type="number" class="form-control" name="mascota_edad[]" placeholder="Edad">
-                        <label>Edad (Años)</label>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="form-floating">
-                        <input type="number" step="0.1" class="form-control" name="mascota_peso[]" placeholder="Peso">
-                        <label>Peso (Kg)</label>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        container.appendChild(mascotaDiv);
-        mascotaCounter++;
-    }
-
-    // Función para agregar otro selector de servicio
-    function agregarServicio() {
-        const container = document.getElementById('servicios-container');
-        const primerSelect = document.querySelector('.servicio-select');
-        const servicioDiv = document.createElement('div');
-        servicioDiv.className = 'servicio-form p-3 mb-3';
-
-        let opcionesHTML = primerSelect ? primerSelect.innerHTML : `
-            <option value="">Selecciona un servicio</option>
-            <option value="1">Baño e Higiene Profunda</option>
-            <option value="2">Baño + Corte Estilizado</option>
-            <option value="3">Baño Medicado</option>
-        `;
-
-        servicioDiv.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="fw-bold text-secondary small">Servicio Adicional</span>
-                <button type="button" class="btn btn-outline-danger btn-sm rounded-circle" onclick="this.closest('.servicio-form').remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="form-floating">
-                <select class="form-select servicio-select" name="servicio_id[]" required>
-                    ${opcionesHTML}
-                </select>
-                <label>Servicio</label>
-            </div>
-        `;
-
-        container.appendChild(servicioDiv);
-        servicioCounter++;
-    }
-
-    // Seleccionar servicio por ID y desplazar al formulario
-    function selectService(id, name) {
-        const select = document.querySelector('.servicio-select');
-        if (select) {
-            select.value = id;
-        }
-        document.querySelector('#citas').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // Seleccionar servicio por nombre parcial
-    function selectServiceByName(term) {
-        const select = document.querySelector('.servicio-select');
-        if (select) {
-            for (let option of select.options) {
-                if (option.text.toLowerCase().includes(term.toLowerCase())) {
-                    select.value = option.value;
-                    break;
-                }
+        // Filtrar elementos del Grid
+        const items = document.querySelectorAll('.gallery-item');
+        items.forEach(item => {
+            if (category === 'todos' || item.dataset.category === category) {
+                item.style.display = 'block';
+                setTimeout(() => { item.style.opacity = '1'; item.style.transform = 'scale(1)'; }, 50);
+            } else {
+                item.style.opacity = '0';
+                item.style.transform = 'scale(0.8)';
+                setTimeout(() => { item.style.display = 'none'; }, 300);
             }
-        }
-        document.querySelector('#citas').scrollIntoView({ behavior: 'smooth' });
+        });
     }
 
-    // IntersectionObserver para animaciones de entrada al hacer scroll
+    // IntersectionObserver para revelado dinámico durante el Scroll
     document.addEventListener("DOMContentLoaded", () => {
         const revealElements = document.querySelectorAll('[data-reveal]');
         const observer = new IntersectionObserver((entries) => {
@@ -1109,7 +1054,7 @@
                     entry.target.classList.add('is-visible');
                 }
             });
-        }, { threshold: 0.1 });
+        }, { threshold: 0.08 });
 
         revealElements.forEach(el => observer.observe(el));
     });
