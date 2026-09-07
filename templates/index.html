@@ -33,10 +33,64 @@
         color: var(--maskot-ink);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         overflow-x: hidden;
+        padding-top: 80px;
     }
 
     /* ==========================================================================
-       2. HERO SECTION
+       2. NAVBAR FLOTANTE CON LOGO OCULTO HACIA LOGIN
+       ========================================================================== */
+    .maskot-glass-nav {
+        background: rgba(255, 255, 255, 0.92) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--maskot-line);
+        transition: var(--maskot-transition);
+        z-index: 1050;
+    }
+
+    .maskot-brand-stealth {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+
+    .maskot-brand-logo {
+        height: 46px;
+        width: auto;
+        object-fit: contain;
+        transition: var(--maskot-transition);
+    }
+
+    .maskot-brand-stealth:hover .maskot-brand-logo {
+        transform: scale(1.06) rotate(-3deg);
+    }
+
+    .maskot-brand-title {
+        color: var(--maskot-ink);
+        font-weight: 800;
+        font-size: 1.6rem;
+        letter-spacing: -0.03em;
+    }
+
+    .maskot-nav-link {
+        color: var(--maskot-ink) !important;
+        font-weight: 600;
+        font-size: 0.98rem;
+        padding: 0.5rem 1rem !important;
+        border-radius: 999px;
+        transition: var(--maskot-transition);
+    }
+
+    .maskot-nav-link:hover,
+    .maskot-nav-link:focus {
+        color: var(--maskot-orange-dark) !important;
+        background: var(--maskot-orange-soft);
+    }
+
+    /* ==========================================================================
+       3. HERO SECTION
        ========================================================================== */
     .maskot-hero {
         min-height: calc(100vh - 80px);
@@ -168,7 +222,7 @@
     }
 
     /* ==========================================================================
-       3. CARDS DE SERVICIOS (ENCUADRE OPTIMIZADO SUPERIOR)
+       4. CARDS DE SERVICIOS (ENCUADRE PERFECTO SUPERIOR DE MASCOTAS)
        ========================================================================== */
     .services-section,
     .products-section,
@@ -197,6 +251,7 @@
         border-color: rgba(255, 163, 1, 0.4);
     }
 
+    /* Ajuste de encuadre superior (object-position: top center) para evitar cortar la cabeza */
     .card-img-wrapper {
         position: relative;
         width: 100%;
@@ -234,7 +289,7 @@
     }
 
     /* ==========================================================================
-       4. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA
+       5. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA
        ========================================================================== */
     .gallery-filter-btn {
         background: #ffffff;
@@ -317,6 +372,7 @@
         margin-bottom: 0.4rem;
     }
 
+    /* Carrusel Continuo de Galería Superior */
     .infinite-marquee-wrapper {
         overflow: hidden;
         white-space: nowrap;
@@ -354,7 +410,7 @@
     }
 
     /* ==========================================================================
-       5. CONTACTO & TARJETAS
+       6. CONTACTO & TARJETAS
        ========================================================================== */
     .contact-card {
         background: linear-gradient(135deg, #ffffff 0%, #fff7e8 100%);
@@ -364,6 +420,7 @@
         box-shadow: var(--maskot-shadow-hover);
     }
 
+    /* Keyframes */
     @keyframes floatAnimation {
 
         0%,
@@ -400,6 +457,36 @@
 {% endblock %}
 
 {% block content %}
+
+<!-- ==========================================================================
+     NAVBAR PRINCIPAL CON LOGO OCULTO HACIA LOGIN
+     ========================================================================== -->
+<nav class="navbar navbar-expand-lg maskot-glass-nav fixed-top py-2">
+    <div class="container">
+        <!-- Logo de MASKOT como botón oculto hacia /login -->
+        <a class="maskot-brand-stealth" href="{{ url_for('login') }}" title="Maskot Petshop">
+            <img src="{{ url_for('static', filename='img/LOGOTIPO EDITABLE MASKOT_Mesa de trabajo 1 copia.png') }}"
+                alt="Maskot Petshop" class="maskot-brand-logo"
+                onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+            <span class="maskot-brand-title">Maskot</span>
+        </a>
+
+        <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse"
+            data-bs-target="#maskotNavbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="maskotNavbar">
+            <ul class="navbar-nav ms-auto mb-2 mb-lg-0 gap-lg-2 text-center">
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#inicio">Inicio</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#servicios">Servicios</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#galeria">Galería</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#productos">Productos</a></li>
+                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#contacto">Contacto</a></li>
+            </ul>
+        </div>
+    </div>
+</nav>
 
 <!-- ==========================================================================
      1. HERO SECTION
@@ -532,7 +619,7 @@
 </section>
 
 <!-- ==========================================================================
-     3. SERVICIOS DESTACADOS
+     3. SERVICIOS DESTACADOS (IMÁGENES ADAPTADAS DE MANERA VISIBLE)
      ========================================================================== -->
 <section id="servicios" class="services-section" data-reveal>
     <div class="container">
