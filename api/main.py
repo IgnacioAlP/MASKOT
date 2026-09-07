@@ -313,7 +313,7 @@ def favicon():
 def index():
     if 'usuario' in session:
         return redirect(url_for('dashboard'))
-    return redirect(url_for('index.html'))
+    return render_template('index.html')
 
 
 # ─── AUTENTICACIÓN Y SESIÓN ──────────────────────────────────────────────────
