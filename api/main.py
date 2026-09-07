@@ -140,6 +140,16 @@ except Exception:
     pass
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Endpoint liviano para confirmar que Vercel puede cargar la aplicación."""
+    return jsonify({
+        'status': 'ok',
+        'service': 'maskot-api',
+        'environment': 'vercel' if os.environ.get('VERCEL') else 'local'
+    }), 200
+
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     logger.error(f"Error no controlado: {e}")

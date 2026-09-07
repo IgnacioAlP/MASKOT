@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__
+*.py[cod]
+*.log
+logs/
+scripts/
+backup.sql
+bd.sql
+migrations/
+README.md
+.env
+.env.*
