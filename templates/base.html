@@ -4,49 +4,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}NexusCreative{% endblock %}</title>
+    <title>{% block title %}MASKOT - Petshop y Grooming{% endblock %}</title>
 
     <!-- Bootstrap 5.3 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome 6 -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
     <!-- Google Fonts -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Fredoka+One:wght@400&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
     <!-- Favicon -->
     <link rel="icon" href="{{ url_for('static', filename='img/maskot-favicon.ico') }}" type="image/x-icon">
+
     <!-- Page-specific styles -->
     {% block extra_css %}{% endblock %}
 </head>
 
 <body>
     <!-- Navigation Header -->
-    <nav class="navbar navbar-expand-lg navbar-light fixed-top maskot-navbar">
-        <div class="container-fluid">
-            <!-- Brand Logo -->
-            <a class="navbar-brand maskot-brand" href="{{ url_for('index') }}">
-                <div class="brand-container">
-                    <div class="brand-icon">
-                        <i class="fas fa-bolt"></i>
-                    </div>
-                    <div class="brand-text">
-                        <span class="brand-name">NexusCreative</span>
-                    </div>
-                </div>
+    <nav class="navbar navbar-expand-lg navbar-light fixed-top maskot-navbar bg-white shadow-sm">
+        <div class="container">
+            <!-- Brand Logo (Funciona como botón oculto/stealth para ir a /login) -->
+            <a class="navbar-brand maskot-brand d-flex align-items-center gap-2" href="{{ url_for('login') }}"
+                title="MASKOT">
+                <img src="{{ url_for('static', filename='img/LOGOTIPO EDITABLE MASKOT_Mesa de trabajo 1 copia.png') }}"
+                    alt="MASKOT Logo" style="height: 42px; width: auto; object-fit: contain;"
+                    onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+                <span class="fw-bold fs-4 text-dark mb-0">Maskot</span>
             </a>
 
             <!-- Mobile toggle button -->
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
             <!-- Navigation Menu -->
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if session.rol %}
+                <!-- MENÚ PARA USUARIOS CON SESIÓN INICIADA -->
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link maskot-nav-link" href="{{ url_for('dashboard') }}">
@@ -97,22 +97,21 @@
                                         class="fas fa-address-card me-2"></i>Clientes</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('almacen') }}"><i
                                         class="fas fa-boxes me-2"></i>Almacén</a></li>
-                            <li>
                             <li><a class="dropdown-item" href="{{ url_for('mascota') }}"><i
-                                        class="fas fa-boxes me-2"></i>Mascotas</a></li>
-                            <li>
+                                        class="fas fa-paw me-2"></i>Mascotas</a></li>
                         </ul>
                     </li>
                     {% endif %}
+
                     {% if session.rol in ['dueño', 'admin'] %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle maskot-nav-link" href="#" role="button"
                             data-bs-toggle="dropdown">
-                            <i class="fas fa-cogs me-2"></i>Reportes e historial
+                            <i class="fas fa-file-alt me-2"></i>Reportes e Historial
                         </a>
                         <ul class="dropdown-menu maskot-dropdown">
                             <li><a class="dropdown-item" href="{{ url_for('historial_ventas') }}"><i
-                                        class="fas fa-receipt me-2"></i>Historial de ventas</a></li>
+                                        class="fas fa-receipt me-2"></i>Historial de Ventas</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('historial_compras') }}"><i
                                         class="fas fa-shopping-cart me-2"></i>Historial de Compras</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('historial_asistencia') }}"><i
@@ -124,25 +123,26 @@
                     {% endif %}
                 </ul>
 
-                <!-- User Menu -->
+                <!-- User Profile Menu -->
                 <ul class="navbar-nav">
                     <li class="nav-item me-2" id="nav-cart" style="display:none;">
                         <a class="btn btn-outline-primary position-relative me-2" href="{{ url_for('ver_carrito') }}"
                             title="Ver carrito">
                             <i class="fas fa-shopping-cart"></i>
                             <span id="cart-count"
-                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{
-                                cart_count }}</span>
+                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                {{ cart_count }}
+                            </span>
                         </a>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle maskot-user-menu" href="#" role="button"
                             data-bs-toggle="dropdown">
-                            <div class="user-avatar">
-                                <i class="fas fa-user"></i>
+                            <div class="user-avatar d-inline-block me-1">
+                                <i class="fas fa-user-circle"></i>
                             </div>
-                            <span class="user-name">{{ session.usuario }}</span>
-                            <span class="user-role badge bg-secondary ms-2">{{ session.rol }}</span>
+                            <span class="user-name fw-semibold">{{ session.usuario }}</span>
+                            <span class="user-role badge bg-secondary ms-1">{{ session.rol }}</span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end maskot-dropdown">
                             <li><a class="dropdown-item" href="#"><i class="fas fa-user-edit me-2"></i>Perfil</a></li>
@@ -155,24 +155,24 @@
                         </ul>
                     </li>
                 </ul>
+
                 {% else %}
-                <ul class="navbar-nav me-auto">
+                <!-- MENÚ PÚBLICO LANDING PAGE (Navegación en la misma página) -->
+                <ul class="navbar-nav ms-auto gap-lg-2">
                     <li class="nav-item">
-                        <a class="nav-link maskot-nav-link" href="{{ url_for('index') }}">Inicio</a>
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('index') }}#inicio">Inicio</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link maskot-nav-link" href="{{ url_for('servicios') }}">Servicios</a>
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('index') }}#servicios">Servicios</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link maskot-nav-link" href="{{ url_for('productos') }}">Productos</a>
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('index') }}#galeria">Galería</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link maskot-nav-link" href="#contacto">Contacto</a>
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('index') }}#productos">Productos</a>
                     </li>
-                    <li class="nav-item ms-lg-2">
-                        <a class="nav-link maskot-login-link" href="{{ url_for('login') }}">
-                            <i class="fas fa-user-circle me-2"></i>Acceso Clientes
-                        </a>
+                    <li class="nav-item">
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('index') }}#contacto">Contacto</a>
                     </li>
                 </ul>
                 {% endif %}
@@ -207,15 +207,20 @@
     <!-- Footer -->
     <footer class="maskot-footer bg-dark text-light py-5 mt-5">
         <div class="container">
-            <div class="row">
-                <div class="col-lg-4 col-md-6 mb-4">
+            <div class="row align-items-center">
+                <div class="col-lg-6 col-md-6 mb-4 mb-md-0">
                     <div class="footer-brand">
-                        <div class="brand-container mb-3">
-                            <div class="brand-icon"><i class="fas fa-bolt"></i></div>
-                            <div class="brand-text"><span class="brand-name">NexusCreative</span></div>
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <i class="fas fa-paw text-warning fa-2x"></i>
+                            <span class="fw-bold fs-3 text-white">Maskot</span>
                         </div>
-                        <p class="text-muted">Tu compañero de confianza para el cuidado y bienestar de tus mascotas.</p>
+                        <p class="text-light-50 mb-0">Tu compañero de confianza para el cuidado, movilidad y bienestar
+                            integral de tus mascotas.</p>
                     </div>
+                </div>
+                <div class="col-lg-6 col-md-6 text-md-end">
+                    <p class="text-muted small mb-0">&copy; 2026 MASKOT Petshop & Grooming. Todos los derechos
+                        reservados.</p>
                 </div>
             </div>
         </div>

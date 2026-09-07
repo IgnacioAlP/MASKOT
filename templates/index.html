@@ -33,85 +33,10 @@
         color: var(--maskot-ink);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         overflow-x: hidden;
-        padding-top: 80px;
     }
 
     /* ==========================================================================
-       2. NAVBAR FLOTANTE CON LOGO OCULTO Y NAVEGACIÓN INTERNA
-       ========================================================================== */
-    .maskot-glass-nav {
-        background: rgba(255, 255, 255, 0.92) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-bottom: 1px solid var(--maskot-line);
-        transition: var(--maskot-transition);
-        z-index: 1050;
-    }
-
-    .maskot-brand-stealth {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-
-    .maskot-brand-logo {
-        height: 46px;
-        width: auto;
-        object-fit: contain;
-        transition: var(--maskot-transition);
-    }
-
-    .maskot-brand-stealth:hover .maskot-brand-logo {
-        transform: scale(1.06) rotate(-3deg);
-    }
-
-    .maskot-brand-title {
-        color: var(--maskot-ink);
-        font-weight: 800;
-        font-size: 1.6rem;
-        letter-spacing: -0.03em;
-    }
-
-    .maskot-nav-link {
-        color: var(--maskot-ink) !important;
-        font-weight: 600;
-        font-size: 0.98rem;
-        padding: 0.5rem 1rem !important;
-        border-radius: 999px;
-        transition: var(--maskot-transition);
-    }
-
-    .maskot-nav-link:hover,
-    .maskot-nav-link:focus {
-        color: var(--maskot-orange-dark) !important;
-        background: var(--maskot-orange-soft);
-    }
-
-    .maskot-login-link {
-        border: 2px solid var(--maskot-orange);
-        border-radius: 999px;
-        color: var(--maskot-ink) !important;
-        font-weight: 700;
-        padding: 0.55rem 1.3rem !important;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: transparent;
-        transition: var(--maskot-transition);
-        box-shadow: 0 4px 14px rgba(255, 163, 1, 0.18);
-    }
-
-    .maskot-login-link:hover {
-        background: var(--maskot-orange);
-        color: #ffffff !important;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 22px rgba(255, 163, 1, 0.35);
-    }
-
-    /* ==========================================================================
-       3. HERO SECTION
+       2. HERO SECTION
        ========================================================================== */
     .maskot-hero {
         min-height: calc(100vh - 80px);
@@ -214,6 +139,7 @@
         max-width: 450px;
         aspect-ratio: 4/5;
         object-fit: cover;
+        object-position: top center;
         border-radius: 32px;
         border: 8px solid #ffffff;
         box-shadow: var(--maskot-shadow-hover);
@@ -242,7 +168,7 @@
     }
 
     /* ==========================================================================
-       4. CARDS DE SERVICIOS (ADAPTACIÓN DE IMÁGENES PERFECTA)
+       3. CARDS DE SERVICIOS (ENCUADRE OPTIMIZADO SUPERIOR)
        ========================================================================== */
     .services-section,
     .products-section,
@@ -271,11 +197,10 @@
         border-color: rgba(255, 163, 1, 0.4);
     }
 
-    /* Ajuste responsivo y encuadre uniforme para imágenes en cards */
     .card-img-wrapper {
         position: relative;
         width: 100%;
-        height: 220px;
+        height: 250px;
         overflow: hidden;
         background-color: #f1f5f9;
     }
@@ -284,7 +209,7 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        object-position: center;
+        object-position: top center;
         transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -309,7 +234,7 @@
     }
 
     /* ==========================================================================
-       5. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA DE ALTO IMPACTO
+       4. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA
        ========================================================================== */
     .gallery-filter-btn {
         background: #ffffff;
@@ -351,7 +276,7 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        object-position: center;
+        object-position: top center;
         transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
         opacity: 0.92;
     }
@@ -392,7 +317,6 @@
         margin-bottom: 0.4rem;
     }
 
-    /* Ticker/Carrusel Continuo de Galería Superior */
     .infinite-marquee-wrapper {
         overflow: hidden;
         white-space: nowrap;
@@ -426,10 +350,11 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
+        object-position: top center;
     }
 
     /* ==========================================================================
-       6. SECCIÓN DE CONTACTO & PIE DE PÁGINA
+       5. CONTACTO & TARJETAS
        ========================================================================== */
     .contact-card {
         background: linear-gradient(135deg, #ffffff 0%, #fff7e8 100%);
@@ -439,9 +364,6 @@
         box-shadow: var(--maskot-shadow-hover);
     }
 
-    /* ==========================================================================
-       7. ANIMACIONES KEYFRAMES
-       ========================================================================== */
     @keyframes floatAnimation {
 
         0%,
@@ -478,42 +400,6 @@
 {% endblock %}
 
 {% block content %}
-
-<!-- ==========================================================================
-     NAVBAR PRINCIPAL CON LOGO OCULTO A LOGIN Y NAVEGACIÓN INTERNA
-     ========================================================================== -->
-<nav class="navbar navbar-expand-lg maskot-glass-nav fixed-top py-2">
-    <div class="container">
-        <!-- Logo de MASKOT como botón oculto hacia /login -->
-        <a class="maskot-brand-stealth" href="{{ url_for('login') }}" title="Acceso Panel MASKOT">
-            <img src="{{ url_for('static', filename='img/LOGOTIPO EDITABLE MASKOT_Mesa de trabajo 1 copia.png') }}"
-                alt="Maskot Petshop" class="maskot-brand-logo"
-                onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-            <span class="maskot-brand-title">Maskot</span>
-        </a>
-
-        <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse"
-            data-bs-target="#maskotNavbar">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="maskotNavbar">
-            <ul class="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-1 text-center">
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#inicio">Inicio</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#servicios">Servicios</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#galeria">Galería</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#productos">Productos</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#contacto">Contacto</a></li>
-            </ul>
-
-            <div class="d-flex justify-content-center">
-                <a href="{{ url_for('login') }}" class="maskot-login-link text-decoration-none">
-                    <i class="fas fa-user-circle fa-lg"></i> Acceso Clientes
-                </a>
-            </div>
-        </div>
-    </div>
-</nav>
 
 <!-- ==========================================================================
      1. HERO SECTION
@@ -580,7 +466,7 @@
 </section>
 
 <!-- ==========================================================================
-     2. PILARES & VALORES (Movilidad, Capacitación, Comida)
+     2. PILARES & VALORES
      ========================================================================== -->
 <section class="features-section bg-white">
     <div class="container">
@@ -646,7 +532,7 @@
 </section>
 
 <!-- ==========================================================================
-     3. SERVICIOS DESTACADOS (IMÁGENES ADAPTADAS PERFECTAMENTE)
+     3. SERVICIOS DESTACADOS
      ========================================================================== -->
 <section id="servicios" class="services-section" data-reveal>
     <div class="container">
@@ -764,7 +650,7 @@
 </section>
 
 <!-- ==========================================================================
-     4. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA DIVERTIMENTE DINÁMICA
+     4. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA
      ========================================================================== -->
 <section id="galeria" class="gallery-section bg-white">
     <div class="container">
@@ -777,7 +663,7 @@
             </p>
         </div>
 
-        <!-- Ticker Infinito Horizontal en Movimiento Continuo -->
+        <!-- Ticker Infinito Horizontal -->
         <div class="infinite-marquee-wrapper mb-5" data-reveal>
             <div class="infinite-marquee-track">
                 <div class="marquee-card"><img src="{{ url_for('static', filename='img/antes1.jpeg') }}"
@@ -794,7 +680,7 @@
                         alt="Movilidad Maskot"></div>
                 <div class="marquee-card"><img src="{{ url_for('static', filename='img/capacitacion1.jpeg') }}"
                         alt="Capacitación"></div>
-                <!-- Duplicados para ciclo fluido -->
+                <!-- Duplicados para animación continua -->
                 <div class="marquee-card"><img src="{{ url_for('static', filename='img/antes1.jpeg') }}"
                         alt="Antes grooming"></div>
                 <div class="marquee-card"><img src="{{ url_for('static', filename='img/despues1.jpeg') }}"
@@ -806,7 +692,7 @@
             </div>
         </div>
 
-        <!-- Botones de Filtro para la Galería Grid -->
+        <!-- Filtros -->
         <div class="d-flex flex-wrap justify-content-center gap-2 mb-4" data-reveal>
             <button class="gallery-filter-btn active" onclick="filterGallery('todos', this)">Todos</button>
             <button class="gallery-filter-btn" onclick="filterGallery('grooming', this)">Grooming & Spa</button>
@@ -814,10 +700,8 @@
             <button class="gallery-filter-btn" onclick="filterGallery('capacitacion', this)">Capacitación</button>
         </div>
 
-        <!-- Mosaico / Grid Interactivo de Imágenes con Animación Zoom Hover -->
+        <!-- Mosaico / Grid Interactivo -->
         <div class="gallery-grid" id="galleryContainer" data-reveal>
-
-            <!-- Foto 1: Resultado Grooming -->
             <div class="gallery-item" data-category="grooming">
                 <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Resultado Grooming MASKOT"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -828,7 +712,6 @@
                 </div>
             </div>
 
-            <!-- Foto 2: Baño Spa -->
             <div class="gallery-item" data-category="grooming">
                 <img src="{{ url_for('static', filename='img/bano1.jpeg') }}" alt="Baño de Burbujas"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -839,7 +722,6 @@
                 </div>
             </div>
 
-            <!-- Foto 3: Corte de Competencia -->
             <div class="gallery-item" data-category="grooming">
                 <img src="{{ url_for('static', filename='img/corteCompetencia.jpeg') }}" alt="Corte de Competencia"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -850,7 +732,6 @@
                 </div>
             </div>
 
-            <!-- Foto 4: Movilidad MASKOT 1 -->
             <div class="gallery-item" data-category="movilidad">
                 <img src="{{ url_for('static', filename='img/transporteMaskot.jpeg') }}" alt="Transporte Especializado"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -861,7 +742,6 @@
                 </div>
             </div>
 
-            <!-- Foto 5: Movilidad MASKOT 2 -->
             <div class="gallery-item" data-category="movilidad">
                 <img src="{{ url_for('static', filename='img/transporteMaskot2.jpeg') }}" alt="Traslado Seguro"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -872,7 +752,6 @@
                 </div>
             </div>
 
-            <!-- Foto 6: Capacitación 1 -->
             <div class="gallery-item" data-category="capacitacion">
                 <img src="{{ url_for('static', filename='img/capacitacion1.jpeg') }}" alt="Seminario de Capacitación"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -883,7 +762,6 @@
                 </div>
             </div>
 
-            <!-- Foto 7: Capacitación 2 -->
             <div class="gallery-item" data-category="capacitacion">
                 <img src="{{ url_for('static', filename='img/capacitacion2.jpeg') }}" alt="Equipo MASKOT Capacitado"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -894,7 +772,6 @@
                 </div>
             </div>
 
-            <!-- Foto 8: Baño 2 -->
             <div class="gallery-item" data-category="grooming">
                 <img src="{{ url_for('static', filename='img/bano2.jpeg') }}" alt="Sesión de Secado Anti-estrés"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -905,7 +782,6 @@
                 </div>
             </div>
 
-            <!-- Foto 9: Baño 4 -->
             <div class="gallery-item" data-category="grooming">
                 <img src="{{ url_for('static', filename='img/bano4.jpeg') }}" alt="Atención Individual"
                     onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
@@ -915,7 +791,6 @@
                     <small class="text-light-50">Cuidado individualizado</small>
                 </div>
             </div>
-
         </div>
     </div>
 </section>
@@ -973,7 +848,7 @@
 {% endif %}
 
 <!-- ==========================================================================
-     6. SECCIÓN DE CONTACTO DIRECTO (WHATSAPP & UBICACIÓN)
+     6. CONTACTO DIRECTO
      ========================================================================== -->
 <section id="contacto" class="py-5" data-reveal>
     <div class="container">
@@ -989,13 +864,10 @@
                         Escríbenos directamente a WhatsApp para consultas sobre grooming, baños medicados,
                         disponibilidad de alimento balanceado o programación de recojo a domicilio.
                     </p>
-                    <div class="d-flex flex-wrap gap-3">
+                    <div>
                         <a href="https://wa.me/1234567890" target="_blank"
                             class="btn btn-success btn-lg rounded-pill px-4">
                             <i class="fab fa-whatsapp me-2"></i>Chatear por WhatsApp
-                        </a>
-                        <a href="{{ url_for('login') }}" class="btn btn-maskot-outline btn-lg">
-                            <i class="fas fa-user-lock me-2"></i>Acceso Clientes Registrados
                         </a>
                     </div>
                 </div>
@@ -1027,11 +899,9 @@
 <script>
     // Filtrado interactivo de fotos en la Galería
     function filterGallery(category, button) {
-        // Actualizar clase activa en botones
         document.querySelectorAll('.gallery-filter-btn').forEach(btn => btn.classList.remove('active'));
         button.classList.add('active');
 
-        // Filtrar elementos del Grid
         const items = document.querySelectorAll('.gallery-item');
         items.forEach(item => {
             if (category === 'todos' || item.dataset.category === category) {
@@ -1045,7 +915,7 @@
         });
     }
 
-    // IntersectionObserver para revelado dinámico durante el Scroll
+    // Scroll reveal observer
     document.addEventListener("DOMContentLoaded", () => {
         const revealElements = document.querySelectorAll('[data-reveal]');
         const observer = new IntersectionObserver((entries) => {
