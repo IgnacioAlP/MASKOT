@@ -36,7 +36,7 @@
     }
 
     /* ==========================================================================
-       2. HERO SECTION (1 SOLA FOTO PRINCIPAL)
+       2. HERO SECTION
        ========================================================================== */
     .maskot-hero {
         min-height: calc(100vh - 80px);
@@ -78,6 +78,12 @@
 
     .text-gradient-orange {
         background: linear-gradient(110deg, var(--maskot-orange), var(--maskot-orange-dark));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .text-gradient-sky {
+        background: linear-gradient(110deg, var(--maskot-sky-dark), var(--maskot-sky));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
@@ -137,15 +143,32 @@
         border-radius: 32px;
         border: 8px solid #ffffff;
         box-shadow: var(--maskot-shadow-hover);
+        transform: rotate(-2deg);
         transition: var(--maskot-transition);
     }
 
     .hero-visual-container:hover .hero-main-card {
-        transform: scale(1.02);
+        transform: rotate(0deg) scale(1.02);
+    }
+
+    .hero-floating-badge {
+        position: absolute;
+        bottom: 20px;
+        left: -10px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(12px);
+        padding: 0.85rem 1.25rem;
+        border-radius: 18px;
+        box-shadow: var(--maskot-shadow);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        animation: floatAnimation 4s ease-in-out infinite;
     }
 
     /* ==========================================================================
-       3. CARDS DE SERVICIOS (1 FOTO POR TARJETA - ENCUADRE CORREGIDO)
+       3. CARDS DE SERVICIOS (ENCUADRE OPTIMIZADO SUPERIOR)
        ========================================================================== */
     .services-section,
     .products-section,
@@ -174,11 +197,10 @@
         border-color: rgba(255, 163, 1, 0.4);
     }
 
-    /* Contenedor de la foto individual por tarjeta */
     .card-img-wrapper {
         position: relative;
         width: 100%;
-        height: 240px;
+        height: 250px;
         overflow: hidden;
         background-color: #f1f5f9;
     }
@@ -188,13 +210,12 @@
         height: 100%;
         object-fit: cover;
         object-position: top center;
-        /* Ajusta la imagen para ver siempre la cabeza de la mascota */
         transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .service-card-modern:hover .card-img-wrapper img,
     .product-card-modern:hover .card-img-wrapper img {
-        transform: scale(1.06);
+        transform: scale(1.08);
     }
 
     .service-card-body,
@@ -275,7 +296,7 @@
     }
 
     .gallery-item:hover img {
-        transform: scale(1.1);
+        transform: scale(1.12);
         opacity: 1;
     }
 
@@ -296,7 +317,6 @@
         margin-bottom: 0.4rem;
     }
 
-    /* Carrusel Continuo de Galería Superior */
     .infinite-marquee-wrapper {
         overflow: hidden;
         white-space: nowrap;
@@ -344,6 +364,18 @@
         box-shadow: var(--maskot-shadow-hover);
     }
 
+    @keyframes floatAnimation {
+
+        0%,
+        100% {
+            transform: translateY(0);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
     @keyframes marqueeScroll {
         0% {
             transform: translateX(0);
@@ -370,7 +402,7 @@
 {% block content %}
 
 <!-- ==========================================================================
-     1. HERO SECTION (1 FOTO PRINCIPAL)
+     1. HERO SECTION
      ========================================================================== -->
 <section id="inicio" class="maskot-hero">
     <div class="container">
@@ -417,6 +449,16 @@
                     <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Mascota con grooming completo"
                         class="hero-main-card"
                         onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
+
+                    <div class="hero-floating-badge">
+                        <div class="bg-warning text-white p-2 rounded-circle">
+                            <i class="fas fa-heart fa-lg"></i>
+                        </div>
+                        <div>
+                            <span class="d-block fw-bold text-dark fs-7">Amor & Cuidado Real</span>
+                            <small class="text-muted">Atención personalizada sin estrés</small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -490,7 +532,7 @@
 </section>
 
 <!-- ==========================================================================
-     3. SERVICIOS DESTACADOS (1 FOTO CAMBIABLE POR TARJETA)
+     3. SERVICIOS DESTACADOS
      ========================================================================== -->
 <section id="servicios" class="services-section" data-reveal>
     <div class="container">
@@ -855,6 +897,7 @@
 
 {% block scripts %}
 <script>
+    // Filtrado interactivo de fotos en la Galería
     function filterGallery(category, button) {
         document.querySelectorAll('.gallery-filter-btn').forEach(btn => btn.classList.remove('active'));
         button.classList.add('active');
@@ -872,6 +915,7 @@
         });
     }
 
+    // Scroll reveal observer
     document.addEventListener("DOMContentLoaded", () => {
         const revealElements = document.querySelectorAll('[data-reveal]');
         const observer = new IntersectionObserver((entries) => {
