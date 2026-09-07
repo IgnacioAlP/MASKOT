@@ -33,64 +33,10 @@
         color: var(--maskot-ink);
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         overflow-x: hidden;
-        padding-top: 80px;
     }
 
     /* ==========================================================================
-       2. NAVBAR FLOTANTE CON LOGO OCULTO HACIA LOGIN
-       ========================================================================== */
-    .maskot-glass-nav {
-        background: rgba(255, 255, 255, 0.92) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border-bottom: 1px solid var(--maskot-line);
-        transition: var(--maskot-transition);
-        z-index: 1050;
-    }
-
-    .maskot-brand-stealth {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-
-    .maskot-brand-logo {
-        height: 46px;
-        width: auto;
-        object-fit: contain;
-        transition: var(--maskot-transition);
-    }
-
-    .maskot-brand-stealth:hover .maskot-brand-logo {
-        transform: scale(1.06) rotate(-3deg);
-    }
-
-    .maskot-brand-title {
-        color: var(--maskot-ink);
-        font-weight: 800;
-        font-size: 1.6rem;
-        letter-spacing: -0.03em;
-    }
-
-    .maskot-nav-link {
-        color: var(--maskot-ink) !important;
-        font-weight: 600;
-        font-size: 0.98rem;
-        padding: 0.5rem 1rem !important;
-        border-radius: 999px;
-        transition: var(--maskot-transition);
-    }
-
-    .maskot-nav-link:hover,
-    .maskot-nav-link:focus {
-        color: var(--maskot-orange-dark) !important;
-        background: var(--maskot-orange-soft);
-    }
-
-    /* ==========================================================================
-       3. HERO SECTION
+       2. HERO SECTION
        ========================================================================== */
     .maskot-hero {
         min-height: calc(100vh - 80px);
@@ -132,12 +78,6 @@
 
     .text-gradient-orange {
         background: linear-gradient(110deg, var(--maskot-orange), var(--maskot-orange-dark));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    .text-gradient-sky {
-        background: linear-gradient(110deg, var(--maskot-sky-dark), var(--maskot-sky));
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
@@ -194,35 +134,15 @@
         aspect-ratio: 4/5;
         object-fit: cover;
         object-position: top center;
+        /* Encuadre enfocado en la parte superior */
         border-radius: 32px;
         border: 8px solid #ffffff;
         box-shadow: var(--maskot-shadow-hover);
-        transform: rotate(-2deg);
         transition: var(--maskot-transition);
     }
 
-    .hero-visual-container:hover .hero-main-card {
-        transform: rotate(0deg) scale(1.02);
-    }
-
-    .hero-floating-badge {
-        position: absolute;
-        bottom: 20px;
-        left: -10px;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(12px);
-        padding: 0.85rem 1.25rem;
-        border-radius: 18px;
-        box-shadow: var(--maskot-shadow);
-        border: 1px solid rgba(255, 255, 255, 0.8);
-        display: flex;
-        align-items: center;
-        gap: 0.8rem;
-        animation: floatAnimation 4s ease-in-out infinite;
-    }
-
     /* ==========================================================================
-       4. CARDS DE SERVICIOS (ENCUADRE PERFECTO SUPERIOR DE MASCOTAS)
+       3. CONFIGURACIÓN DE IMÁGENES EN TARJETAS DE SERVICIO
        ========================================================================== */
     .services-section,
     .products-section,
@@ -251,7 +171,7 @@
         border-color: rgba(255, 163, 1, 0.4);
     }
 
-    /* Ajuste de encuadre superior (object-position: top center) para evitar cortar la cabeza */
+    /* Contenedor e imagen con encuadre superior para que se vea la mascota completa */
     .card-img-wrapper {
         position: relative;
         width: 100%;
@@ -265,12 +185,13 @@
         height: 100%;
         object-fit: cover;
         object-position: top center;
-        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        /* Ajuste clave para ver la cabeza/ojos de la mascota */
+        transition: transform 0.4s ease;
     }
 
     .service-card-modern:hover .card-img-wrapper img,
     .product-card-modern:hover .card-img-wrapper img {
-        transform: scale(1.08);
+        transform: scale(1.05);
     }
 
     .service-card-body,
@@ -289,7 +210,7 @@
     }
 
     /* ==========================================================================
-       5. ÁLBUM DE FOTOS / GALERÍA INTERACTIVA
+       4. GALERÍA Y CONTACTO
        ========================================================================== */
     .gallery-filter-btn {
         background: #ffffff;
@@ -332,7 +253,7 @@
         height: 100%;
         object-fit: cover;
         object-position: top center;
-        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+        transition: transform 0.5s ease, opacity 0.4s ease;
         opacity: 0.92;
     }
 
@@ -351,7 +272,7 @@
     }
 
     .gallery-item:hover img {
-        transform: scale(1.12);
+        transform: scale(1.08);
         opacity: 1;
     }
 
@@ -372,7 +293,6 @@
         margin-bottom: 0.4rem;
     }
 
-    /* Carrusel Continuo de Galería Superior */
     .infinite-marquee-wrapper {
         overflow: hidden;
         white-space: nowrap;
@@ -409,28 +329,12 @@
         object-position: top center;
     }
 
-    /* ==========================================================================
-       6. CONTACTO & TARJETAS
-       ========================================================================== */
     .contact-card {
         background: linear-gradient(135deg, #ffffff 0%, #fff7e8 100%);
         border: 1px solid rgba(255, 163, 1, 0.25);
         border-radius: 28px;
         padding: 3rem 2rem;
         box-shadow: var(--maskot-shadow-hover);
-    }
-
-    /* Keyframes */
-    @keyframes floatAnimation {
-
-        0%,
-        100% {
-            transform: translateY(0);
-        }
-
-        50% {
-            transform: translateY(-10px);
-        }
     }
 
     @keyframes marqueeScroll {
@@ -457,36 +361,6 @@
 {% endblock %}
 
 {% block content %}
-
-<!-- ==========================================================================
-     NAVBAR PRINCIPAL CON LOGO OCULTO HACIA LOGIN
-     ========================================================================== -->
-<nav class="navbar navbar-expand-lg maskot-glass-nav fixed-top py-2">
-    <div class="container">
-        <!-- Logo de MASKOT como botón oculto hacia /login -->
-        <a class="maskot-brand-stealth" href="{{ url_for('login') }}" title="Maskot Petshop">
-            <img src="{{ url_for('static', filename='img/LOGOTIPO EDITABLE MASKOT_Mesa de trabajo 1 copia.png') }}"
-                alt="Maskot Petshop" class="maskot-brand-logo"
-                onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-            <span class="maskot-brand-title">Maskot</span>
-        </a>
-
-        <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse"
-            data-bs-target="#maskotNavbar">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="maskotNavbar">
-            <ul class="navbar-nav ms-auto mb-2 mb-lg-0 gap-lg-2 text-center">
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#inicio">Inicio</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#servicios">Servicios</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#galeria">Galería</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#productos">Productos</a></li>
-                <li class="nav-item"><a class="nav-link maskot-nav-link" href="#contacto">Contacto</a></li>
-            </ul>
-        </div>
-    </div>
-</nav>
 
 <!-- ==========================================================================
      1. HERO SECTION
@@ -536,16 +410,6 @@
                     <img src="{{ url_for('static', filename='img/despues1.jpeg') }}" alt="Mascota con grooming completo"
                         class="hero-main-card"
                         onerror="this.onerror=null;this.src='/static/img/LOGOTIPO%20EDITABLE%20MASKOT_Mesa%20de%20trabajo%201%20copia.png';">
-
-                    <div class="hero-floating-badge">
-                        <div class="bg-warning text-white p-2 rounded-circle">
-                            <i class="fas fa-heart fa-lg"></i>
-                        </div>
-                        <div>
-                            <span class="d-block fw-bold text-dark fs-7">Amor & Cuidado Real</span>
-                            <small class="text-muted">Atención personalizada sin estrés</small>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -619,7 +483,7 @@
 </section>
 
 <!-- ==========================================================================
-     3. SERVICIOS DESTACADOS (IMÁGENES ADAPTADAS DE MANERA VISIBLE)
+     3. SERVICIOS DESTACADOS (1 FOTO CON ENCUADRE SUPERIOR)
      ========================================================================== -->
 <section id="servicios" class="services-section" data-reveal>
     <div class="container">
@@ -984,7 +848,6 @@
 
 {% block scripts %}
 <script>
-    // Filtrado interactivo de fotos en la Galería
     function filterGallery(category, button) {
         document.querySelectorAll('.gallery-filter-btn').forEach(btn => btn.classList.remove('active'));
         button.classList.add('active');
@@ -1002,7 +865,6 @@
         });
     }
 
-    // Scroll reveal observer
     document.addEventListener("DOMContentLoaded", () => {
         const revealElements = document.querySelectorAll('[data-reveal]');
         const observer = new IntersectionObserver((entries) => {
