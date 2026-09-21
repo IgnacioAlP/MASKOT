@@ -50,9 +50,24 @@ def procesar_venta(datos_venta):
                 except Exception:
                     referencia = str(datos_venta.get('detalle_multipago'))
 
+            # --- CÓDIGO A REEMPLAZAR ---
+            # cliente_nombre = datos_venta.get('cliente_nombre')
+            # cliente_documento = datos_venta.get('cliente_documento')
+
+            # --- CÓDIGO NUEVO ---
+            tenant_id = obtener_tenant_id()
             cliente_nombre = datos_venta.get('cliente_nombre')
             cliente_documento = datos_venta.get('cliente_documento')
             notas = datos_venta.get('notas')
+
+            # Si el nombre no viene provisto desde el cliente, se resuelve con el cliente_id
+            if not cliente_nombre:
+                cliente_id_raw = datos_venta.get('cliente_id')
+                cliente_nombre, doc_res = resolver_cliente(cursor, cliente_id_raw, tenant_id)
+                if not cliente_documento:
+                    cliente_documento = doc_res
+
+            
 
             # Calcular totales si no vienen
             if 'subtotal' not in datos_venta or 'total' not in datos_venta:
@@ -627,3 +642,32 @@ def cancelar_venta(venta_id, motivo=None, usuario_id=None):
         return {'success': False, 'error': str(e)}
     finally:
         conexion.close()
+
+def resolver_cliente(cursor, cliente_id, tenant_id):
+    """
+    Obtiene nombre y documento del cliente validando tenant_id.
+    Retorna datos por defecto si el ID es nulo, inválido o no existe.
+    """
+    cid_valido = None
+    if cliente_id is not None and str(cliente_id).strip().isdigit():
+        cid_valido = int(cliente_id)
+
+    if cid_valido:
+        cursor.execute(
+            "SELECT nombre, documento FROM clientes WHERE id = %s AND tenant_id = %s",
+            (cid_valido, tenant_id)
+        )
+        cliente = cursor.fetchone()
+        if cliente:
+            return cliente[0] or 'Cliente General', cliente[1] or ''
+
+    # Fallback: Cliente General del tenant
+    cursor.execute(
+        "SELECT nombre, documento FROM clientes WHERE es_general = true AND tenant_id = %s LIMIT 1",
+        (tenant_id,)
+    )
+    general = cursor.fetchone()
+    if general:
+        return general[0], general[1]
+
+    return 'Cliente General', ''
