@@ -320,7 +320,10 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'rol' in session and session.get('rol') in ['dueño', 'admin', 'empleado', 'superadmin']:
+    # 1. Si ya existe una sesión activa, redirigir dinámicamente según el rol
+    if 'usuario_id' in session and 'rol' in session:
+        if session.get('rol') == 'superadmin':
+            return redirect(url_for('gestionar_tenants'))
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
@@ -344,18 +347,24 @@ def login():
             return render_template('login.html')
             
         user = auth.get('user')
+        
+        # Normalizar el formato del rol (evita fallos por mayúsculas/espacios)
+        rol = str(user[3]).strip().lower() if user and len(user) > 3 and user[3] else ''
+
         session.permanent = True
         session['user_id'] = user[0]
         session['usuario_id'] = user[0]
         session['usuario'] = user[1]
-        session['rol'] = user[3]
-        session['tenant_id'] = user[5] if len(user) > 5 and user[5] else 1
+        session['rol'] = rol
+        session['tenant_id'] = user[5] if (len(user) > 5 and user[5] is not None) else 1
         
         flash(f"¡Bienvenido de nuevo, {user[1]}!", 'success')
-        if next_url and next_url.startswith('/'):
+        
+        # Redirección segura para evitar vulnerabilidades de Open Redirect
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
             return redirect(next_url)
         
-        if user[3] == 'superadmin':
+        if rol == 'superadmin':
             return redirect(url_for('gestionar_tenants'))
             
         return redirect(url_for('dashboard'))
