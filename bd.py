@@ -12,14 +12,17 @@ def obtener_conexion():
     )
     with conn.cursor() as cursor:
         cursor.execute("SET TIME ZONE 'America/Lima';")
+    conn.commit()  # Cierra la transacción inicial para no bloquear el pooler de Supabase
     
     return conn
 
 def obtener_tenant_id():
-    """Retorna el tenant_id de la sesión Flask activa. Siempre devuelve un int."""
+    """Retorna el tenant_id de la sesión Flask activa. Soporta numéricos y 'ALL' para superadmin."""
     try:
         from flask import session
         tid = session.get('tenant_id', 1)
-        return int(tid) if tid else 1
+        if str(tid).upper() == 'ALL':
+            return 'ALL'
+        return int(tid) if tid is not None else 1
     except Exception:
         return 1
