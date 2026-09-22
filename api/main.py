@@ -2448,8 +2448,9 @@ def detalle_cliente(cliente_id):
 @app.route('/personal', methods=['GET', 'POST'])
 @app.route('/personal/agregar', methods=['POST'], endpoint='agregar_personal')
 @app.route('/personal/editar', methods=['POST'], endpoint='editar_personal')
-def personal():
-    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+@app.route('/personal/desactivar/<int:direct_id>', methods=['POST'])
+def personal(direct_id=None):
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño', 'superadmin']:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Acceso denegado.'}), 403
         flash('Acceso denegado.', 'error')
@@ -2471,27 +2472,51 @@ def personal():
                         return str(v).strip()
                 return default
 
-            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id')
-            target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
+            raw_id = direct_id or get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'target_id')
+            target_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
 
-            if 'eliminar' in request.form or get_param('accion') in ['desactivar', 'eliminar']:
-                if target_id:
-                    conexion = obtener_conexion()
-                    with conexion.cursor() as cursor:
-                        cursor.execute("""
-                            UPDATE personal 
-                            SET activo = false 
-                            WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
-                            RETURNING usuario_id
-                        """, (target_id, target_id, tenant_id))
-                        res = cursor.fetchone()
-                        if res and res[0]:
-                            cursor.execute("UPDATE usuarios SET activo = false WHERE id = %s", (res[0],))
-                    conexion.commit()
-                    conexion.close()
-                    flash('Empleado desactivado correctamente.', 'success')
-                    return redirect(url_for('personal'))
+            accion = get_param('accion', 'action', 'tipo').lower()
+            
+            # Detectar si la petición es para DESACTIVAR / DAR DE BAJA
+            es_desactivar = (
+                direct_id is not None or 
+                'desactivar' in request.form or 
+                'eliminar' in request.form or 
+                accion in ['desactivar', 'eliminar', 'disable', 'baja']
+            )
 
+            if es_desactivar and target_id:
+                conexion = obtener_conexion()
+                with conexion.cursor() as cursor:
+                    # 1. Desactivar en la tabla personal y obtener el usuario_id asociado
+                    cursor.execute("""
+                        UPDATE personal 
+                        SET activo = false 
+                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                        RETURNING usuario_id
+                    """, (target_id, target_id, tenant_id, str(tenant_id)))
+                    res = cursor.fetchone()
+                    
+                    usuario_id = res[0] if res and res[0] else target_id
+                    
+                    # 2. Desactivar también en la tabla usuarios para bloquear el login
+                    cursor.execute("""
+                        UPDATE usuarios 
+                        SET activo = false 
+                        WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                    """, (usuario_id, tenant_id, str(tenant_id)))
+
+                conexion.commit()
+                conexion.close()
+
+                msg = 'Empleado y usuario desactivados correctamente.'
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                    return jsonify({'success': True, 'message': msg})
+
+                flash(msg, 'success')
+                return redirect(url_for('personal'))
+
+            # PROCESAR EDICIÓN O CREACIÓN DE EMPLEADO
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
             rol = get_param('rol', default='empleado').lower()
@@ -2500,34 +2525,51 @@ def personal():
             salario_raw = get_param('salario', 'sueldo')
             salario = float(salario_raw) if salario_raw else 0.0
 
+            # Detectar si se envía explícitamente el estado activo/inactivo en el formulario
+            estado_param = get_param('activo', 'estado').lower()
+            tiene_estado_param = estado_param != ''
+            nuevo_activo = estado_param in ['1', 'true', 'activo', 'on'] if tiene_estado_param else True
+
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if target_id:
                     cursor.execute("""
                         SELECT id, usuario_id 
                         FROM personal 
-                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
-                    """, (target_id, target_id, tenant_id))
+                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                    """, (target_id, target_id, tenant_id, str(tenant_id)))
                     p_row = cursor.fetchone()
                     
                     if p_row:
                         p_id, usuario_id = p_row[0], p_row[1]
-                        cursor.execute("""
-                            UPDATE personal SET cargo = %s, salario = %s 
-                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                        """, (cargo, salario, p_id, tenant_id))
+                        if tiene_estado_param:
+                            cursor.execute("""
+                                UPDATE personal SET cargo = %s, salario = %s, activo = %s 
+                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                            """, (cargo, salario, nuevo_activo, p_id, tenant_id, str(tenant_id)))
+                        else:
+                            cursor.execute("""
+                                UPDATE personal SET cargo = %s, salario = %s 
+                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                            """, (cargo, salario, p_id, tenant_id, str(tenant_id)))
                     else:
                         usuario_id = target_id
                         cursor.execute("""
                             INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id) 
-                            VALUES (%s, %s, %s, true, %s)
-                        """, (usuario_id, cargo, salario, tenant_id))
+                            VALUES (%s, %s, %s, %s, %s)
+                        """, (usuario_id, cargo, salario, nuevo_activo if tiene_estado_param else True, tenant_id))
 
                     if usuario_id and username:
-                        cursor.execute("""
-                            UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum 
-                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                        """, (username, rol_final, usuario_id, tenant_id))
+                        if tiene_estado_param:
+                            cursor.execute("""
+                                UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum, activo = %s 
+                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                            """, (username, rol_final, nuevo_activo, usuario_id, tenant_id, str(tenant_id)))
+                        else:
+                            cursor.execute("""
+                                UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum 
+                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                            """, (username, rol_final, usuario_id, tenant_id, str(tenant_id)))
 
                     mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
@@ -2577,14 +2619,17 @@ def personal():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # Obtener el estado combinado (Inactivo si falla personal O usuarios)
             cursor.execute("""
                 SELECT p.id AS personal_id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo,
-                       u.rol, COALESCE(p.salario, 0.00) AS salario, COALESCE(p.activo, true) AS activo, u.id AS usuario_id
+                       u.rol, COALESCE(p.salario, 0.00) AS salario, 
+                       (COALESCE(p.activo, true) AND COALESCE(u.activo, true)) AS activo, 
+                       u.id AS usuario_id
                 FROM personal p
                 INNER JOIN usuarios u ON p.usuario_id = u.id
-                WHERE (p.tenant_id = %s OR p.tenant_id IS NULL)
+                WHERE (p.tenant_id = %s OR %s = 'ALL' OR p.tenant_id IS NULL)
                 ORDER BY p.id ASC
-            """, (tenant_id,))
+            """, (tenant_id, str(tenant_id)))
             
             for r in cursor.fetchall():
                 p_id, username, cargo, rol, salario, activo_bool, usuario_id = r[0], r[1] or 'Sin Usuario', r[2] or 'Empleado', str(r[3]), float(r[4] or 0), bool(r[5]), r[6]
@@ -2600,9 +2645,9 @@ def personal():
             cursor.execute("""
                 SELECT id, username, rol, COALESCE(activo, true) 
                 FROM usuarios 
-                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                WHERE (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
                 ORDER BY id ASC
-            """, (tenant_id,))
+            """, (tenant_id, str(tenant_id)))
             for u in cursor.fetchall():
                 usuarios_lista.append({'id': u[0], 'username': u[1], 'rol': str(u[2]), 'activo': u[3], 0: u[0], 1: u[1], 2: str(u[2]), 3: u[3]})
 
@@ -2610,7 +2655,7 @@ def personal():
     except Exception as e:
         logger.error(f"Error cargando módulo personal: {e}")
 
-    puede_modificar = session.get('rol') in ['admin', 'dueño']
+    puede_modificar = session.get('rol') in ['admin', 'dueño', 'superadmin']
 
     return render_template('personal.html', empleados=empleados_lista, personal=empleados_lista, usuarios=usuarios_lista, puede_modificar=puede_modificar)
 
@@ -2618,7 +2663,7 @@ def personal():
 @app.route('/personal/toggle-estado/<int:target_id>', methods=['POST'])
 @app.route('/usuario/toggle-estado/<int:target_id>', methods=['POST'])
 def toggle_estado_personal(target_id):
-    if session.get('rol') not in ['admin', 'dueño']:
+    if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
         return jsonify({'success': False, 'error': 'Sin permisos'}), 403
 
     tenant_id = session.get('tenant_id', 1)
@@ -2628,9 +2673,9 @@ def toggle_estado_personal(target_id):
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE personal SET activo = NOT COALESCE(activo, true)
-                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
                 RETURNING usuario_id, activo
-            """, (target_id, target_id, tenant_id))
+            """, (target_id, target_id, tenant_id, str(tenant_id)))
             
             res = cursor.fetchone()
             if res and res[0]:
