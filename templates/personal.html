@@ -21,7 +21,7 @@
         <!-- Formulario para agregar empleado -->
         <div id="formularioEmpleado" class="form-card" style="display: none;">
             <h2><i class="fas fa-user-plus"></i> Nuevo Usuario</h2>
-            <form method="POST" action="/personal" class="no-animation">
+            <form method="POST" action="{{ url_for('agregar_personal') }}" class="no-animation">
                 <div class="form-row">
                     <div class="form-group">
                         <label><i class="fas fa-user"></i> Usuario:</label>
@@ -98,11 +98,11 @@
                         <td>
                             <div class="employee-info">
                                 <i class="fas fa-user-circle"></i>
-                                <span>{{ empleado[2] }}</span> {# username está en posición 2 #}
+                                <span>{{ empleado[2] }}</span>
                             </div>
                         </td>
                         <td>
-                            <span class="cargo-badge">{{ empleado[3] }}</span> {# cargo está en posición 3 #}
+                            <span class="cargo-badge">{{ empleado[3] }}</span>
                         </td>
                         <td>
                             {% if empleado[6] == 'dueño' %}
@@ -116,7 +116,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <strong>${{ "%.2f"|format(empleado[4]) }}</strong> {# salario está en posición 4 #}
+                            <strong>${{ "%.2f"|format(empleado[4]) }}</strong>
                         </td>
                         <td>
                             {% if empleado[5] == 1 %}
@@ -137,18 +137,20 @@
                                             class="btn btn-sm btn-primary">
                                         <i class="fas fa-edit"></i> Editar
                                     </button>
-                                    <form method="POST" style="display: inline;" class="no-animation">
-                    <input type="hidden" name="id" value="{{ empleado[0] }}">
-                    <button type="submit" name="eliminar" class="btn btn-sm btn-danger"
-                        data-confirm="¿Desactivar empleado {{ empleado[2] }}?">
+                                    <form method="POST" action="{{ url_for('desactivar_personal_directo', target_id=empleado[0]) }}" style="display: inline;" class="no-animation">
+                                        <input type="hidden" name="id" value="{{ empleado[0] }}">
+                                        <input type="hidden" name="accion" value="desactivar">
+                                        <button type="submit" name="eliminar" class="btn btn-sm btn-danger"
+                                                onclick="return confirm('¿Desactivar empleado {{ empleado[2] }}?');">
                                             <i class="fas fa-user-times"></i> Desactivar
                                         </button>
                                     </form>
                                 {% else %}
-                                    <form method="POST" style="display: inline;" class="no-animation">
-                    <input type="hidden" name="id" value="{{ empleado[0] }}">
-                    <button type="submit" name="reactivar" class="btn btn-sm btn-success"
-                        data-confirm="¿Reactivar empleado {{ empleado[2] }}?">
+                                    <form method="POST" action="{{ url_for('toggle_estado_personal', target_id=empleado[0]) }}" style="display: inline;" class="no-animation">
+                                        <input type="hidden" name="id" value="{{ empleado[0] }}">
+                                        <input type="hidden" name="accion" value="activar">
+                                        <button type="submit" name="reactivar" class="btn btn-sm btn-success"
+                                                onclick="return confirm('¿Reactivar empleado {{ empleado[2] }}?');">
                                             <i class="fas fa-user-check"></i> Reactivar
                                         </button>
                                     </form>
@@ -188,7 +190,6 @@
                         </tr>
                     </thead>
                     <tbody>
-                        
                         {% for usuario in usuarios %}
                         <tr>
                             <td><strong>{{ usuario[0] }}</strong></td>
@@ -210,7 +211,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if usuario[3] == 1 %}
+                                {% if usuario[3] == 1 or usuario[3] == True %}
                                     <span class="badge bg-success">
                                         <i class="fas fa-check"></i> Activo
                                     </span>
@@ -228,39 +229,43 @@
                             {% if puede_modificar %}
                             <td>
                                 <div class="d-flex flex-wrap gap-1">
-                                    {% if usuario[3] == 1 %}
+                                    {% if usuario[3] == 1 or usuario[3] == True %}
                                     {# Usuario activo - mostrar desactivar y eliminar #}
-                                    <form method="POST" style="display: inline;" class="no-animation">
+                                    <form method="POST" action="{{ url_for('desactivar_personal_directo', target_id=usuario[0]) }}" style="display: inline;" class="no-animation">
                                         <input type="hidden" name="user_id" value="{{ usuario[0] }}">
+                                        <input type="hidden" name="accion" value="desactivar">
                                         <button type="submit" name="desactivar_usuario" 
                                                 class="btn btn-outline-warning btn-sm" title="Desactivar acceso"
-                                                onclick="return confirm('¿Desactivar usuario {{ usuario[1] }}?\\n\\nPerderá acceso al sistema pero se conservarán sus datos.')">
+                                                onclick="return confirm('¿Desactivar usuario {{ usuario[1] }}?\n\nPerderá acceso al sistema pero se conservarán sus datos.')">
                                             <i class="fas fa-user-slash"></i>
                                         </button>
                                     </form>
-                                    <form method="POST" style="display: inline;" class="no-animation">
+                                    <form method="POST" action="{{ url_for('eliminar_personal_permanente', target_id=usuario[0]) }}" style="display: inline;" class="no-animation">
                                         <input type="hidden" name="user_id" value="{{ usuario[0] }}">
+                                        <input type="hidden" name="accion" value="eliminar">
                                         <button type="submit" name="eliminar_usuario" 
                                                 class="btn btn-outline-danger btn-sm" title="Eliminar permanentemente"
-                                                onclick="return confirm('⚠️ ELIMINAR PERMANENTEMENTE el usuario {{ usuario[1] }}?\\n\\nEsta acción:\\n• NO se puede deshacer\\n• Eliminará TODOS los datos del usuario\\n\\n¿Estás completamente seguro?')">
+                                                onclick="return confirm('⚠️ ELIMINAR PERMANENTEMENTE el usuario {{ usuario[1] }}?\n\nEsta acción:\n• NO se puede deshacer\n• Eliminará TODOS los datos del usuario\n\n¿Estás completamente seguro?')">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
                                     {% else %}
                                     {# Usuario inactivo - mostrar activar y eliminar #}
-                                    <form method="POST" style="display: inline;" class="no-animation">
+                                    <form method="POST" action="{{ url_for('toggle_estado_personal', target_id=usuario[0]) }}" style="display: inline;" class="no-animation">
                                         <input type="hidden" name="user_id" value="{{ usuario[0] }}">
+                                        <input type="hidden" name="accion" value="activar">
                                         <button type="submit" name="activar_usuario" 
                                                 class="btn btn-outline-success btn-sm" title="Reactivar acceso"
                                                 onclick="return confirm('¿Reactivar acceso para {{ usuario[1] }}?')">
                                             <i class="fas fa-user-check"></i>
                                         </button>
                                     </form>
-                                    <form method="POST" style="display: inline;" class="no-animation">
+                                    <form method="POST" action="{{ url_for('eliminar_personal_permanente', target_id=usuario[0]) }}" style="display: inline;" class="no-animation">
                                         <input type="hidden" name="user_id" value="{{ usuario[0] }}">
+                                        <input type="hidden" name="accion" value="eliminar">
                                         <button type="submit" name="eliminar_usuario" 
                                                 class="btn btn-outline-danger btn-sm" title="Eliminar permanentemente"
-                                                onclick="return confirm('⚠️ ELIMINAR PERMANENTEMENTE el usuario {{ usuario[1] }}?\\n\\nEsta acción:\\n• NO se puede deshacer\\n• Eliminará TODOS los datos del usuario\\n\\n¿Estás completamente seguro?')">
+                                                onclick="return confirm('⚠️ ELIMINAR PERMANENTEMENTE el usuario {{ usuario[1] }}?\n\nEsta acción:\n• NO se puede deshacer\n• Eliminará TODOS los datos del usuario\n\n¿Estás completamente seguro?')">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
@@ -293,8 +298,9 @@
             <h2><i class="fas fa-edit"></i> Editar Empleado</h2>
             <span class="close" onclick="cerrarModal()">&times;</span>
         </div>
-        <form method="POST" id="editForm" class="no-animation">
+        <form method="POST" action="{{ url_for('editar_personal') }}" id="editForm" class="no-animation">
             <input type="hidden" id="edit_id" name="id">
+            <input type="hidden" name="accion" value="editar">
             <div class="form-row">
                 <div class="form-group">
                     <label for="edit_cargo">
@@ -426,7 +432,6 @@
         }
     }
     
-    // Sin JavaScript que interfiera
     console.log('Página de personal cargada');
     
     function editarEmpleado(id, cargo, salario) {
@@ -440,7 +445,6 @@
         document.getElementById('editModal').style.display = 'none';
     }
     
-    // Cerrar modal al hacer click fuera de él
     window.onclick = function(event) {
         const modal = document.getElementById('editModal');
         if (event.target === modal) {
