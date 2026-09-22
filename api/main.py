@@ -2448,8 +2448,7 @@ def detalle_cliente(cliente_id):
 @app.route('/personal', methods=['GET', 'POST'])
 @app.route('/personal/agregar', methods=['POST'], endpoint='agregar_personal')
 @app.route('/personal/editar', methods=['POST'], endpoint='editar_personal')
-@app.route('/personal/desactivar/<int:direct_id>', methods=['POST'])
-def personal(direct_id=None):
+def personal():
     if 'rol' not in session or session['rol'] not in ['admin', 'dueño', 'superadmin']:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Acceso denegado.'}), 403
@@ -2472,51 +2471,20 @@ def personal(direct_id=None):
                         return str(v).strip()
                 return default
 
-            raw_id = direct_id or get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'target_id')
+            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'target_id')
             target_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
-
             accion = get_param('accion', 'action', 'tipo').lower()
-            
-            # Detectar si la petición es para DESACTIVAR / DAR DE BAJA
-            es_desactivar = (
-                direct_id is not None or 
-                'desactivar' in request.form or 
-                'eliminar' in request.form or 
-                accion in ['desactivar', 'eliminar', 'disable', 'baja']
-            )
 
-            if es_desactivar and target_id:
-                conexion = obtener_conexion()
-                with conexion.cursor() as cursor:
-                    # 1. Desactivar en la tabla personal y obtener el usuario_id asociado
-                    cursor.execute("""
-                        UPDATE personal 
-                        SET activo = false 
-                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                        RETURNING usuario_id
-                    """, (target_id, target_id, tenant_id, str(tenant_id)))
-                    res = cursor.fetchone()
-                    
-                    usuario_id = res[0] if res and res[0] else target_id
-                    
-                    # 2. Desactivar también en la tabla usuarios para bloquear el login
-                    cursor.execute("""
-                        UPDATE usuarios 
-                        SET activo = false 
-                        WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                    """, (usuario_id, tenant_id, str(tenant_id)))
+            # DETECTAR SI LA PETICIÓN ES DESACTIVAR O ELIMINAR
+            if 'desactivar' in request.form or accion in ['desactivar', 'baja']:
+                if target_id:
+                    return desactivar_personal_directo(target_id)
 
-                conexion.commit()
-                conexion.close()
+            if 'eliminar' in request.form or accion in ['eliminar', 'delete']:
+                if target_id:
+                    return eliminar_personal_permanente(target_id)
 
-                msg = 'Empleado y usuario desactivados correctamente.'
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-                    return jsonify({'success': True, 'message': msg})
-
-                flash(msg, 'success')
-                return redirect(url_for('personal'))
-
-            # PROCESAR EDICIÓN O CREACIÓN DE EMPLEADO
+            # PROCESAR EDICIÓN O CREACIÓN
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
             rol = get_param('rol', default='empleado').lower()
@@ -2525,58 +2493,43 @@ def personal(direct_id=None):
             salario_raw = get_param('salario', 'sueldo')
             salario = float(salario_raw) if salario_raw else 0.0
 
-            # Detectar si se envía explícitamente el estado activo/inactivo en el formulario
-            estado_param = get_param('activo', 'estado').lower()
-            tiene_estado_param = estado_param != ''
-            nuevo_activo = estado_param in ['1', 'true', 'activo', 'on'] if tiene_estado_param else True
-
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if target_id:
+                    # EDICIÓN
                     cursor.execute("""
                         SELECT id, usuario_id 
                         FROM personal 
                         WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
                     """, (target_id, target_id, tenant_id, str(tenant_id)))
                     p_row = cursor.fetchone()
-                    
+
                     if p_row:
                         p_id, usuario_id = p_row[0], p_row[1]
-                        if tiene_estado_param:
-                            cursor.execute("""
-                                UPDATE personal SET cargo = %s, salario = %s, activo = %s 
-                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                            """, (cargo, salario, nuevo_activo, p_id, tenant_id, str(tenant_id)))
-                        else:
-                            cursor.execute("""
-                                UPDATE personal SET cargo = %s, salario = %s 
-                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                            """, (cargo, salario, p_id, tenant_id, str(tenant_id)))
+                        cursor.execute("""
+                            UPDATE personal SET cargo = %s, salario = %s 
+                            WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                        """, (cargo, salario, p_id, tenant_id, str(tenant_id)))
                     else:
                         usuario_id = target_id
                         cursor.execute("""
                             INSERT INTO personal (usuario_id, cargo, salario, activo, tenant_id) 
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (usuario_id, cargo, salario, nuevo_activo if tiene_estado_param else True, tenant_id))
+                            VALUES (%s, %s, %s, true, %s)
+                        """, (usuario_id, cargo, salario, tenant_id))
 
                     if usuario_id and username:
-                        if tiene_estado_param:
-                            cursor.execute("""
-                                UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum, activo = %s 
-                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                            """, (username, rol_final, nuevo_activo, usuario_id, tenant_id, str(tenant_id)))
-                        else:
-                            cursor.execute("""
-                                UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum 
-                                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                            """, (username, rol_final, usuario_id, tenant_id, str(tenant_id)))
+                        cursor.execute("""
+                            UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum 
+                            WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                        """, (username, rol_final, usuario_id, tenant_id, str(tenant_id)))
 
                     mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
+                    # NUEVO REGISTRO
                     if not username:
                         conexion.close()
                         msg = 'El nombre de usuario es obligatorio.'
-                        if request.is_json:
+                        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                             return jsonify({'success': False, 'error': msg}), 400
                         flash(msg, 'warning')
                         return redirect(url_for('personal'))
@@ -2613,13 +2566,13 @@ def personal(direct_id=None):
 
         return redirect(url_for('personal'))
 
+    # LISTADO
     empleados_lista = []
     usuarios_lista = []
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # Obtener el estado combinado (Inactivo si falla personal O usuarios)
             cursor.execute("""
                 SELECT p.id AS personal_id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo,
                        u.rol, COALESCE(p.salario, 0.00) AS salario, 
@@ -2660,53 +2613,57 @@ def personal(direct_id=None):
     return render_template('personal.html', empleados=empleados_lista, personal=empleados_lista, usuarios=usuarios_lista, puede_modificar=puede_modificar)
 
 
-@app.route('/personal/toggle-estado/<int:target_id>', methods=['POST'])
-@app.route('/usuario/toggle-estado/<int:target_id>', methods=['POST'])
-def toggle_estado_personal(target_id):
+# RUTA EXPLÍCITA PARA DESACTIVAR EMPLEADO Y USUARIO
+@app.route('/personal/desactivar/<int:target_id>', methods=['POST', 'GET'])
+@app.route('/personal/toggle-estado/<int:target_id>', methods=['POST', 'GET'])
+def desactivar_personal_directo(target_id):
     if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
-        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+        flash('Sin permisos para esta acción.', 'error')
+        return redirect(url_for('personal'))
 
     tenant_id = session.get('tenant_id', 1)
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # 1. Desactivar en la tabla personal
             cursor.execute("""
-                UPDATE personal SET activo = NOT COALESCE(activo, true)
+                UPDATE personal SET activo = false 
                 WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                RETURNING usuario_id, activo
+                RETURNING usuario_id
             """, (target_id, target_id, tenant_id, str(tenant_id)))
-            
             res = cursor.fetchone()
-            if res and res[0]:
-                cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (res[1], res[0]))
-                nuevo_estado = res[1]
-            else:
-                cursor.execute("UPDATE usuarios SET activo = NOT COALESCE(activo, true) WHERE id = %s RETURNING activo", (target_id,))
-                res_u = cursor.fetchone()
-                if not res_u:
-                    conexion.close()
-                    return jsonify({'success': False, 'error': 'Usuario no encontrado'}), 404
-                nuevo_estado = res_u[0]
+            
+            usuario_id = res[0] if res and res[0] else target_id
+
+            # 2. Desactivar en la tabla usuarios para bloquear el login
+            cursor.execute("""
+                UPDATE usuarios SET activo = false 
+                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+            """, (usuario_id, tenant_id, str(tenant_id)))
 
         conexion.commit()
         conexion.close()
 
+        msg = 'Empleado y acceso de usuario desactivados correctamente.'
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'message': 'Estado de acceso actualizado.'})
+            return jsonify({'success': True, 'message': msg})
 
-        flash('Estado de acceso actualizado correctamente.', 'success')
-        return redirect(url_for('personal'))
+        flash(msg, 'success')
     except Exception as e:
-        logger.error(f"Error al cambiar estado de acceso: {e}")
+        logger.error(f"Error desactivando personal {target_id}: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
-        flash(f'Error al cambiar estado: {e}', 'error')
-        return redirect(url_for('personal'))
+        flash(f'Error al desactivar: {e}', 'error')
+
+    return redirect(url_for('personal'))
 
 
-@app.route('/personal/eliminar/<int:target_id>', methods=['POST', 'DELETE'])
-@app.route('/usuario/eliminar/<int:target_id>', methods=['POST', 'DELETE'])
+# RUTA EXPLÍCITA PARA ELIMINACIÓN PERMANENTE
+@app.route('/personal/eliminar/<int:target_id>', methods=['POST', 'DELETE', 'GET'])
+@app.route('/usuario/eliminar/<int:target_id>', methods=['POST', 'DELETE', 'GET'])
 def eliminar_personal_permanente(target_id):
     if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -2717,7 +2674,12 @@ def eliminar_personal_permanente(target_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT p.id AS personal_id, u.id AS usuario_id FROM usuarios u LEFT JOIN personal p ON p.usuario_id = u.id WHERE u.id = %s OR p.id = %s", (target_id, target_id))
+            cursor.execute("""
+                SELECT p.id AS personal_id, u.id AS usuario_id 
+                FROM usuarios u 
+                LEFT JOIN personal p ON p.usuario_id = u.id 
+                WHERE u.id = %s OR p.id = %s
+            """, (target_id, target_id))
             row = cursor.fetchone()
             personal_id = row[0] if row else None
             usuario_id = row[1] if row else target_id
@@ -2734,18 +2696,18 @@ def eliminar_personal_permanente(target_id):
         conexion.commit()
         conexion.close()
 
+        msg = 'Usuario y su historial fueron eliminados permanentemente.'
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': 'Usuario y su historial eliminados.'})
+            return jsonify({'success': True, 'message': msg})
 
-        flash('Usuario eliminado permanentemente.', 'success')
+        flash(msg, 'success')
     except Exception as e:
-        logger.error(f"Error eliminando personal: {e}")
+        logger.error(f"Error eliminando personal {target_id}: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
         flash(f'Error al eliminar: {e}', 'error')
 
     return redirect(url_for('personal'))
-
 
 # ─── ASISTENCIA DEL PERSONAL CON ZONA HORARIA DE PERÚ ────────────────────────
 
