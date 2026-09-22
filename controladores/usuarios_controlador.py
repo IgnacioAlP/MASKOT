@@ -10,17 +10,21 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def obtener_usuario_por_nombre(username):
-    """Obtiene un usuario por su nombre de usuario (independiente de Mayúsculas/Minúsculas)"""
-    username = (username or '').strip()
+    """Obtiene un usuario por nombre de forma robusta (ignora mayúsculas, minúsculas y espacios)."""
+    if not username:
+        return None
+        
+    username_limpio = username.strip().lower()
     conexion = obtener_conexion()
     usuario = None
     try:
         with conexion.cursor() as cursor:
+            # LOWER y TRIM aseguran coincidencia exacta sin importar mayúsculas o espacios en BD
             cursor.execute("""
                 SELECT id, username, password, rol, activo, tenant_id 
                 FROM usuarios 
-                WHERE LOWER(username) = LOWER(%s)
-            """, (username,))
+                WHERE LOWER(TRIM(username)) = %s
+            """, (username_limpio,))
             usuario = cursor.fetchone()
     except Exception as e:
         logger.error(f"Error al obtener usuario por nombre: {e}")
@@ -62,45 +66,36 @@ def obtener_todos_usuarios(tenant_id=None):
     return usuarios
 
 def verificar_credenciales(username, password):
-    username = (username or '').strip()
-    password = (password or '').strip()
+    """Verifica credenciales con sanitización de entradas y depuración automática."""
+    username_limpio = (username or '').strip()
+    password_limpia = (password or '').strip()
 
-    usuario = obtener_usuario_por_nombre(username)
+    if not username_limpio or not password_limpia:
+        return {'success': False, 'user': None, 'message': 'Por favor complete todos los campos.'}
+
+    # 1. Buscar usuario
+    usuario = obtener_usuario_por_nombre(username_limpio)
 
     if not usuario:
-        logger.error(f"[LOGIN FAIL] No se encontró el usuario: '{username}'")
-        return {
-            'success': False,
-            'user': None,
-            'message': 'Usuario o contraseña incorrectos'
-        }
+        logger.warning(f"[LOGIN FAIL] El usuario '{username_limpio}' no existe en la BD.")
+        return {'success': False, 'user': None, 'message': 'Usuario o contraseña incorrectos'}
 
-    # Verificar estado activo
+    # 2. Verificar estado activo
     if not usuario[4]:
-        return {
-            'success': False,
-            'user': None,
-            'message': 'La cuenta se encuentra desactivada.'
-        }
+        logger.warning(f"[LOGIN FAIL] La cuenta del usuario '{username_limpio}' está desactivada.")
+        return {'success': False, 'user': None, 'message': 'La cuenta se encuentra desactivada.'}
 
-    # Comparación segura limpiando espacios invisibles de la BD
-    password_hash = hash_password(password)
-    hash_en_bd = str(usuario[2]).strip() if usuario[2] else ''
+    # 3. Comparar hashes de forma limpia
+    hash_ingresado = hash_password(password_limpia)
+    hash_bd = str(usuario[2]).strip() if usuario[2] else ''
 
-    if password_hash == hash_en_bd:
-        return {
-            'success': True,
-            'user': usuario,
-            'message': 'Autenticación exitosa'
-        }
+    if hash_ingresado == hash_bd:
+        logger.info(f"[LOGIN OK] Inicio de sesión exitoso para: '{username_limpio}'")
+        return {'success': True, 'user': usuario, 'message': 'Autenticación exitosa'}
 
-    logger.error(f"[LOGIN FAIL] Contraseña incorrecta para el usuario: '{username}'")
-    return {
-        'success': False,
-        'user': None,
-        'message': 'Usuario o contraseña incorrectos'
-    }
-    
+    logger.warning(f"[LOGIN FAIL] Contraseña incorrecta para el usuario: '{username_limpio}'")
+    return {'success': False, 'user': None, 'message': 'Usuario o contraseña incorrectos'}
+
 def insertar_usuario(username, password, rol='empleado', tenant_id=None):
     """Inserta un nuevo usuario (si tenant_id es None, asigna el del contexto actual)"""
     conexion = obtener_conexion()
@@ -236,12 +231,14 @@ def cambiar_rol_usuario(user_id, nuevo_rol, tenant_id=None):
 
 def existe_usuario(username):
     """Verifica si ya existe un usuario con ese nombre (case-insensitive)"""
-    username = (username or '').strip()
+    if not username:
+        return False
+    username_limpio = username.strip().lower()
     conexion = obtener_conexion()
     existe = False
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT id FROM usuarios WHERE LOWER(username) = LOWER(%s)", (username,))
+            cursor.execute("SELECT id FROM usuarios WHERE LOWER(TRIM(username)) = %s", (username_limpio,))
             existe = cursor.fetchone() is not None
     except Exception as e:
         logger.error(f"Error al consultar existencia de usuario: {e}")
