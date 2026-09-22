@@ -2613,10 +2613,10 @@ def personal():
     return render_template('personal.html', empleados=empleados_lista, personal=empleados_lista, usuarios=usuarios_lista, puede_modificar=puede_modificar)
 
 
-# RUTA EXPLÍCITA PARA DESACTIVAR EMPLEADO Y USUARIO
-@app.route('/personal/desactivar/<int:target_id>', methods=['POST', 'GET'])
-@app.route('/personal/toggle-estado/<int:target_id>', methods=['POST', 'GET'])
-def desactivar_personal_directo(target_id):
+# RUTA PARA DESACTIVAR / CAMBIAR ESTADO
+@app.route('/personal/toggle-estado/<int:target_id>', methods=['POST', 'GET'], endpoint='toggle_estado_personal')
+@app.route('/personal/desactivar/<int:target_id>', methods=['POST', 'GET'], endpoint='desactivar_personal_directo')
+def toggle_estado_personal(target_id):
     if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': 'Sin permisos'}), 403
@@ -2628,38 +2628,43 @@ def desactivar_personal_directo(target_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            # 1. Desactivar en la tabla personal
+            # 1. Alternar/Desactivar en la tabla personal
             cursor.execute("""
-                UPDATE personal SET activo = false 
+                UPDATE personal SET activo = NOT COALESCE(activo, true)
                 WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-                RETURNING usuario_id
+                RETURNING usuario_id, activo
             """, (target_id, target_id, tenant_id, str(tenant_id)))
             res = cursor.fetchone()
             
-            usuario_id = res[0] if res and res[0] else target_id
-
-            # 2. Desactivar en la tabla usuarios para bloquear el login
-            cursor.execute("""
-                UPDATE usuarios SET activo = false 
-                WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
-            """, (usuario_id, tenant_id, str(tenant_id)))
+            if res and res[0]:
+                cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (res[1], res[0]))
+                nuevo_estado = res[1]
+            else:
+                cursor.execute("""
+                    UPDATE usuarios SET activo = NOT COALESCE(activo, true) 
+                    WHERE id = %s RETURNING activo
+                """, (target_id,))
+                res_u = cursor.fetchone()
+                if not res_u:
+                    conexion.close()
+                    return jsonify({'success': False, 'error': 'Usuario no encontrado'}), 404
+                nuevo_estado = res_u[0]
 
         conexion.commit()
         conexion.close()
 
-        msg = 'Empleado y acceso de usuario desactivados correctamente.'
+        msg = 'Estado de acceso actualizado correctamente.'
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': msg})
+            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'message': msg})
 
         flash(msg, 'success')
     except Exception as e:
-        logger.error(f"Error desactivando personal {target_id}: {e}")
+        logger.error(f"Error en toggle_estado_personal para ID {target_id}: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
-        flash(f'Error al desactivar: {e}', 'error')
+        flash(f'Error al cambiar estado: {e}', 'error')
 
     return redirect(url_for('personal'))
-
 
 # RUTA EXPLÍCITA PARA ELIMINACIÓN PERMANENTE
 @app.route('/personal/eliminar/<int:target_id>', methods=['POST', 'DELETE', 'GET'])
