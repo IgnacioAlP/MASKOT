@@ -62,42 +62,45 @@ def obtener_todos_usuarios(tenant_id=None):
     return usuarios
 
 def verificar_credenciales(username, password):
-    """Verifica las credenciales de un usuario y distingue entre error de clave y cuenta inactiva"""
     username = (username or '').strip()
     password = (password or '').strip()
 
     usuario = obtener_usuario_por_nombre(username)
 
     if not usuario:
+        logger.error(f"[LOGIN FAIL] No se encontró el usuario: '{username}'")
         return {
             'success': False,
             'user': None,
             'message': 'Usuario o contraseña incorrectos'
         }
 
-    # Verificar si el usuario está inactivo
+    # Verificar estado activo
     if not usuario[4]:
         return {
             'success': False,
             'user': None,
-            'message': 'La cuenta se encuentra desactivada. Contacte al administrador.'
+            'message': 'La cuenta se encuentra desactivada.'
         }
 
-    # Validar la contraseña
+    # Comparación segura limpiando espacios invisibles de la BD
     password_hash = hash_password(password)
-    if password_hash == usuario[2]:
+    hash_en_bd = str(usuario[2]).strip() if usuario[2] else ''
+
+    if password_hash == hash_en_bd:
         return {
             'success': True,
-            'user': usuario,  # Tupla: (id, username, password, rol, activo, tenant_id)
+            'user': usuario,
             'message': 'Autenticación exitosa'
         }
 
+    logger.error(f"[LOGIN FAIL] Contraseña incorrecta para el usuario: '{username}'")
     return {
         'success': False,
         'user': None,
         'message': 'Usuario o contraseña incorrectos'
     }
-
+    
 def insertar_usuario(username, password, rol='empleado', tenant_id=None):
     """Inserta un nuevo usuario (si tenant_id es None, asigna el del contexto actual)"""
     conexion = obtener_conexion()
