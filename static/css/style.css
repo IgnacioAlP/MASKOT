@@ -80,8 +80,12 @@ body {
 
 /* Brand Logo */
 .maskot-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
   text-decoration: none;
   transition: var(--transition);
+  padding: 0.2rem 0;
 }
 
 .maskot-brand:hover {
@@ -89,11 +93,20 @@ body {
 }
 
 .maskot-brand-logo {
-  height: 52px;
-  width: auto;
+  height: 72px;
+  width: 72px;
+  max-width: 96px;
   object-fit: contain;
+  display: block;
+  flex-shrink: 0;
   transition: transform 0.25s ease;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
+}
+
+.maskot-brand .fw-bold {
+  font-size: clamp(1.7rem, 2vw, 2.2rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
 }
 
 .maskot-brand:hover .maskot-brand-logo {
@@ -101,8 +114,18 @@ body {
 }
 
 @media (max-width: 576px) {
+  .maskot-brand {
+    gap: 0.5rem;
+  }
+
   .maskot-brand-logo {
-    height: 44px;
+    height: 56px;
+    width: 56px;
+    max-width: 78px;
+  }
+
+  .maskot-brand .fw-bold {
+    font-size: 1.5rem;
   }
 }
 
