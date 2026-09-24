@@ -71,6 +71,7 @@ body {
   box-shadow: 0 10px 28px rgba(35, 53, 64, 0.08);
   transition: var(--transition);
   padding: 0.9rem 0;
+  overflow: hidden;
 }
 
 .maskot-navbar.scrolled {
@@ -80,20 +81,27 @@ body {
 
 .maskot-navbar .container {
   align-items: center;
+  max-width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 .navbar-collapse {
   align-items: center;
+  flex-grow: 1;
 }
 
 #navbarNav {
   justify-content: space-between;
   width: 100%;
+  gap: 1rem;
 }
 
 .navbar-nav {
   align-items: center;
   gap: 0.35rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 /* Brand Logo */
@@ -107,6 +115,7 @@ body {
   min-width: 0;
   white-space: nowrap;
   flex-shrink: 0;
+  max-width: 32%;
 }
 
 .maskot-brand:hover {
@@ -114,9 +123,9 @@ body {
 }
 
 .maskot-brand-logo {
-  height: 120px;
+  height: 96px;
   width: auto;
-  max-width: 146px;
+  max-width: 116px;
   object-fit: contain;
   display: block;
   flex-shrink: 0;
@@ -129,10 +138,11 @@ body {
   flex-direction: column;
   line-height: 1;
   gap: 0.2rem;
+  min-width: 0;
 }
 
 .brand-name {
-  font-size: clamp(2.4rem, 2.8vw, 3.3rem);
+  font-size: clamp(1.9rem, 2.2vw, 2.8rem);
   letter-spacing: -0.08em;
   font-weight: 900;
   color: #1d2d3b;
@@ -258,13 +268,14 @@ body {
 .maskot-nav-link {
   color: #243748 !important;
   font-weight: 800;
-  font-size: 1.12rem;
-  padding: 1rem 1.35rem !important;
+  font-size: 0.96rem;
+  padding: 0.8rem 0.95rem !important;
   border-radius: 14px;
   transition: var(--transition);
   position: relative;
   overflow: hidden;
   letter-spacing: 0.01em;
+  flex-shrink: 0;
 }
 
 .maskot-nav-link:hover {
@@ -323,6 +334,7 @@ body {
   transition: var(--transition);
   color: var(--dark-color) !important;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .maskot-user-menu:hover {
@@ -345,6 +357,40 @@ body {
 
 .user-name {
   font-weight: 600;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+  .maskot-nav-link {
+    font-size: 0.9rem;
+    padding: 0.75rem 0.8rem !important;
+  }
+
+  .maskot-brand {
+    max-width: 28%;
+  }
+
+  .maskot-brand.session-brand .brand-name {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 992px) {
+  .maskot-navbar {
+    overflow: visible;
+  }
+
+  .navbar-nav {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .maskot-brand {
+    max-width: none;
+  }
 }
 
 .user-role.badge {
