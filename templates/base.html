@@ -30,11 +30,14 @@
         <div class="container">
             <!-- Brand Logo (Funciona como botón oculto/stealth para ir a /login) -->
             <a class="navbar-brand maskot-brand d-flex align-items-center gap-2 py-0" href="{{ url_for('login') }}"
-                title="MASKOT">
-                <img src="{{ url_for('static', filename='img/MASKOTBRANDING.png') }}" alt="MASKOT Logo"
+                title="MASKOT Petshop & Grooming">
+                <img src="{{ url_for('static', filename='img/logo-maskot.png') }}" alt="MASKOT Logo"
                     class="maskot-brand-logo"
-                    onerror="this.onerror=null;this.src='/static/img/MASKOTBRANDING.png';">
-                <span class="fw-bold fs-4 text-dark mb-0">Maskot</span>
+                    onerror="this.onerror=null;this.src='/static/img/MASKOTBRANDING.jpeg';">
+                <span class="brand-stack">
+                    <span class="brand-name">MASKOT</span>
+                    <span class="brand-tagline">Petshop & Grooming</span>
+                </span>
             </a>
 
             <!-- Mobile toggle button -->
