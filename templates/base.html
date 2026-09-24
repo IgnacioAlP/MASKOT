@@ -29,10 +29,10 @@
     <nav class="navbar navbar-expand-lg navbar-light fixed-top maskot-navbar bg-white shadow-sm">
         <div class="container">
             <!-- Brand Logo (Funciona como botón oculto/stealth para ir a /login) -->
-            <a class="navbar-brand maskot-brand d-flex align-items-center gap-2" href="{{ url_for('login') }}"
+            <a class="navbar-brand maskot-brand d-flex align-items-center gap-2 py-0" href="{{ url_for('login') }}"
                 title="MASKOT">
-                <img src="{{ url_for('static', filename='img/MASKOTBRANDING.jpeg') }}" alt="MASKOT Logo"
-                    style="height: 42px; width: auto; object-fit: contain;"
+                <img src="{{ url_for('static', filename='img/logo-maskot.png') }}" alt="MASKOT Logo"
+                    class="maskot-brand-logo"
                     onerror="this.onerror=null;this.src='/static/img/MASKOTBRANDING.jpeg';">
                 <span class="fw-bold fs-4 text-dark mb-0">Maskot</span>
             </a>
