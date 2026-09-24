@@ -71,7 +71,7 @@ body {
   box-shadow: 0 10px 28px rgba(35, 53, 64, 0.08);
   transition: var(--transition);
   padding: 0.9rem 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .maskot-navbar.scrolled {
@@ -308,6 +308,13 @@ body {
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
   border-top: 3px solid var(--primary-color);
+  z-index: 1060;
+  position: absolute;
+  min-width: 220px;
+}
+
+.dropdown-menu {
+  z-index: 1060;
 }
 
 .maskot-dropdown .dropdown-item {
