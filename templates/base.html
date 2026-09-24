@@ -18,7 +18,7 @@
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
     <!-- Favicon -->
-    <link rel="icon" href="{{ url_for('static', filename='img/MASKOTBRANDING.jpeg') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename='img/MASKOTBRANDING.png') }}" type="image/x-icon">
 
     <!-- Page-specific styles -->
     {% block extra_css %}{% endblock %}
@@ -31,9 +31,9 @@
             <!-- Brand Logo (Funciona como botón oculto/stealth para ir a /login) -->
             <a class="navbar-brand maskot-brand d-flex align-items-center gap-2 py-0" href="{{ url_for('login') }}"
                 title="MASKOT">
-                <img src="{{ url_for('static', filename='img/logo-maskot.png') }}" alt="MASKOT Logo"
+                <img src="{{ url_for('static', filename='img/MASKOTBRANDING.png') }}" alt="MASKOT Logo"
                     class="maskot-brand-logo"
-                    onerror="this.onerror=null;this.src='/static/img/MASKOTBRANDING.jpeg';">
+                    onerror="this.onerror=null;this.src='/static/img/MASKOTBRANDING.png';">
                 <span class="fw-bold fs-4 text-dark mb-0">Maskot</span>
             </a>
 
