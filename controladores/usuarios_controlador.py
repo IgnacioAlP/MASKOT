@@ -10,61 +10,101 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def obtener_usuario_por_nombre(username):
-    """Obtiene un usuario por su nombre de usuario"""
+    """Obtiene un usuario por nombre de forma robusta (ignora mayúsculas, minúsculas y espacios)."""
+    if not username:
+        return None
+        
+    username_limpio = username.strip().lower()
     conexion = obtener_conexion()
     usuario = None
     try:
         with conexion.cursor() as cursor:
+            # LOWER y TRIM aseguran coincidencia exacta sin importar mayúsculas o espacios en BD
             cursor.execute("""
                 SELECT id, username, password, rol, activo, tenant_id 
                 FROM usuarios 
-                WHERE username = %s
-            """, (username,))
+                WHERE LOWER(TRIM(username)) = %s
+            """, (username_limpio,))
             usuario = cursor.fetchone()
+    except Exception as e:
+        logger.error(f"Error al obtener usuario por nombre: {e}")
     finally:
         conexion.close()
     return usuario
 
-def obtener_todos_usuarios():
-    """Obtiene todos los usuarios del tenant actual"""
+def obtener_todos_usuarios(tenant_id=None):
+    """
+    Obtiene todos los usuarios.
+    Si tenant_id es especificado, filtra por ese tenant; si es None, usa el tenant actual.
+    Si tenant_id == 'ALL', devuelve todos los usuarios del sistema (modo Superadmin).
+    """
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
+    if tenant_id is None:
+        tenant_id = obtener_tenant_id()
+        
     usuarios = []
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("""
-                SELECT id, username, rol, activo, created_at
-                FROM usuarios 
-                WHERE tenant_id = %s
-                ORDER BY created_at DESC
-            """, (tenant_id,))
+            if tenant_id == 'ALL':
+                cursor.execute("""
+                    SELECT id, username, rol, activo, created_at, tenant_id
+                    FROM usuarios 
+                    ORDER BY created_at DESC
+                """)
+            else:
+                cursor.execute("""
+                    SELECT id, username, rol, activo, created_at, tenant_id
+                    FROM usuarios 
+                    WHERE tenant_id = %s
+                    ORDER BY created_at DESC
+                """, (tenant_id,))
             usuarios = cursor.fetchall()
+    except Exception as e:
+        logger.error(f"Error al obtener lista de usuarios: {e}")
     finally:
         conexion.close()
     return usuarios
 
 def verificar_credenciales(username, password):
-    """Verifica las credenciales de un usuario"""
-    usuario = obtener_usuario_por_nombre(username)
-    if usuario and usuario[4]:  # usuario activo
-        password_hash = hash_password(password)
-        if password_hash == usuario[2]:  # comparar hash
-            return {
-                'success': True,
-                'user': usuario,  # tupla: (id, username, password, rol, activo, tenant_id)
-                'message': 'Autenticación exitosa'
-            }
-    
-    return {
-        'success': False,
-        'user': None,
-        'message': 'Credenciales inválidas'
-    }
+    """Verifica credenciales con sanitización de entradas y depuración automática."""
+    username_limpio = (username or '').strip()
+    password_limpia = (password or '').strip()
 
-def insertar_usuario(username, password, rol='empleado'):
-    """Inserta un nuevo usuario en el tenant actual"""
+    if not username_limpio or not password_limpia:
+        return {'success': False, 'user': None, 'message': 'Por favor complete todos los campos.'}
+
+    # 1. Buscar usuario
+    usuario = obtener_usuario_por_nombre(username_limpio)
+
+    if not usuario:
+        logger.warning(f"[LOGIN FAIL] El usuario '{username_limpio}' no existe en la BD.")
+        return {'success': False, 'user': None, 'message': 'Usuario o contraseña incorrectos'}
+
+    # 2. Verificar estado activo
+    if not usuario[4]:
+        logger.warning(f"[LOGIN FAIL] La cuenta del usuario '{username_limpio}' está desactivada.")
+        return {'success': False, 'user': None, 'message': 'La cuenta se encuentra desactivada.'}
+
+    # 3. Comparar hashes de forma limpia
+    hash_ingresado = hash_password(password_limpia)
+    hash_bd = str(usuario[2]).strip() if usuario[2] else ''
+
+    if hash_ingresado == hash_bd:
+        logger.info(f"[LOGIN OK] Inicio de sesión exitoso para: '{username_limpio}'")
+        return {'success': True, 'user': usuario, 'message': 'Autenticación exitosa'}
+
+    logger.warning(f"[LOGIN FAIL] Contraseña incorrecta para el usuario: '{username_limpio}'")
+    return {'success': False, 'user': None, 'message': 'Usuario o contraseña incorrectos'}
+
+def insertar_usuario(username, password, rol='empleado', tenant_id=None):
+    """Inserta un nuevo usuario (si tenant_id es None, asigna el del contexto actual)"""
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
+    if tenant_id is None:
+        tenant_id = obtener_tenant_id()
+        
+    username = (username or '').strip()
+    rol = (rol or 'empleado').strip().lower()
+
     try:
         with conexion.cursor() as cursor:
             password_hash = hash_password(password)
@@ -83,18 +123,24 @@ def insertar_usuario(username, password, rol='empleado'):
     finally:
         conexion.close()
 
-def actualizar_password(user_id, nueva_password):
+def actualizar_password(user_id, nueva_password, tenant_id=None):
     """Actualiza la contraseña de un usuario"""
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
             password_hash = hash_password(nueva_password)
-            cursor.execute("""
-                UPDATE usuarios 
-                SET password = %s 
-                WHERE id = %s AND tenant_id = %s
-            """, (password_hash, user_id, tenant_id))
+            if tenant_id is not None:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET password = %s 
+                    WHERE id = %s AND tenant_id = %s
+                """, (password_hash, user_id, tenant_id))
+            else:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET password = %s 
+                    WHERE id = %s
+                """, (password_hash, user_id))
             conexion.commit()
             return True
     except Exception as e:
@@ -104,17 +150,23 @@ def actualizar_password(user_id, nueva_password):
     finally:
         conexion.close()
 
-def desactivar_usuario(user_id):
+def desactivar_usuario(user_id, tenant_id=None):
     """Desactiva un usuario del sistema"""
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("""
-                UPDATE usuarios 
-                SET activo = false 
-                WHERE id = %s AND tenant_id = %s
-            """, (user_id, tenant_id))
+            if tenant_id is not None:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET activo = false 
+                    WHERE id = %s AND tenant_id = %s
+                """, (user_id, tenant_id))
+            else:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET activo = false 
+                    WHERE id = %s
+                """, (user_id,))
             conexion.commit()
             return True
     except Exception as e:
@@ -124,17 +176,23 @@ def desactivar_usuario(user_id):
     finally:
         conexion.close()
 
-def activar_usuario(user_id):
+def activar_usuario(user_id, tenant_id=None):
     """Reactiva un usuario del sistema"""
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("""
-                UPDATE usuarios 
-                SET activo = true 
-                WHERE id = %s AND tenant_id = %s
-            """, (user_id, tenant_id))
+            if tenant_id is not None:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET activo = true 
+                    WHERE id = %s AND tenant_id = %s
+                """, (user_id, tenant_id))
+            else:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET activo = true 
+                    WHERE id = %s
+                """, (user_id,))
             conexion.commit()
             return True
     except Exception as e:
@@ -144,17 +202,24 @@ def activar_usuario(user_id):
     finally:
         conexion.close()
 
-def cambiar_rol_usuario(user_id, nuevo_rol):
+def cambiar_rol_usuario(user_id, nuevo_rol, tenant_id=None):
     """Cambia el rol de un usuario"""
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
+    nuevo_rol = (nuevo_rol or '').strip().lower()
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("""
-                UPDATE usuarios 
-                SET rol = %s 
-                WHERE id = %s AND tenant_id = %s
-            """, (nuevo_rol, user_id, tenant_id))
+            if tenant_id is not None:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET rol = %s 
+                    WHERE id = %s AND tenant_id = %s
+                """, (nuevo_rol, user_id, tenant_id))
+            else:
+                cursor.execute("""
+                    UPDATE usuarios 
+                    SET rol = %s 
+                    WHERE id = %s
+                """, (nuevo_rol, user_id))
             conexion.commit()
             return True
     except Exception as e:
@@ -165,41 +230,54 @@ def cambiar_rol_usuario(user_id, nuevo_rol):
         conexion.close()
 
 def existe_usuario(username):
-    """Verifica si ya existe un usuario con ese nombre"""
+    """Verifica si ya existe un usuario con ese nombre (case-insensitive)"""
+    if not username:
+        return False
+    username_limpio = username.strip().lower()
     conexion = obtener_conexion()
     existe = False
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT id FROM usuarios WHERE username = %s", (username,))
+            cursor.execute("SELECT id FROM usuarios WHERE LOWER(TRIM(username)) = %s", (username_limpio,))
             existe = cursor.fetchone() is not None
+    except Exception as e:
+        logger.error(f"Error al consultar existencia de usuario: {e}")
     finally:
         conexion.close()
     return existe
 
-def obtener_usuario_por_id(user_id):
+def obtener_usuario_por_id(user_id, tenant_id=None):
     """Obtiene un usuario por su ID"""
     conexion = obtener_conexion()
-    tenant_id = obtener_tenant_id()
     usuario = None
     try:
         with conexion.cursor() as cursor:
-            cursor.execute("""
-                SELECT id, username, rol, activo, created_at
-                FROM usuarios 
-                WHERE id = %s AND tenant_id = %s
-            """, (user_id, tenant_id))
+            if tenant_id is not None:
+                cursor.execute("""
+                    SELECT id, username, rol, activo, created_at, tenant_id
+                    FROM usuarios 
+                    WHERE id = %s AND tenant_id = %s
+                """, (user_id, tenant_id))
+            else:
+                cursor.execute("""
+                    SELECT id, username, rol, activo, created_at, tenant_id
+                    FROM usuarios 
+                    WHERE id = %s
+                """, (user_id,))
             usuario = cursor.fetchone()
+    except Exception as e:
+        logger.error(f"Error al obtener usuario por ID: {e}")
     finally:
         conexion.close()
     return usuario
 
-def cambiar_estado_usuario(user_id, estado):
+def cambiar_estado_usuario(user_id, estado, tenant_id=None):
     """Cambia el estado activo/inactivo de un usuario (acepta numérico o booleano)"""
-    if estado in (1, True, '1', 'true'):
-        return activar_usuario(user_id)
+    if estado in (1, True, '1', 'true', 'True'):
+        return activar_usuario(user_id, tenant_id)
     else:
-        return desactivar_usuario(user_id)
+        return desactivar_usuario(user_id, tenant_id)
 
-def eliminar_usuario(user_id):
+def eliminar_usuario(user_id, tenant_id=None):
     """Elimina (desactiva) un usuario del sistema"""
-    return desactivar_usuario(user_id)
+    return desactivar_usuario(user_id, tenant_id)

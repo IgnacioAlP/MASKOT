@@ -320,7 +320,10 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'rol' in session and session.get('rol') in ['dueño', 'admin', 'empleado', 'superadmin']:
+    # 1. Si ya existe una sesión activa, redirigir dinámicamente según el rol
+    if 'usuario_id' in session and 'rol' in session:
+        if session.get('rol') == 'superadmin':
+            return redirect(url_for('gestionar_tenants'))
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
@@ -344,18 +347,24 @@ def login():
             return render_template('login.html')
             
         user = auth.get('user')
+        
+        # Normalizar el formato del rol (evita fallos por mayúsculas/espacios)
+        rol = str(user[3]).strip().lower() if user and len(user) > 3 and user[3] else ''
+
         session.permanent = True
         session['user_id'] = user[0]
         session['usuario_id'] = user[0]
         session['usuario'] = user[1]
-        session['rol'] = user[3]
-        session['tenant_id'] = user[5] if len(user) > 5 and user[5] else 1
+        session['rol'] = rol
+        session['tenant_id'] = user[5] if (len(user) > 5 and user[5] is not None) else 1
         
         flash(f"¡Bienvenido de nuevo, {user[1]}!", 'success')
-        if next_url and next_url.startswith('/'):
+        
+        # Redirección segura para evitar vulnerabilidades de Open Redirect
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
             return redirect(next_url)
         
-        if user[3] == 'superadmin':
+        if rol == 'superadmin':
             return redirect(url_for('gestionar_tenants'))
             
         return redirect(url_for('dashboard'))
@@ -2440,7 +2449,7 @@ def detalle_cliente(cliente_id):
 @app.route('/personal/agregar', methods=['POST'], endpoint='agregar_personal')
 @app.route('/personal/editar', methods=['POST'], endpoint='editar_personal')
 def personal():
-    if 'rol' not in session or session['rol'] not in ['admin', 'dueño']:
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño', 'superadmin']:
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Acceso denegado.'}), 403
         flash('Acceso denegado.', 'error')
@@ -2462,27 +2471,20 @@ def personal():
                         return str(v).strip()
                 return default
 
-            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id')
-            target_id = int(raw_id) if raw_id and raw_id.isdigit() else None
+            raw_id = get_param('id', 'personal_id', 'usuario_id', 'edit_id', 'target_id')
+            target_id = int(raw_id) if raw_id and str(raw_id).isdigit() else None
+            accion = get_param('accion', 'action', 'tipo').lower()
 
-            if 'eliminar' in request.form or get_param('accion') in ['desactivar', 'eliminar']:
+            # DETECTAR SI LA PETICIÓN ES DESACTIVAR O ELIMINAR
+            if 'desactivar' in request.form or accion in ['desactivar', 'baja']:
                 if target_id:
-                    conexion = obtener_conexion()
-                    with conexion.cursor() as cursor:
-                        cursor.execute("""
-                            UPDATE personal 
-                            SET activo = false 
-                            WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
-                            RETURNING usuario_id
-                        """, (target_id, target_id, tenant_id))
-                        res = cursor.fetchone()
-                        if res and res[0]:
-                            cursor.execute("UPDATE usuarios SET activo = false WHERE id = %s", (res[0],))
-                    conexion.commit()
-                    conexion.close()
-                    flash('Empleado desactivado correctamente.', 'success')
-                    return redirect(url_for('personal'))
+                    return desactivar_personal_directo(target_id)
 
+            if 'eliminar' in request.form or accion in ['eliminar', 'delete']:
+                if target_id:
+                    return eliminar_personal_permanente(target_id)
+
+            # PROCESAR EDICIÓN O CREACIÓN
             username = get_param('username', 'nombre', 'usuario')
             cargo = get_param('cargo', default='Empleado')
             rol = get_param('rol', default='empleado').lower()
@@ -2494,19 +2496,20 @@ def personal():
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
                 if target_id:
+                    # EDICIÓN
                     cursor.execute("""
                         SELECT id, usuario_id 
                         FROM personal 
-                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
-                    """, (target_id, target_id, tenant_id))
+                        WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                    """, (target_id, target_id, tenant_id, str(tenant_id)))
                     p_row = cursor.fetchone()
-                    
+
                     if p_row:
                         p_id, usuario_id = p_row[0], p_row[1]
                         cursor.execute("""
                             UPDATE personal SET cargo = %s, salario = %s 
-                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                        """, (cargo, salario, p_id, tenant_id))
+                            WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                        """, (cargo, salario, p_id, tenant_id, str(tenant_id)))
                     else:
                         usuario_id = target_id
                         cursor.execute("""
@@ -2517,15 +2520,16 @@ def personal():
                     if usuario_id and username:
                         cursor.execute("""
                             UPDATE usuarios SET username = %s, rol = %s::rol_usuario_enum 
-                            WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                        """, (username, rol_final, usuario_id, tenant_id))
+                            WHERE id = %s AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
+                        """, (username, rol_final, usuario_id, tenant_id, str(tenant_id)))
 
                     mensaje = 'Datos del empleado actualizados correctamente.'
                 else:
+                    # NUEVO REGISTRO
                     if not username:
                         conexion.close()
                         msg = 'El nombre de usuario es obligatorio.'
-                        if request.is_json:
+                        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                             return jsonify({'success': False, 'error': msg}), 400
                         flash(msg, 'warning')
                         return redirect(url_for('personal'))
@@ -2562,6 +2566,7 @@ def personal():
 
         return redirect(url_for('personal'))
 
+    # LISTADO
     empleados_lista = []
     usuarios_lista = []
 
@@ -2570,12 +2575,14 @@ def personal():
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT p.id AS personal_id, u.username, COALESCE(p.cargo, 'Empleado') AS cargo,
-                       u.rol, COALESCE(p.salario, 0.00) AS salario, COALESCE(p.activo, true) AS activo, u.id AS usuario_id
+                       u.rol, COALESCE(p.salario, 0.00) AS salario, 
+                       (COALESCE(p.activo, true) AND COALESCE(u.activo, true)) AS activo, 
+                       u.id AS usuario_id
                 FROM personal p
                 INNER JOIN usuarios u ON p.usuario_id = u.id
-                WHERE (p.tenant_id = %s OR p.tenant_id IS NULL)
+                WHERE (p.tenant_id = %s OR %s = 'ALL' OR p.tenant_id IS NULL)
                 ORDER BY p.id ASC
-            """, (tenant_id,))
+            """, (tenant_id, str(tenant_id)))
             
             for r in cursor.fetchall():
                 p_id, username, cargo, rol, salario, activo_bool, usuario_id = r[0], r[1] or 'Sin Usuario', r[2] or 'Empleado', str(r[3]), float(r[4] or 0), bool(r[5]), r[6]
@@ -2591,9 +2598,9 @@ def personal():
             cursor.execute("""
                 SELECT id, username, rol, COALESCE(activo, true) 
                 FROM usuarios 
-                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                WHERE (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
                 ORDER BY id ASC
-            """, (tenant_id,))
+            """, (tenant_id, str(tenant_id)))
             for u in cursor.fetchall():
                 usuarios_lista.append({'id': u[0], 'username': u[1], 'rol': str(u[2]), 'activo': u[3], 0: u[0], 1: u[1], 2: str(u[2]), 3: u[3]})
 
@@ -2601,34 +2608,42 @@ def personal():
     except Exception as e:
         logger.error(f"Error cargando módulo personal: {e}")
 
-    puede_modificar = session.get('rol') in ['admin', 'dueño']
+    puede_modificar = session.get('rol') in ['admin', 'dueño', 'superadmin']
 
     return render_template('personal.html', empleados=empleados_lista, personal=empleados_lista, usuarios=usuarios_lista, puede_modificar=puede_modificar)
 
 
-@app.route('/personal/toggle-estado/<int:target_id>', methods=['POST'])
-@app.route('/usuario/toggle-estado/<int:target_id>', methods=['POST'])
+# RUTA PARA DESACTIVAR / CAMBIAR ESTADO
+@app.route('/personal/toggle-estado/<int:target_id>', methods=['POST', 'GET'], endpoint='toggle_estado_personal')
+@app.route('/personal/desactivar/<int:target_id>', methods=['POST', 'GET'], endpoint='desactivar_personal_directo')
 def toggle_estado_personal(target_id):
-    if session.get('rol') not in ['admin', 'dueño']:
-        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+    if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+        flash('Sin permisos para esta acción.', 'error')
+        return redirect(url_for('personal'))
 
     tenant_id = session.get('tenant_id', 1)
 
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            # 1. Alternar/Desactivar en la tabla personal
             cursor.execute("""
                 UPDATE personal SET activo = NOT COALESCE(activo, true)
-                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR tenant_id IS NULL)
+                WHERE (id = %s OR usuario_id = %s) AND (tenant_id = %s OR %s = 'ALL' OR tenant_id IS NULL)
                 RETURNING usuario_id, activo
-            """, (target_id, target_id, tenant_id))
-            
+            """, (target_id, target_id, tenant_id, str(tenant_id)))
             res = cursor.fetchone()
+            
             if res and res[0]:
                 cursor.execute("UPDATE usuarios SET activo = %s WHERE id = %s", (res[1], res[0]))
                 nuevo_estado = res[1]
             else:
-                cursor.execute("UPDATE usuarios SET activo = NOT COALESCE(activo, true) WHERE id = %s RETURNING activo", (target_id,))
+                cursor.execute("""
+                    UPDATE usuarios SET activo = NOT COALESCE(activo, true) 
+                    WHERE id = %s RETURNING activo
+                """, (target_id,))
                 res_u = cursor.fetchone()
                 if not res_u:
                     conexion.close()
@@ -2638,21 +2653,22 @@ def toggle_estado_personal(target_id):
         conexion.commit()
         conexion.close()
 
+        msg = 'Estado de acceso actualizado correctamente.'
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'message': 'Estado de acceso actualizado.'})
+            return jsonify({'success': True, 'nuevo_estado': nuevo_estado, 'message': msg})
 
-        flash('Estado de acceso actualizado correctamente.', 'success')
-        return redirect(url_for('personal'))
+        flash(msg, 'success')
     except Exception as e:
-        logger.error(f"Error al cambiar estado de acceso: {e}")
+        logger.error(f"Error en toggle_estado_personal para ID {target_id}: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
         flash(f'Error al cambiar estado: {e}', 'error')
-        return redirect(url_for('personal'))
 
+    return redirect(url_for('personal'))
 
-@app.route('/personal/eliminar/<int:target_id>', methods=['POST', 'DELETE'])
-@app.route('/usuario/eliminar/<int:target_id>', methods=['POST', 'DELETE'])
+# RUTA EXPLÍCITA PARA ELIMINACIÓN PERMANENTE
+@app.route('/personal/eliminar/<int:target_id>', methods=['POST', 'DELETE', 'GET'])
+@app.route('/usuario/eliminar/<int:target_id>', methods=['POST', 'DELETE', 'GET'])
 def eliminar_personal_permanente(target_id):
     if session.get('rol') not in ['admin', 'dueño', 'superadmin']:
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -2663,7 +2679,12 @@ def eliminar_personal_permanente(target_id):
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            cursor.execute("SELECT p.id AS personal_id, u.id AS usuario_id FROM usuarios u LEFT JOIN personal p ON p.usuario_id = u.id WHERE u.id = %s OR p.id = %s", (target_id, target_id))
+            cursor.execute("""
+                SELECT p.id AS personal_id, u.id AS usuario_id 
+                FROM usuarios u 
+                LEFT JOIN personal p ON p.usuario_id = u.id 
+                WHERE u.id = %s OR p.id = %s
+            """, (target_id, target_id))
             row = cursor.fetchone()
             personal_id = row[0] if row else None
             usuario_id = row[1] if row else target_id
@@ -2680,18 +2701,18 @@ def eliminar_personal_permanente(target_id):
         conexion.commit()
         conexion.close()
 
+        msg = 'Usuario y su historial fueron eliminados permanentemente.'
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': True, 'message': 'Usuario y su historial eliminados.'})
+            return jsonify({'success': True, 'message': msg})
 
-        flash('Usuario eliminado permanentemente.', 'success')
+        flash(msg, 'success')
     except Exception as e:
-        logger.error(f"Error eliminando personal: {e}")
+        logger.error(f"Error eliminando personal {target_id}: {e}")
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': False, 'error': str(e)}), 500
         flash(f'Error al eliminar: {e}', 'error')
 
     return redirect(url_for('personal'))
-
 
 # ─── ASISTENCIA DEL PERSONAL CON ZONA HORARIA DE PERÚ ────────────────────────
 
