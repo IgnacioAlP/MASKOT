@@ -29,8 +29,8 @@
     <nav class="navbar navbar-expand-lg navbar-light fixed-top maskot-navbar bg-white shadow-sm">
         <div class="container">
             <!-- Brand Logo (Funciona como botón oculto/stealth para ir a /login) -->
-            <a class="navbar-brand maskot-brand d-flex align-items-center gap-2 py-0" href="{{ url_for('login') }}"
-                title="MASKOT Petshop & Grooming">
+            <a class="navbar-brand maskot-brand{% if session.rol %} session-brand{% endif %} d-flex align-items-center gap-2 py-0"
+                href="{{ url_for('login') }}" title="MASKOT Petshop & Grooming">
                 <img src="{{ url_for('static', filename='img/MASKOTBRANDING.png') }}" alt="MASKOT Logo"
                     class="maskot-brand-logo"
                     onerror="this.onerror=null;this.src='/static/img/MASKOTBRANDING.png';">
