@@ -1292,7 +1292,8 @@ def historial_clientes():
 # HISTORIAL DE ASISTENCIA
 # ==============================================================================
 @app.route('/historial_asistencia', endpoint='historial_asistencia')
-@app.route('/historial-asistencia')
+@app.route('/historial-asistencia', endpoint='historial_asistencias')
+@app.route('/historial-asistencias', endpoint='historial_asistencias')
 @app.route('/asistencia/historial')
 def historial_asistencia():
     if 'rol' not in session:
@@ -1311,6 +1312,8 @@ def historial_asistencia():
     
     total_horas_acumuladas = 0.0
     empleados_presentes = 0
+    total_completos = 0
+    total_pendientes = 0
 
     try:
         conexion = obtener_conexion()
@@ -1375,6 +1378,9 @@ def historial_asistencia():
                 total_horas_acumuladas += horas_trab
                 if not raw_sal:
                     empleados_presentes += 1
+                    total_pendientes += 1
+                else:
+                    total_completos += 1
 
                 estado_str = 'completado' if raw_sal else 'presente'
 
@@ -1391,12 +1397,14 @@ def historial_asistencia():
         logger.error(f"Error cargando historial de asistencia: {e}")
 
     return render_template(
-        'historial_asistencia.html', 
+        'historial-asistencias.html', 
         historial=registros, 
         registros=registros,
         total_asistencias=len(registros),
         total_horas=round(total_horas_acumuladas, 1),
         empleados_presentes=empleados_presentes,
+        total_completos=total_completos,
+        total_pendientes=total_pendientes,
         filtros=filtros
     )
 
@@ -1520,6 +1528,7 @@ def historial_compras():
 
     total_acumulado_fmt = round(monto_total_acumulado, 2)
 
+    promedio_venta = round((monto_total_acumulado / len(compras_items)), 2) if compras_items else 0.0
     estadisticas = {
         'total_compras': len(compras_items),
         'total_items': len(compras_items),
@@ -1527,7 +1536,11 @@ def historial_compras():
         'total_unidades': unidades_totales,
         'monto_total': total_acumulado_fmt,
         'total_monto': total_acumulado_fmt,
-        'total_vendido': total_acumulado_fmt
+        'total_vendido': total_acumulado_fmt,
+        'total_pagado': total_acumulado_fmt,
+        'promedio_venta': promedio_venta,
+        'promedio_por_venta': promedio_venta,
+        'ingresos': total_acumulado_fmt
     }
 
     return render_template('historial_compras.html', compras=compras_items, estadisticas=estadisticas, filtros=filtros)

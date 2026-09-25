@@ -64,7 +64,7 @@
                 <i class="fas fa-check-circle"></i>
                 <div class="stat-info">
                     <h3 id="registrosCompletos">
-                        {{ historial|selectattr('2')|selectattr('3')|list|length }}
+                        {{ total_completos }}
                     </h3>
                     <p>Jornadas Completas</p>
                 </div>
@@ -73,7 +73,7 @@
                 <i class="fas fa-exclamation-triangle"></i>
                 <div class="stat-info">
                     <h3 id="registrosPendientes">
-                        {{ historial|selectattr('2')|rejectattr('3')|list|length }}
+                        {{ total_pendientes }}
                     </h3>
                     <p>Sin Salida</p>
                 </div>

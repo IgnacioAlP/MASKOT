@@ -1,19 +1,43 @@
 import os
 import psycopg2
 
+
 def obtener_conexion():
+    host = os.environ.get("DB_HOST")
+    port = os.environ.get("DB_PORT")
+    dbname = os.environ.get("DB_NAME")
+    user = os.environ.get("DB_USER")
+    password = os.environ.get("DB_PASSWORD")
+
+    missing = [
+        key for key, value in {
+            "DB_HOST": host,
+            "DB_PORT": port,
+            "DB_NAME": dbname,
+            "DB_USER": user,
+            "DB_PASSWORD": password,
+        }.items() if not value
+    ]
+
+    if missing:
+        raise RuntimeError(
+            "Faltan variables de entorno de Supabase: " + ", ".join(missing) +
+            ". Configúralas en Vercel o en tu entorno local antes de usar la base de datos."
+        )
+
     conn = psycopg2.connect(
-        host=os.environ.get("DB_HOST", "aws-0-sa-east-1.pooler.supabase.com"),
-        port=os.environ.get("DB_PORT", "6543"),
-        dbname=os.environ.get("DB_NAME", "postgres"),
-        user=os.environ.get("DB_USER", "postgres.zpgwjgslescslwlwrwdw"),
-        password=os.environ.get("DB_PASSWORD"),
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=user,
+        password=password,
         sslmode="require"
     )
+
     with conn.cursor() as cursor:
         cursor.execute("SET TIME ZONE 'America/Lima';")
-    conn.commit()  # Cierra la transacción inicial para no bloquear el pooler de Supabase
-    
+    conn.commit()
+
     return conn
 
 def obtener_tenant_id():
