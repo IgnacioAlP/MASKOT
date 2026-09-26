@@ -898,7 +898,7 @@ def procesar_venta():
             raw_doc = data.get('cliente_documento') or data.get('documento') or data.get('dni') or ''
 
         cliente_nombre = str(raw_nombre).strip()
-        cliente_documento = str(raw_doc).strip() if raw_doc else None
+        cliente_documento = str(raw_doc).strip() if raw_doc and str(raw_doc).strip().lower() != 'none' else None
 
         # Limpiar si trae documento formato "Nombre (DNI: 12345)"
         if '(' in cliente_nombre and ')' in cliente_nombre:
@@ -947,17 +947,33 @@ def procesar_venta():
                     if cli_db[2] and not cliente_documento:
                         cliente_documento = cli_db[2]
                 else:
-                    # Crear automáticamente el cliente para tener su ID guardado
+                    # Crear automáticamente el cliente para tener su ID guardado.
+                    # Importante: el email debe ser único; no reutilizar un valor fijo porque
+                    # provoca conflicto cuando ya existe el registro de 'Cliente General'.
                     try:
-                        email_auto = f"cliente_{int(time.time())}_{random.randint(100,999)}@pos.local"
+                        email_auto = f"cliente_{int(time.time())}_{random.randint(1000,9999)}@pos.local"
                         cursor.execute("""
                             INSERT INTO clientes (nombre, email, documento, activo, tenant_id) 
                             VALUES (%s, %s, %s, true, %s) 
+                            ON CONFLICT (email) DO NOTHING
                             RETURNING id
                         """, (cliente_nombre, email_auto, cliente_documento, tenant_id))
-                        final_cliente_id = cursor.fetchone()[0]
+                        res = cursor.fetchone()
+                        if res:
+                            final_cliente_id = res[0]
+                        else:
+                            cursor.execute("""
+                                SELECT id FROM clientes
+                                WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s))
+                                  AND tenant_id = %s
+                                LIMIT 1
+                            """, (cliente_nombre, tenant_id))
+                            row = cursor.fetchone()
+                            if row:
+                                final_cliente_id = row[0]
                     except Exception as e_cli:
                         logger.error(f"Error creando cliente automático: {e_cli}")
+                        conexion.rollback()
 
             # C) Si es 'Cliente General' o falló la asignación previa, vincular con 'Cliente General' en DB si existe
             if not final_cliente_id:
@@ -972,14 +988,29 @@ def procesar_venta():
                     final_cliente_id = cli_gen[0]
                 else:
                     try:
+                        email_general = f"cliente_general_{tenant_id}_{int(time.time())}@pos.local"
                         cursor.execute("""
                             INSERT INTO clientes (nombre, email, activo, tenant_id)
-                            VALUES ('Cliente General', 'general@pos.local', true, %s)
+                            VALUES ('Cliente General', %s, true, %s)
+                            ON CONFLICT (email) DO NOTHING
                             RETURNING id
-                        """, (tenant_id,))
-                        final_cliente_id = cursor.fetchone()[0]
+                        """, (email_general, tenant_id))
+                        res_gen = cursor.fetchone()
+                        if res_gen:
+                            final_cliente_id = res_gen[0]
+                        else:
+                            cursor.execute("""
+                                SELECT id FROM clientes
+                                WHERE LOWER(TRIM(nombre)) = 'cliente general'
+                                  AND tenant_id = %s
+                                LIMIT 1
+                            """, (tenant_id,))
+                            row_gen = cursor.fetchone()
+                            if row_gen:
+                                final_cliente_id = row_gen[0]
                     except Exception:
                         final_cliente_id = None
+                        conexion.rollback()
 
             print(f"-> VENTA FINAL A GUARDAR -> ID Cliente: {final_cliente_id} | Nombre: '{cliente_nombre}' | Doc: '{cliente_documento}'")
 
@@ -1024,7 +1055,14 @@ def procesar_venta():
         return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': f"/venta/ticket/{venta_id}"})
 
     except Exception as e:
+        try:
+            if 'conexion' in locals():
+                conexion.rollback()
+        except Exception:
+            pass
         logger.error(f"❌ ERROR PROCESANDO VENTA: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/ventas/scan-push', methods=['POST'])
