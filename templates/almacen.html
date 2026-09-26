@@ -307,7 +307,8 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% set stock_min = producto.stock_min if producto.stock_min is not none else 0 %}
+                            {% set stock_min = producto.get('stock_min', producto.get('stock_minimo', 0)) if producto is mapping else (producto.stock_min if producto.stock_min is defined else 0) %}
+                            {% if stock_min is none %}{% set stock_min = 0 %}{% endif %}
                             <span class="cantidad-badge {{ 'low-stock' if producto.cantidad <= stock_min }}">
                                 {{ producto.cantidad }}
                             </span>
@@ -355,12 +356,12 @@
                                     data-id="{{ producto.id }}"
                                     data-nombre="{{ producto.nombre }}"
                                     data-cantidad="{{ producto.cantidad }}"
-                                    data-stock-min="{{ producto.stock_min if producto.stock_min is not none else 0 }}"
-                                    data-fecha-vencimiento="{{ producto.fecha_vencimiento or '' }}"
+                                    data-stock-min="{{ producto.get('stock_min', producto.get('stock_minimo', 0)) if producto is mapping else (producto.stock_min if producto.stock_min is defined else 0) }}"
+                                    data-fecha-vencimiento="{{ producto.get('fecha_vencimiento') or '' if producto is mapping else (producto.fecha_vencimiento or '') }}"
                                     data-tipo="{{ producto.tipo }}"
                                     data-precio="{{ producto.precio if producto.precio is not none else 0 }}"
                                     data-precio-compra="{{ producto.precio_compra if producto.precio_compra is not none else 0 }}"
-                                    data-codigo-barra="{{ producto.codigo_barra or '' }}">
+                                    data-codigo-barra="{{ producto.get('codigo_barra') or '' if producto is mapping else (producto.codigo_barra or '') }}">
                                     <i class="fas fa-edit"></i> Editar
                                 </button>
 

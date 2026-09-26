@@ -1096,7 +1096,23 @@ def productos():
 
 def _normalizar_producto_almacen(producto):
     if isinstance(producto, dict):
-        return producto
+        producto_normalizado = {
+            'id': producto.get('id') or producto.get('producto_id'),
+            'nombre': producto.get('nombre') or producto.get('producto_nombre') or '',
+            'tipo': (producto.get('tipo') or producto.get('categoria') or 'stock') or 'stock',
+            'cantidad': int(producto.get('cantidad') if producto.get('cantidad') is not None else producto.get('stock') or 0),
+            'precio': float(producto.get('precio') if producto.get('precio') is not None else producto.get('precio_venta') or 0),
+            'precio_compra': float(producto.get('precio_compra') if producto.get('precio_compra') is not None else producto.get('precio_compra_producto') or producto.get('precio') or 0),
+            'stock_min': int(producto.get('stock_min') if producto.get('stock_min') is not None else producto.get('stock_minimo', 5) or 5),
+            'fecha_vencimiento': producto.get('fecha_vencimiento') or producto.get('vencimiento') or None,
+            'codigo_barra': producto.get('codigo_barra') or producto.get('codigo') or None,
+            'imagen': producto.get('imagen') or producto.get('foto') or None,
+            'activo': producto.get('activo', True),
+        }
+        # Compatibilidad con filas históricas donde la columna es stock_minimo y no stock_min.
+        if producto_normalizado['stock_min'] in (None, '', 0) and producto.get('stock_minimo') is not None:
+            producto_normalizado['stock_min'] = int(producto.get('stock_minimo'))
+        return producto_normalizado
 
     if not producto:
         return {}
