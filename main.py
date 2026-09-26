@@ -1110,7 +1110,7 @@ def almacen():
                 nombre = request.form['nombre']
                 tipo = request.form['tipo']
                 cantidad = int(request.form.get('cantidad', 0))
-                stock_min = int(request.form.get('stock_min', 0))
+                stock_min = int(request.form.get('stock_min', 5) or 5)
                 precio = float(request.form.get('precio', 0) or 0)
                 codigo_barra = request.form.get('codigo_barra', '').strip() or None
                 fecha_vencimiento = request.form.get('fecha_vencimiento')
@@ -1148,7 +1148,7 @@ def almacen():
                 tipo = request.form.get('tipo', 'stock').strip() or 'stock'
                 cantidad = int(request.form.get('cantidad', 0))
                 precio = float(request.form.get('precio', 0) or 0)
-                stock_min = int(request.form.get('stock_min', 0))
+                stock_min = int(request.form.get('stock_min', 5) or 5)
                 codigo_barra = request.form.get('codigo_barra', '').strip() or None
                 fecha_vencimiento = request.form.get('fecha_vencimiento')
                 if fecha_vencimiento == '':
@@ -1211,7 +1211,7 @@ def agregar_producto_api():
         nombre = data.get('nombre')
         tipo = data.get('tipo', 'stock')
         cantidad = int(data.get('cantidad', 0))
-        stock_min = int(data.get('stock_min', 0))
+        stock_min = int(data.get('stock_min', 5) or 5)
         fecha_vencimiento = data.get('fecha_vencimiento')
         if fecha_vencimiento == '':
             fecha_vencimiento = None
@@ -1237,7 +1237,7 @@ def editar_producto_api():
         nombre = data.get('nombre')
         tipo = data.get('tipo', 'stock')
         cantidad = int(data.get('cantidad', 0))
-        stock_min = int(data.get('stock_min', 0))
+        stock_min = int(data.get('stock_min', 5) or 5)
         fecha_vencimiento = data.get('fecha_vencimiento')
         if fecha_vencimiento == '':
             fecha_vencimiento = None

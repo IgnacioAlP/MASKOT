@@ -2,6 +2,15 @@ from bd import obtener_conexion, obtener_tenant_id
 import os
 from datetime import datetime, timedelta
 
+
+def _normalizar_stock_min(valor, default=5):
+    try:
+        stock_min = int(valor) if valor is not None else default
+    except (TypeError, ValueError):
+        stock_min = default
+    return max(0, stock_min)
+
+
 def obtener_productos():
     """Obtiene todos los productos del inventario"""
     conexion = obtener_conexion()
@@ -9,9 +18,11 @@ def obtener_productos():
     productos = []
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), COALESCE(stock_min, 0),
-                       fecha_vencimiento, codigo_barra, imagen, activo
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0),
+                       COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE tenant_id = %s AND activo = true
                 ORDER BY nombre
@@ -102,21 +113,24 @@ def obtener_productos_por_busqueda(query, limite=20):
     return productos
 
 
-def insertar_producto(nombre, tipo='stock', cantidad=0, precio=0.00, stock_min=0,
+def insertar_producto(nombre, tipo='stock', cantidad=0, precio=0.00, stock_min=5,
                       fecha_vencimiento=None, imagen=None, codigo_barra=None, precio_compra=None):
     """Inserta un nuevo producto en el inventario"""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
+        stock_min = _normalizar_stock_min(stock_min, 5)
         if precio_compra is None:
             precio_compra = precio
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_min,
+                INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_min, stock_minimo,
                                      fecha_vencimiento, imagen, activo, tenant_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s)
                 RETURNING id
-            """, (nombre, codigo_barra or None, tipo, cantidad, precio, precio_compra, stock_min,
+            """, (nombre, codigo_barra or None, tipo, cantidad, precio, precio_compra, stock_min, stock_min,
                   fecha_vencimiento, imagen, tenant_id))
             producto_id = cursor.fetchone()[0]
             conexion.commit()
@@ -129,22 +143,27 @@ def insertar_producto(nombre, tipo='stock', cantidad=0, precio=0.00, stock_min=0
         conexion.close()
 
 def actualizar_producto(producto_id, nombre, tipo='stock', cantidad=0, precio=0.00,
-                        stock_min=0, fecha_vencimiento=None, codigo_barra=None, precio_compra=None):
+                        stock_min=5, fecha_vencimiento=None, codigo_barra=None, precio_compra=None):
     """Actualiza un producto existente"""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
+        stock_min = _normalizar_stock_min(stock_min, 5)
         if precio_compra is None:
             precio_compra = precio
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
                 UPDATE productos 
                 SET nombre = %s, tipo = %s, cantidad = %s, precio = %s,
-                    precio_compra = %s, stock_min = %s, fecha_vencimiento = %s, codigo_barra = %s
+                    precio_compra = %s, stock_min = %s, stock_minimo = %s,
+                    fecha_vencimiento = %s, codigo_barra = %s
                 WHERE id = %s AND tenant_id = %s
-            """, (nombre, tipo, cantidad, precio, precio_compra, stock_min, fecha_vencimiento, codigo_barra or None, producto_id, tenant_id))
+            """, (nombre, tipo, cantidad, precio, precio_compra, stock_min, stock_min,
+                  fecha_vencimiento, codigo_barra or None, producto_id, tenant_id))
             conexion.commit()
-            return True
+            return cursor.rowcount > 0
     except Exception as e:
         conexion.rollback()
         print(f"Error al actualizar producto: {e}")
