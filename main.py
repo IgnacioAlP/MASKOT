@@ -68,6 +68,7 @@ def _ensure_schema():
     # (tabla, columna_a_verificar, SQL_a_ejecutar_si_falta)
     column_migrations = [
         ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN codigo_barra VARCHAR(100) DEFAULT NULL"),
+        ("productos", "precio_compra", "ALTER TABLE productos ADD COLUMN precio_compra NUMERIC(12,2) DEFAULT 0"),
         ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN tenant_id INT DEFAULT 1"),
         ("ventas",    "tenant_id",   "ALTER TABLE ventas ADD COLUMN tenant_id INT DEFAULT 1"),
     ]
@@ -2208,6 +2209,52 @@ def test_estado():
 # ==========================================
 # RUTAS DE COMPRAS Y HISTORIAL
 # ==========================================
+
+@app.route('/compras/nueva', methods=['GET', 'POST'])
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def nueva_compra():
+    """Registro de compras de insumos para reabastecer inventario."""
+    productos = []
+    compras_recientes = []
+
+    try:
+        productos = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
+        compras_recientes = compras_controlador.obtener_compras_por_fecha(limit=6) if hasattr(compras_controlador, 'obtener_compras_por_fecha') else []
+    except Exception as e:
+        logger.warning(f"No se pudieron cargar productos o compras recientes: {e}")
+
+    if request.method == 'POST':
+        try:
+            producto_id = request.form.get('producto_id')
+            cantidad = request.form.get('cantidad', '0').strip()
+            precio_compra = request.form.get('precio_compra', '0').strip()
+            proveedor = request.form.get('proveedor', '').strip() or 'Proveedor interno'
+            observaciones = request.form.get('observaciones', '').strip()
+
+            if not producto_id or not cantidad or not precio_compra:
+                flash('Debe seleccionar producto, cantidad y precio de compra.', 'error')
+                return redirect(url_for('nueva_compra'))
+
+            ok = compras_controlador.registrar_entrada_inventario(
+                producto_id=int(producto_id),
+                cantidad=int(cantidad),
+                precio_compra=float(precio_compra),
+                proveedor=proveedor,
+                observaciones=observaciones
+            )
+
+            if ok:
+                flash('Compra de insumo registrada correctamente. El stock se actualizó.', 'success')
+            else:
+                flash('No se pudo registrar la compra. Revisa los datos.', 'error')
+        except Exception as e:
+            logger.error(f"Error registrando compra de insumo: {e}")
+            flash(f'Error al registrar compra: {e}', 'error')
+
+        return redirect(url_for('nueva_compra'))
+
+    return render_template('compras_nueva.html', productos=productos, compras_recientes=compras_recientes)
+
 
 @app.route('/compras')
 @requiere_autenticacion(['admin', 'empleado', 'dueño'])

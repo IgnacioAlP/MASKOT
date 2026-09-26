@@ -251,6 +251,79 @@ def actualizar_estado_compra(compra_id, nuevo_estado):
         if 'conexion' in locals():
             conexion.close()
 
+def registrar_entrada_inventario(producto_id, cantidad, precio_compra, proveedor=None, observaciones=None):
+    """Registra una entrada al inventario y actualiza el costo de compra del producto."""
+    try:
+        conexion = obtener_conexion()
+        tenant_id = obtener_tenant_id()
+        cursor = conexion.cursor()
+
+        cursor.execute("""
+            SELECT cantidad, precio, COALESCE(precio_compra, 0)
+            FROM productos
+            WHERE id = %s AND tenant_id = %s
+        """, (producto_id, tenant_id))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        stock_actual = int(row[0] or 0)
+        precio_venta = float(row[1] or 0)
+        costo_actual = float(row[2] or 0)
+        cantidad = int(cantidad or 0)
+        costo_compra = float(precio_compra or 0)
+
+        if cantidad <= 0 or costo_compra < 0:
+            return False
+
+        nuevo_stock = stock_actual + cantidad
+        nuevo_costo = costo_compra if costo_actual == 0 else costo_compra
+
+        cursor.execute("""
+            UPDATE productos
+            SET cantidad = %s,
+                precio_compra = %s,
+                precio = COALESCE(%s, precio)
+            WHERE id = %s AND tenant_id = %s
+        """, (nuevo_stock, nuevo_costo, precio_venta, producto_id, tenant_id))
+
+        cursor.execute("""
+            INSERT INTO compras (cliente_nombre, cliente_email, cliente_telefono, productos, subtotal, igv, total,
+                                metodo_pago, estado, observaciones, vendedor_id, tenant_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            proveedor or 'Proveedor Interno',
+            '',
+            '',
+            json.dumps([{
+                'id': producto_id,
+                'nombre': 'Entrada de inventario',
+                'precio': costo_compra,
+                'cantidad': cantidad,
+                'tipo': 'compra_inventario'
+            }]),
+            costo_compra * cantidad,
+            0,
+            costo_compra * cantidad,
+            'efectivo',
+            'pagado',
+            observaciones or f'Entrada de inventario para producto ID {producto_id}',
+            None,
+            tenant_id
+        ))
+
+        conexion.commit()
+        return True
+    except Exception as e:
+        print(f"Error al registrar entrada de inventario: {e}")
+        if 'conexion' in locals():
+            conexion.rollback()
+        return False
+    finally:
+        if 'conexion' in locals():
+            conexion.close()
+
+
 def obtener_estadisticas_compras(fecha_inicio=None, fecha_fin=None):
     """
     Obtiene estadísticas de compras para un período

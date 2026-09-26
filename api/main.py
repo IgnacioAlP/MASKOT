@@ -82,6 +82,7 @@ def _ensure_schema():
     column_migrations = [
         ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_barra VARCHAR(100) DEFAULT NULL"),
         ("productos", "stock_minimo", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5"),
+        ("productos", "precio_compra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_compra NUMERIC(12,2) DEFAULT 0"),
         ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
         ("clientes",  "documento",   "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS documento VARCHAR(50) DEFAULT NULL"),
         ("clientes",  "activo",      "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT true"),
@@ -1946,6 +1947,9 @@ def almacen():
             precio_raw = request.form.get('precio', '').strip()
             precio = float(precio_raw) if precio_raw else 0.0
 
+            precio_compra_raw = request.form.get('precio_compra', '').strip()
+            precio_compra = float(precio_compra_raw) if precio_compra_raw else precio
+
             cantidad_raw = request.form.get('stock', request.form.get('cantidad', '')).strip()
             cantidad = int(cantidad_raw) if cantidad_raw else 0
 
@@ -1957,6 +1961,7 @@ def almacen():
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
+                cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_compra NUMERIC(12,2) DEFAULT 0")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1")
 
                 if codigo_barra:
@@ -1982,9 +1987,10 @@ def almacen():
 
                     cursor.execute("""
                         UPDATE productos 
-                        SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s, stock_minimo = %s
+                        SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s,
+                            precio_compra = %s, stock_minimo = %s
                         WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, producto_id, tenant_id))
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, producto_id, tenant_id))
                     
                     mensaje = f'Producto "{nombre}" actualizado correctamente.' if cursor.rowcount > 0 else f'Producto ID {producto_id} no encontrado.'
                     categoria = 'success' if cursor.rowcount > 0 else 'warning'
@@ -1993,9 +1999,9 @@ def almacen():
                         tipo = 'stock'
 
                     cursor.execute("""
-                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, tenant_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, stock_minimo, tenant_id))
+                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, tenant_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, tenant_id))
                     mensaje = f'Producto "{nombre}" registrado correctamente.'
                     categoria = 'success'
 
@@ -2016,6 +2022,7 @@ def almacen():
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_compra NUMERIC(12,2) DEFAULT 0")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1")
 
             sql_query = "SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra FROM productos WHERE (tenant_id = %s OR tenant_id IS NULL)"
@@ -3212,6 +3219,47 @@ def eliminar_cita(cita_id):
 
 
 # ─── COMPRAS Y PROVEEDORES ───────────────────────────────────────────────────
+
+@app.route('/compras/nueva', methods=['GET', 'POST'])
+def nueva_compra():
+    """Registra una compra de insumos para reabastecer el inventario."""
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    productos = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
+    compras_recientes = compras_controlador.obtener_compras_por_fecha(limit=6) if hasattr(compras_controlador, 'obtener_compras_por_fecha') else []
+
+    if request.method == 'POST':
+        try:
+            producto_id = request.form.get('producto_id')
+            cantidad = int(request.form.get('cantidad', '0'))
+            precio_compra = float(request.form.get('precio_compra', '0') or 0)
+            proveedor = (request.form.get('proveedor') or '').strip() or 'Proveedor interno'
+            observaciones = (request.form.get('observaciones') or '').strip()
+
+            if not producto_id or cantidad <= 0 or precio_compra <= 0:
+                flash('Debes indicar producto, cantidad y precio válido.', 'error')
+                return redirect(url_for('nueva_compra'))
+
+            ok = compras_controlador.registrar_entrada_inventario(
+                producto_id=int(producto_id),
+                cantidad=cantidad,
+                precio_compra=precio_compra,
+                proveedor=proveedor,
+                observaciones=observaciones
+            )
+            if ok:
+                flash('Compra registrada y stock actualizado.', 'success')
+            else:
+                flash('No se pudo registrar la compra.', 'error')
+        except Exception as exc:
+            logger.error(f'Error registrando compra: {exc}')
+            flash(f'Error al registrar la compra: {exc}', 'error')
+        return redirect(url_for('nueva_compra'))
+
+    return render_template('compras_nueva.html', productos=productos, compras_recientes=compras_recientes)
+
 
 @app.route('/compras')
 def compras():

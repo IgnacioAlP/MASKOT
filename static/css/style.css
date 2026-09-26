@@ -1,40 +1,35 @@
 :root {
-  /* Paleta principal MASKOT */
-  --primary-color: #ffa301;         /* Naranja vibrante - Color predominante */
-  --secondary-color: #6ccae2;       /* Azul cielo - Color secundario */
-  --background-color: #f5f5f5;      /* Gris claro - Color de fondo */
-  
-  /* Colores complementarios */
-  --primary-dark: #e6920e;          /* Naranja oscuro para hover */
-  --primary-light: #ffb733;         /* Naranja claro */
-  --secondary-dark: #5ab8d9;        /* Azul oscuro para hover */
-  --secondary-light: #8dd4ea;       /* Azul claro */
-  
-  /* Colores de sistema */
-  --success-color: #28a745;         /* Verde éxito */
-  --warning-color: var(--primary-color); /* Usar naranja como warning */
-  --danger-color: #dc3545;          /* Rojo peligro */
-  --info-color: var(--secondary-color);  /* Usar azul como info */
-  
-  /* Colores neutros */
-  --dark-color: #2c3e50;            /* Texto principal oscuro */
-  --light-color: var(--background-color); /* Fondo claro */
-  --white-color: #ffffff;           /* Blanco puro */
-  --gray-light: #e9ecef;            /* Gris claro */
-  --gray-medium: #adb5bd;           /* Gris medio */
-  --gray-dark: #6c757d;             /* Gris oscuro */
-  
-  /* Gradientes MASKOT */
+  /* Nueva paleta moderna MASKOT */
+  --primary-color: #1f6feb;
+  --secondary-color: #64c7d5;
+  --background-color: #f3f7fb;
+
+  --primary-dark: #184fa0;
+  --primary-light: #7db4ff;
+  --secondary-dark: #3aa6ba;
+  --secondary-light: #a8e4ef;
+
+  --success-color: #1ea978;
+  --warning-color: #f59e0b;
+  --danger-color: #e25d5d;
+  --info-color: var(--secondary-color);
+
+  --dark-color: #18324a;
+  --light-color: var(--background-color);
+  --white-color: #ffffff;
+  --gray-light: #eaf0f6;
+  --gray-medium: #aab7c3;
+  --gray-dark: #5e7281;
+
   --gradient-primary: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   --gradient-secondary: linear-gradient(135deg, var(--secondary-color), var(--secondary-dark));
   --gradient-hero: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  
-  /* Propiedades de diseño */
-  --border-radius: 15px;            /* Bordes más redondeados */
-  --border-radius-sm: 8px;
-  --border-radius-lg: 25px;
-  --box-shadow: 0 8px 25px rgba(255, 163, 1, 0.15);
-  --box-shadow-hover: 0 15px 35px rgba(255, 163, 1, 0.25);
+
+  --border-radius: 16px;
+  --border-radius-sm: 10px;
+  --border-radius-lg: 26px;
+  --box-shadow: 0 12px 28px rgba(31, 111, 235, 0.12);
+  --box-shadow-hover: 0 18px 36px rgba(31, 111, 235, 0.18);
   --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-fast: all 0.2s ease;
 }

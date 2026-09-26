@@ -10,7 +10,7 @@ def obtener_productos():
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, stock_min, 
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
                        fecha_vencimiento, imagen, activo
                 FROM productos 
                 WHERE tenant_id = %s AND activo = true
@@ -29,7 +29,7 @@ def obtener_productos_mas_vendidos(limit=4):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT p.id, p.nombre, p.tipo, p.cantidad, p.precio, p.stock_min,
+                SELECT p.id, p.nombre, p.tipo, p.cantidad, p.precio, COALESCE(p.precio_compra, 0), p.stock_min,
                        p.fecha_vencimiento, p.imagen, p.activo
                 FROM productos p
                 WHERE p.tipo = 'venta' AND p.cantidad > 0 AND p.activo = true AND p.tenant_id = %s
@@ -49,7 +49,7 @@ def obtener_producto_por_id(producto_id):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, stock_min, 
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
                        fecha_vencimiento, imagen, activo
                 FROM productos 
                 WHERE id = %s AND tenant_id = %s
@@ -67,7 +67,7 @@ def obtener_producto_por_codigo_barra(codigo_barra):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, stock_min,
+                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
                        fecha_vencimiento, imagen, activo
                 FROM productos
                 WHERE codigo_barra = %s AND tenant_id = %s AND activo = true
@@ -78,18 +78,21 @@ def obtener_producto_por_codigo_barra(codigo_barra):
     return producto
 
 def insertar_producto(nombre, tipo='stock', cantidad=0, precio=0.00, stock_min=0,
-                      fecha_vencimiento=None, imagen=None, codigo_barra=None):
+                      fecha_vencimiento=None, imagen=None, codigo_barra=None, precio_compra=None):
     """Inserta un nuevo producto en el inventario"""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
+        if precio_compra is None:
+            precio_compra = precio
         with conexion.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, stock_min,
+                INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_min,
                                      fecha_vencimiento, imagen, activo, tenant_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, true, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s)
                 RETURNING id
-            """, (nombre, codigo_barra or None, tipo, cantidad, precio, stock_min, fecha_vencimiento, imagen, tenant_id))
+            """, (nombre, codigo_barra or None, tipo, cantidad, precio, precio_compra, stock_min,
+                  fecha_vencimiento, imagen, tenant_id))
             producto_id = cursor.fetchone()[0]
             conexion.commit()
             return producto_id
@@ -101,18 +104,20 @@ def insertar_producto(nombre, tipo='stock', cantidad=0, precio=0.00, stock_min=0
         conexion.close()
 
 def actualizar_producto(producto_id, nombre, tipo='stock', cantidad=0, precio=0.00,
-                        stock_min=0, fecha_vencimiento=None, codigo_barra=None):
+                        stock_min=0, fecha_vencimiento=None, codigo_barra=None, precio_compra=None):
     """Actualiza un producto existente"""
     conexion = obtener_conexion()
     tenant_id = obtener_tenant_id()
     try:
+        if precio_compra is None:
+            precio_compra = precio
         with conexion.cursor() as cursor:
             cursor.execute("""
                 UPDATE productos 
                 SET nombre = %s, tipo = %s, cantidad = %s, precio = %s,
-                    stock_min = %s, fecha_vencimiento = %s, codigo_barra = %s
+                    precio_compra = %s, stock_min = %s, fecha_vencimiento = %s, codigo_barra = %s
                 WHERE id = %s AND tenant_id = %s
-            """, (nombre, tipo, cantidad, precio, stock_min, fecha_vencimiento, codigo_barra or None, producto_id, tenant_id))
+            """, (nombre, tipo, cantidad, precio, precio_compra, stock_min, fecha_vencimiento, codigo_barra or None, producto_id, tenant_id))
             conexion.commit()
             return True
     except Exception as e:

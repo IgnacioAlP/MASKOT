@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Compra de Insumos - MASKOT{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4 align-items-start">
+            <div class="col-lg-7">
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body p-4 p-lg-5">
+                        <div class="d-flex align-items-center justify-content-between mb-4">
+                            <div>
+                                <span class="badge bg-primary-subtle text-primary mb-2">Inventario</span>
+                                <h1 class="h3 mb-0">Registrar compra de insumos</h1>
+                            </div>
+                            <i class="fas fa-truck-loading fa-2x text-primary"></i>
+                        </div>
+
+                        <form method="POST">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Producto</label>
+                                    <select name="producto_id" class="form-select" required>
+                                        <option value="">Selecciona un producto</option>
+                                        {% for producto in productos %}
+                                            <option value="{{ producto[0] }}">{{ producto[1] }} (Stock: {{ producto[3] }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Cantidad</label>
+                                    <input type="number" name="cantidad" class="form-control" min="1" value="1" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Costo unitario</label>
+                                    <input type="number" step="0.01" min="0" name="precio_compra" class="form-control" placeholder="0.00" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Proveedor</label>
+                                    <input type="text" name="proveedor" class="form-control" placeholder="Proveedor interno o nombre del distribuidor">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Observaciones</label>
+                                    <input type="text" name="observaciones" class="form-control" placeholder="Ej. entrega por mayor, fecha de llegada...">
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="submit" class="btn btn-primary px-4">
+                                    <i class="fas fa-save me-2"></i>Guardar compra
+                                </button>
+                                <a href="{{ url_for('historial_compras') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-history me-2"></i>Ver historial
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm rounded-4 h-100">
+                    <div class="card-body p-4">
+                        <h2 class="h4 mb-3">Compras recientes</h2>
+                        {% if compras_recientes %}
+                            <div class="list-group list-group-flush">
+                                {% for compra in compras_recientes %}
+                                    <div class="list-group-item px-0">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong>{{ compra[1] or 'Proveedor' }}</strong>
+                                                <div class="small text-muted">{{ compra[7].strftime('%d/%m/%Y') if compra[7] else 'Sin fecha' }}</div>
+                                            </div>
+                                            <span class="badge text-bg-light">S/ {{ '%.2f'|format(compra[4]) }}</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-box-open fa-2x mb-2"></i>
+                                <p class="mb-0">No hay compras recientes registradas.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
