@@ -10,7 +10,7 @@ def obtener_productos():
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), COALESCE(stock_min, 0),
                        fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE tenant_id = %s AND activo = true
@@ -281,7 +281,7 @@ def obtener_productos_por_tipo(tipo):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), COALESCE(stock_min, 0),
                        fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE tipo = %s AND activo = true AND tenant_id = %s
