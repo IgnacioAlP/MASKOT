@@ -1,4 +1,3 @@
-from api.main import ALLOWED_EXTENSIONS
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import logging
 import time
@@ -25,9 +24,13 @@ from controladores import (
 # Módulo de fidelización (moved into controladores)
 from controladores import fidelizacion_controlador as fidelizacion
 
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf'}
+
 app = Flask(__name__)
-# Leer SECRET_KEY desde variable de entorno para seguridad
-app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_veterinaria')  # Cambia en prod y configura en el entorno
+# Secret key obligatoria en producción para evitar sesiones inseguras.
+if os.environ.get('FLASK_ENV', '').lower() == 'production' and not os.environ.get('SECRET_KEY'):
+    raise RuntimeError('SECRET_KEY debe configurarse en producción.')
+app.secret_key = os.environ.get('SECRET_KEY', 'maskot-dev-secret-change-me')
 
 # Configuración de cookies de sesión seguras
 # Session cookie security: enable secure cookies in production only (require HTTPS).
@@ -1823,7 +1826,8 @@ def detalle_cliente():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/clientes')
+@app.route('/clientes', endpoint='clientes')
+@app.route('/clientes/lista', endpoint='listar_clientes')
 def listar_clientes():
     """Lista todos los clientes para administradores y dueños"""
     if 'rol' not in session or session['rol'] not in ['admin', 'dueño', 'empleado']:
@@ -1837,6 +1841,20 @@ def listar_clientes():
     
     except Exception as e:
         flash(f'Error al cargar la lista de clientes: {e}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/mascotas', endpoint='mascota')
+@app.route('/mascotas/lista', endpoint='mascotas')
+@app.route('/mascotas/listar', endpoint='listar_mascotas')
+def listar_mascotas_alias():
+    """Alias para mantener compatibilidad con el menú y las rutas antiguas."""
+    if 'rol' not in session or session['rol'] not in ['admin', 'dueño', 'empleado']:
+        flash('Acceso denegado. No tienes permisos para ver mascotas.', 'error')
+        return redirect(url_for('dashboard'))
+    try:
+        return render_template('mascotas.html', mascotas=[], clientes=[])
+    except Exception as e:
+        flash(f'Error al cargar mascotas: {e}', 'error')
         return redirect(url_for('dashboard'))
 
 @app.route('/crear-cliente', methods=['GET', 'POST'])
