@@ -1,38 +1,75 @@
 import os
+import urllib.parse
 import psycopg2
 
 
-def obtener_conexion():
-    host = os.environ.get("DB_HOST")
-    port = os.environ.get("DB_PORT")
-    dbname = os.environ.get("DB_NAME")
-    user = os.environ.get("DB_USER")
-    password = os.environ.get("DB_PASSWORD")
+def _get_env_value(*names):
+    for name in names:
+        value = os.environ.get(name)
+        if value not in (None, ''):
+            return value
+    return None
+
+
+def construir_config_db():
+    """Resuelve la configuración de conexión aceptando varias convenciones de Supabase/Vercel."""
+    db_url = _get_env_value(
+        'DATABASE_URL',
+        'DB_URL',
+        'POSTGRES_URL',
+        'POSTGRES_PRISMA_URL',
+        'SUPABASE_URL',
+        'SUPABASE_DB_URL'
+    )
+    if db_url:
+        return {'url': db_url}
+
+    host = _get_env_value('DB_HOST', 'PGHOST', 'SUPABASE_HOST')
+    port = _get_env_value('DB_PORT', 'PGPORT', 'SUPABASE_PORT', '5432')
+    dbname = _get_env_value('DB_NAME', 'PGDATABASE', 'SUPABASE_DB_NAME', 'POSTGRES_DB')
+    user = _get_env_value('DB_USER', 'PGUSER', 'SUPABASE_USER', 'POSTGRES_USER')
+    password = _get_env_value('DB_PASSWORD', 'PGPASSWORD', 'SUPABASE_PASSWORD', 'POSTGRES_PASSWORD')
 
     missing = [
         key for key, value in {
-            "DB_HOST": host,
-            "DB_PORT": port,
-            "DB_NAME": dbname,
-            "DB_USER": user,
-            "DB_PASSWORD": password,
+            'DB_HOST': host,
+            'DB_PORT': port,
+            'DB_NAME': dbname,
+            'DB_USER': user,
+            'DB_PASSWORD': password,
         }.items() if not value
     ]
 
     if missing:
         raise RuntimeError(
-            "Faltan variables de entorno de Supabase: " + ", ".join(missing) +
-            ". Configúralas en Vercel o en tu entorno local antes de usar la base de datos."
+            'Faltan variables de entorno de Supabase: ' + ', '.join(missing) +
+            '. Configúralas en Vercel o en tu entorno local antes de usar la base de datos.'
         )
 
-    conn = psycopg2.connect(
-        host=host,
-        port=port,
-        dbname=dbname,
-        user=user,
-        password=password,
-        sslmode="require"
-    )
+    return {
+        'host': host,
+        'port': port,
+        'dbname': dbname,
+        'user': user,
+        'password': password,
+        'sslmode': 'require'
+    }
+
+
+def obtener_conexion():
+    db_cfg = construir_config_db()
+
+    if 'url' in db_cfg:
+        conn = psycopg2.connect(db_cfg['url'])
+    else:
+        conn = psycopg2.connect(
+            host=db_cfg['host'],
+            port=db_cfg['port'],
+            dbname=db_cfg['dbname'],
+            user=db_cfg['user'],
+            password=db_cfg['password'],
+            sslmode=db_cfg.get('sslmode', 'require')
+        )
 
     with conn.cursor() as cursor:
         cursor.execute("SET TIME ZONE 'America/Lima';")

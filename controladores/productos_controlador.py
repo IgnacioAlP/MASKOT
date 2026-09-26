@@ -77,6 +77,31 @@ def obtener_producto_por_codigo_barra(codigo_barra):
         conexion.close()
     return producto
 
+
+def obtener_productos_por_busqueda(query, limite=20):
+    """Busca productos por nombre o código de barras para registrar compras o ventas."""
+    conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
+    productos = []
+    try:
+        with conexion.cursor() as cursor:
+            termino = f"%{query.strip()}%" if query else "%"
+            cursor.execute("""
+                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min, imagen
+                FROM productos
+                WHERE tenant_id = %s AND activo = true
+                  AND (
+                    nombre ILIKE %s OR COALESCE(codigo_barra::text, '') ILIKE %s OR TRIM(COALESCE(codigo_barra::text, '')) = %s
+                  )
+                ORDER BY nombre ASC
+                LIMIT %s
+            """, (tenant_id, termino, termino, query.strip() if query else '', limite))
+            productos = cursor.fetchall()
+    finally:
+        conexion.close()
+    return productos
+
+
 def insertar_producto(nombre, tipo='stock', cantidad=0, precio=0.00, stock_min=0,
                       fecha_vencimiento=None, imagen=None, codigo_barra=None, precio_compra=None):
     """Inserta un nuevo producto en el inventario"""

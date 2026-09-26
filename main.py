@@ -1145,19 +1145,31 @@ def almacen():
             elif 'modificar' in request.form:
                 producto_id = int(request.form['id'])
                 nombre = request.form['nombre']
+                tipo = request.form.get('tipo', 'stock').strip() or 'stock'
                 cantidad = int(request.form.get('cantidad', 0))
+                precio = float(request.form.get('precio', 0) or 0)
                 stock_min = int(request.form.get('stock_min', 0))
+                codigo_barra = request.form.get('codigo_barra', '').strip() or None
                 fecha_vencimiento = request.form.get('fecha_vencimiento')
                 if fecha_vencimiento == '':
                     fecha_vencimiento = None
-                
-                # Obtener tipo actual del producto para no cambiarlo
+
                 producto_actual = productos_controlador.obtener_producto_por_id(producto_id)
                 if producto_actual:
-                    tipo_actual = producto_actual[2]  # índice 2 es el tipo
-                    
-                    resultado = productos_controlador.actualizar_producto(producto_id, nombre, tipo_actual, cantidad, stock_min, fecha_vencimiento)
-                    
+                    tipo_real = tipo if tipo in ['stock', 'venta'] else producto_actual[2]
+                    precio_compra = float(request.form.get('precio_compra', producto_actual[5] if len(producto_actual) > 5 else 0) or 0)
+                    resultado = productos_controlador.actualizar_producto(
+                        producto_id,
+                        nombre,
+                        tipo_real,
+                        cantidad,
+                        precio,
+                        stock_min,
+                        fecha_vencimiento,
+                        codigo_barra,
+                        precio_compra
+                    )
+
                     if resultado:
                         flash('Producto actualizado exitosamente.', 'success')
                     else:
@@ -1230,7 +1242,21 @@ def editar_producto_api():
         if fecha_vencimiento == '':
             fecha_vencimiento = None
         
-        if productos_controlador.actualizar_producto(producto_id, nombre, tipo, cantidad, stock_min, fecha_vencimiento):
+        precio = float(data.get('precio', 0) or 0)
+        precio_compra = float(data.get('precio_compra', precio) or 0)
+        codigo_barra = str(data.get('codigo_barra', '') or '').strip() or None
+
+        if productos_controlador.actualizar_producto(
+            producto_id,
+            nombre,
+            tipo,
+            cantidad,
+            precio,
+            stock_min,
+            fecha_vencimiento,
+            codigo_barra,
+            precio_compra,
+        ):
             return jsonify({'success': True, 'message': 'Producto actualizado exitosamente'})
         else:
             return jsonify({'success': False, 'error': 'Error al actualizar producto'}), 500
@@ -1335,6 +1361,28 @@ def buscar_producto_barcode():
             }
         })
     return jsonify({'success': True, 'found': False})
+
+
+@app.route('/api/productos/buscar')
+def api_buscar_productos_compra():
+    """Busca productos por texto/código para compras e inventario."""
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'No autenticado'}), 401
+    q = request.args.get('q', '').strip()
+    productos = productos_controlador.obtener_productos_por_busqueda(q, limite=20) if q else []
+    return jsonify({
+        'success': True,
+        'productos': [{
+            'id': p[0],
+            'nombre': p[1],
+            'codigo_barra': p[2] or '',
+            'tipo': p[3],
+            'cantidad': int(p[4] or 0),
+            'precio': float(p[5] or 0),
+            'precio_compra': float(p[6] or 0),
+            'stock_min': int(p[7] or 0),
+        } for p in productos]
+    })
 
 
 @app.route('/ventas/scan-push', methods=['POST'])

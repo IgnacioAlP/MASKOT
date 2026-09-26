@@ -1002,7 +1002,7 @@ def procesar_venta():
                     vendedor_id, vendedor_nombre, metodo_pago, subtotal, igv, total, 
                     monto_recibido, cambio_entregado, productos, estado, tenant_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada'::estado_venta_enum, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'completada', %s
                 ) RETURNING id
             """, (
                 num_venta, fecha_actual, final_cliente_id, cliente_nombre, cliente_documento,
@@ -3514,7 +3514,7 @@ def procesar_venta_pos():
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s, %s, 'completada'::estado_venta_enum, %s
+                    %s, %s, 'completada', %s
                 ) RETURNING id
             """, (
                 num_venta,
