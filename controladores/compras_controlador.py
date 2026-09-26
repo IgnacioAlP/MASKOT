@@ -251,12 +251,27 @@ def actualizar_estado_compra(compra_id, nuevo_estado):
         if 'conexion' in locals():
             conexion.close()
 
-def registrar_entrada_inventario(producto_id, cantidad, precio_compra, proveedor=None, observaciones=None):
+def registrar_entrada_inventario(producto_id, cantidad, precio_compra, proveedor=None, observaciones=None,
+                               tipo_comprobante='BC', serie=None, numero_comprobante=None):
     """Registra una entrada al inventario y actualiza el costo de compra del producto."""
     try:
         conexion = obtener_conexion()
         tenant_id = obtener_tenant_id()
         cursor = conexion.cursor()
+
+        detalle_comprobante = []
+        tipo_comp = (tipo_comprobante or 'BC').strip().upper() if tipo_comprobante else 'BC'
+        if tipo_comp:
+            detalle_comprobante.append(f"Tipo: {tipo_comp}")
+        if serie:
+            detalle_comprobante.append(f"Serie: {serie}")
+        if numero_comprobante:
+            detalle_comprobante.append(f"N°: {numero_comprobante}")
+
+        observacion_final = observaciones.strip() if observaciones else ''
+        if detalle_comprobante:
+            detalle_texto = ' | '.join(detalle_comprobante)
+            observacion_final = f"{observacion_final} | {detalle_texto}".strip(' | ')
 
         cursor.execute("""
             SELECT cantidad, precio, COALESCE(precio_compra, 0)
@@ -307,7 +322,7 @@ def registrar_entrada_inventario(producto_id, cantidad, precio_compra, proveedor
             costo_compra * cantidad,
             'efectivo',
             'pagado',
-            observaciones or f'Entrada de inventario para producto ID {producto_id}',
+            observacion_final or f'Entrada de inventario para producto ID {producto_id}',
             None,
             tenant_id
         ))

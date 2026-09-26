@@ -2278,6 +2278,9 @@ def nueva_compra():
             precio_compra = request.form.get('precio_compra', '0').strip()
             proveedor = request.form.get('proveedor', '').strip() or 'Proveedor interno'
             observaciones = request.form.get('observaciones', '').strip()
+            tipo_comprobante = (request.form.get('tipo_comprobante') or 'BC').strip().upper()
+            serie = request.form.get('serie', '').strip()
+            numero_comprobante = request.form.get('numero_comprobante', '').strip()
 
             if not producto_id or not cantidad or not precio_compra:
                 flash('Debe seleccionar producto, cantidad y precio de compra.', 'error')
@@ -2288,7 +2291,10 @@ def nueva_compra():
                 cantidad=int(cantidad),
                 precio_compra=float(precio_compra),
                 proveedor=proveedor,
-                observaciones=observaciones
+                observaciones=observaciones,
+                tipo_comprobante=tipo_comprobante,
+                serie=serie,
+                numero_comprobante=numero_comprobante
             )
 
             if ok:

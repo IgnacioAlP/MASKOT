@@ -50,10 +50,26 @@
                                     </select>
                                 </div>
                                 <div class="col-md-3">
+                                    <label class="form-label">Comprobante</label>
+                                    <select name="tipo_comprobante" class="form-select">
+                                        <option value="BC">Boleta</option>
+                                        <option value="FC">Factura</option>
+                                        <option value="NC">Nota de crédito</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Serie</label>
+                                    <input type="text" name="serie" class="form-control" placeholder="B001 / F001" maxlength="10">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">N° comprobante</label>
+                                    <input type="text" name="numero_comprobante" class="form-control" placeholder="000123" maxlength="20">
+                                </div>
+                                <div class="col-md-6">
                                     <label class="form-label">Proveedor</label>
                                     <input type="text" name="proveedor" class="form-control" placeholder="Proveedor">
                                 </div>
-                                <div class="col-md-12">
+                                <div class="col-md-6">
                                     <label class="form-label">Observaciones</label>
                                     <input type="text" name="observaciones" class="form-control" placeholder="Ej. entrega por mayor, fecha de llegada...">
                                 </div>
