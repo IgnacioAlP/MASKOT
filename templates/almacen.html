@@ -705,14 +705,26 @@
         return true;
     }
 
-    function editarProducto(id, nombre, cantidad, stockMin, fechaVenc, tipo = 'stock', precio = 0, precioCompra = 0, codigoBarra = '') {
+    function editarProducto(producto) {
         const modal = document.getElementById('editModal');
         if (!modal) return;
 
+        const {
+            id,
+            nombre = '',
+            cantidad = 0,
+            stockMin = 5,
+            fechaVenc = '',
+            tipo = 'stock',
+            precio = 0,
+            precioCompra = 0,
+            codigoBarra = ''
+        } = producto || {};
+
         document.getElementById('edit_id').value = id;
         document.getElementById('edit_nombre').value = nombre || '';
-        document.getElementById('edit_cantidad').value = cantidad ?? 0;
-        document.getElementById('edit_stock_min').value = stockMin ?? 0;
+        document.getElementById('edit_cantidad').value = Number(cantidad || 0);
+        document.getElementById('edit_stock_min').value = Number(stockMin || 5);
         document.getElementById('edit_fecha_vencimiento').value = fechaVenc || '';
 
         const tipoSelect = document.getElementById('edit_tipo');
@@ -734,17 +746,17 @@
         const trigger = event.target.closest('.open-edit-modal');
         if (!trigger) return;
 
-        const id = trigger.dataset.id;
-        const nombre = trigger.dataset.nombre || '';
-        const cantidad = trigger.dataset.cantidad || 0;
-        const stockMin = trigger.dataset.stockMin || 0;
-        const fechaVenc = trigger.dataset.fechaVencimiento || '';
-        const tipo = trigger.dataset.tipo || 'stock';
-        const precio = trigger.dataset.precio || 0;
-        const precioCompra = trigger.dataset.precioCompra || 0;
-        const codigoBarra = trigger.dataset.codigoBarra || '';
-
-        editarProducto(id, nombre, Number(cantidad), Number(stockMin), fechaVenc, tipo, Number(precio), Number(precioCompra), codigoBarra);
+        editarProducto({
+            id: trigger.dataset.id,
+            nombre: trigger.dataset.nombre || '',
+            cantidad: Number(trigger.dataset.cantidad || 0),
+            stockMin: Number(trigger.dataset.stockMin || 5),
+            fechaVenc: trigger.dataset.fechaVencimiento || '',
+            tipo: trigger.dataset.tipo || 'stock',
+            precio: Number(trigger.dataset.precio || 0),
+            precioCompra: Number(trigger.dataset.precioCompra || 0),
+            codigoBarra: trigger.dataset.codigoBarra || ''
+        });
     });
 
     function cerrarModal() {
