@@ -21,8 +21,10 @@ def obtener_productos():
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0),
-                       COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, codigo_barra, imagen, activo
+                SELECT id, nombre, tipo, cantidad, precio,
+                       COALESCE(precio_compra, 0) AS precio_compra,
+                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE tenant_id = %s AND activo = true
                 ORDER BY nombre
@@ -64,8 +66,10 @@ def obtener_producto_por_id(producto_id):
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0),
-                       COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, imagen, activo
+                SELECT id, nombre, tipo, cantidad, precio,
+                       COALESCE(precio_compra, 0) AS precio_compra,
+                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       fecha_vencimiento, imagen, activo
                 FROM productos 
                 WHERE id = %s AND tenant_id = %s
             """, (producto_id, tenant_id))
@@ -84,8 +88,10 @@ def obtener_producto_por_codigo_barra(codigo_barra):
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0),
-                       COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, imagen, activo
+                SELECT id, nombre, codigo_barra, tipo, cantidad, precio,
+                       COALESCE(precio_compra, 0) AS precio_compra,
+                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       fecha_vencimiento, imagen, activo
                 FROM productos
                 WHERE codigo_barra = %s AND tenant_id = %s AND activo = true
             """, (codigo_barra, tenant_id))
@@ -106,8 +112,10 @@ def obtener_productos_por_busqueda(query, limite=20):
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             termino = f"%{query.strip()}%" if query else "%"
             cursor.execute("""
-                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0),
-                       COALESCE(stock_min, stock_minimo, 5), imagen
+                SELECT id, nombre, codigo_barra, tipo, cantidad, precio,
+                       COALESCE(precio_compra, 0) AS precio_compra,
+                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       imagen
                 FROM productos
                 WHERE tenant_id = %s AND activo = true
                   AND (
