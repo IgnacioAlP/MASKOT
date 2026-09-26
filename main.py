@@ -1091,6 +1091,79 @@ def productos():
     return render_template('productos.html', productos_venta=productos_venta)
 
 
+def _normalizar_producto_almacen(producto):
+    if isinstance(producto, dict):
+        return producto
+
+    if not producto:
+        return {}
+
+    try:
+        # Formato estándar: (id, nombre, tipo, cantidad, precio, precio_compra, stock_min, ...)
+        if len(producto) >= 7 and isinstance(producto[2], str) and producto[2] in ['stock', 'venta']:
+            return {
+                'id': producto[0],
+                'nombre': producto[1],
+                'tipo': producto[2],
+                'cantidad': int(producto[3] or 0),
+                'precio': float(producto[4] or 0),
+                'precio_compra': float(producto[5] or 0),
+                'stock_min': int(producto[6] if producto[6] is not None else 5),
+                'fecha_vencimiento': producto[7] if len(producto) > 7 else None,
+                'codigo_barra': producto[8] if len(producto) > 8 else None,
+                'imagen': producto[9] if len(producto) > 9 else None,
+                'activo': producto[10] if len(producto) > 10 else True,
+            }
+
+        # Formato alterno viejo: (id, nombre, cantidad, precio, stock_min, tipo)
+        if len(producto) >= 6 and not isinstance(producto[2], str):
+            return {
+                'id': producto[0],
+                'nombre': producto[1],
+                'tipo': producto[5] if len(producto) > 5 else 'stock',
+                'cantidad': int(producto[2] or 0),
+                'precio': float(producto[3] or 0),
+                'precio_compra': float(producto[3] or 0),
+                'stock_min': int(producto[4] if producto[4] is not None else 5),
+                'fecha_vencimiento': None,
+                'codigo_barra': None,
+                'imagen': None,
+                'activo': True,
+            }
+
+        # Formato viejo vencimiento: (id, nombre, fecha_vencimiento, cantidad, precio, tipo)
+        if len(producto) >= 6 and isinstance(producto[2], str) and producto[5] in ['stock', 'venta']:
+            return {
+                'id': producto[0],
+                'nombre': producto[1],
+                'tipo': producto[5],
+                'cantidad': int(producto[3] or 0),
+                'precio': float(producto[4] or 0),
+                'precio_compra': float(producto[4] or 0),
+                'stock_min': 5,
+                'fecha_vencimiento': producto[2],
+                'codigo_barra': None,
+                'imagen': None,
+                'activo': True,
+            }
+    except Exception:
+        pass
+
+    return {
+        'id': producto[0] if len(producto) > 0 else None,
+        'nombre': producto[1] if len(producto) > 1 else '',
+        'tipo': producto[2] if len(producto) > 2 else 'stock',
+        'cantidad': int(producto[3] or 0) if len(producto) > 3 else 0,
+        'precio': float(producto[4] or 0) if len(producto) > 4 else 0,
+        'precio_compra': float(producto[5] or 0) if len(producto) > 5 else 0,
+        'stock_min': int(producto[6] if len(producto) > 6 and producto[6] is not None else 5),
+        'fecha_vencimiento': producto[7] if len(producto) > 7 else None,
+        'codigo_barra': producto[8] if len(producto) > 8 else None,
+        'imagen': producto[9] if len(producto) > 9 else None,
+        'activo': producto[10] if len(producto) > 10 else True,
+    }
+
+
 @app.route('/almacen', methods=['GET', 'POST'])
 def almacen():
     """Gestión completa del inventario de productos"""
@@ -1195,15 +1268,15 @@ def almacen():
     # GET: show products depending on role
     if session.get('rol') == 'empleado':
         # Employees should only see internal stock items
-        productos = productos_controlador.obtener_productos_por_tipo('stock')
+        productos = [_normalizar_producto_almacen(p) for p in productos_controlador.obtener_productos_por_tipo('stock')]
         # For employees we still may want to show alerts; compute filtered lists
-        productos_bajo_stock = [p for p in productos if p[3] <= p[6]]
-        productos_por_vencer = [p for p in productos if p[7] and days_until(p[7]) <= 30]
+        productos_bajo_stock = [p for p in productos if p.get('cantidad', 0) <= p.get('stock_min', 5)]
+        productos_por_vencer = [p for p in productos if p.get('fecha_vencimiento') and days_until(p['fecha_vencimiento']) <= 30]
     else:
         # Admins and dueños see everything
-        productos = productos_controlador.obtener_productos()
-        productos_bajo_stock = productos_controlador.obtener_productos_bajo_stock()
-        productos_por_vencer = productos_controlador.obtener_productos_por_vencer()
+        productos = [_normalizar_producto_almacen(p) for p in productos_controlador.obtener_productos()]
+        productos_bajo_stock = [_normalizar_producto_almacen(p) for p in productos_controlador.obtener_productos_bajo_stock()]
+        productos_por_vencer = [_normalizar_producto_almacen(p) for p in productos_controlador.obtener_productos_por_vencer()]
 
     return render_template('almacen.html', 
                          productos=productos,

@@ -62,7 +62,7 @@ def obtener_productos():
             cursor.execute("""
                 SELECT id, nombre, tipo, cantidad, precio,
                        COALESCE(precio_compra, 0) AS precio_compra,
-                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       COALESCE(stock_min, stock_minimo, 5) AS stock_min,
                        fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE tenant_id = %s AND activo = true
@@ -107,7 +107,7 @@ def obtener_producto_por_id(producto_id):
             cursor.execute("""
                 SELECT id, nombre, tipo, cantidad, precio,
                        COALESCE(precio_compra, 0) AS precio_compra,
-                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       COALESCE(stock_min, stock_minimo, 5) AS stock_min,
                        fecha_vencimiento, imagen, activo
                 FROM productos 
                 WHERE id = %s AND tenant_id = %s
@@ -129,7 +129,7 @@ def obtener_producto_por_codigo_barra(codigo_barra):
             cursor.execute("""
                 SELECT id, nombre, codigo_barra, tipo, cantidad, precio,
                        COALESCE(precio_compra, 0) AS precio_compra,
-                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       COALESCE(stock_min, stock_minimo, 5) AS stock_min,
                        fecha_vencimiento, imagen, activo
                 FROM productos
                 WHERE codigo_barra = %s AND tenant_id = %s AND activo = true
@@ -153,7 +153,7 @@ def obtener_productos_por_busqueda(query, limite=20):
             cursor.execute("""
                 SELECT id, nombre, codigo_barra, tipo, cantidad, precio,
                        COALESCE(precio_compra, 0) AS precio_compra,
-                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       COALESCE(stock_min, stock_minimo, 5) AS stock_min,
                        imagen
                 FROM productos
                 WHERE tenant_id = %s AND activo = true
@@ -253,9 +253,13 @@ def obtener_productos_bajo_stock():
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, cantidad, precio, COALESCE(stock_min, stock_minimo, 5), tipo
+                SELECT id, nombre, tipo, cantidad, precio,
+                       COALESCE(precio_compra, 0) AS precio_compra,
+                       COALESCE(stock_min, stock_minimo, 5) AS stock_min,
+                       fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
-                WHERE cantidad <= COALESCE(stock_min, stock_minimo, 5) AND activo = true AND tenant_id = %s
+                WHERE cantidad <= COALESCE(stock_min, stock_minimo, 5)
+                  AND activo = true AND tenant_id = %s
                 ORDER BY (cantidad - COALESCE(stock_min, stock_minimo, 5)) ASC
             """, (tenant_id,))
             productos = cursor.fetchall()
@@ -272,7 +276,10 @@ def obtener_productos_por_vencer():
         with conexion.cursor() as cursor:
             fecha_limite = datetime.now() + timedelta(days=30)
             cursor.execute("""
-                SELECT id, nombre, fecha_vencimiento, cantidad, precio, tipo
+                SELECT id, nombre, tipo, cantidad, precio,
+                       COALESCE(precio_compra, 0) AS precio_compra,
+                       COALESCE(NULLIF(stock_min, 0), NULLIF(stock_minimo, 0), 5) AS stock_min,
+                       fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE fecha_vencimiento IS NOT NULL 
                 AND fecha_vencimiento <= %s 
@@ -358,7 +365,7 @@ def obtener_productos_por_tipo(tipo):
     try:
         with conexion.cursor() as cursor:
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), COALESCE(stock_min, 0),
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), COALESCE(stock_min, stock_minimo, 5),
                        fecha_vencimiento, codigo_barra, imagen, activo
                 FROM productos 
                 WHERE tipo = %s AND activo = true AND tenant_id = %s

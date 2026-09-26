@@ -290,31 +290,31 @@
                         <td>
                             <div class="producto-info">
                                 <i class="fas fa-box"></i>
-                                <strong>{{ producto[1] }}</strong>
+                                <strong>{{ producto.nombre }}</strong>
                             </div>
                         </td>
                         <td>
-                            <span class="tipo-badge {{ producto[2] }}">
-                                {{ 'Venta' if producto[2] == 'venta' else 'Stock' }}
+                            <span class="tipo-badge {{ producto.tipo }}">
+                                {{ 'Venta' if producto.tipo == 'venta' else 'Stock' }}
                             </span>
                         </td>
                         <td>
-                            {% if producto[9] %}
-                            <img src="{{ url_for('static', filename='images/' ~ producto[9]) }}" alt="{{ producto[1] }}"
+                            {% if producto.imagen %}
+                            <img src="{{ url_for('static', filename='images/' ~ producto.imagen) }}" alt="{{ producto.nombre }}"
                                 class="product-preview" onerror="this.style.display='none'">
                             {% else %}
                             <span class="no-image">Sin imagen</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% set stock_min = producto[6] if producto[6] is not none else 0 %}
-                            <span class="cantidad-badge {{ 'low-stock' if producto[3] <= stock_min }}">
-                                {{ producto[3] }}
+                            {% set stock_min = producto.stock_min if producto.stock_min is not none else 0 %}
+                            <span class="cantidad-badge {{ 'low-stock' if producto.cantidad <= stock_min }}">
+                                {{ producto.cantidad }}
                             </span>
                         </td>
                         <td>{{ stock_min }}</td>
                         <td>
-                            {% set fecha_venc = producto[7] if producto[7] is not none else None %}
+                            {% set fecha_venc = producto.fecha_vencimiento if producto.fecha_vencimiento is not none else None %}
                             {% if fecha_venc %}
                             {% set dias_restantes = days_difference(fecha_venc) %}
                             <span
@@ -337,7 +337,7 @@
                                 {% elif dias_restantes <= 30 %} <span class="status-badge status-warning">
                                     <i class="fas fa-exclamation-triangle"></i> Por Vencer
                                     </span>
-                                    {% elif producto[3] <= stock_min %} <span class="status-badge status-low-stock">
+                                    {% elif producto.cantidad <= stock_min %} <span class="status-badge status-low-stock">
                                         <i class="fas fa-arrow-down"></i> Stock Bajo
                                         </span>
                                         {% else %}
@@ -352,33 +352,33 @@
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-primary open-edit-modal"
-                                    data-id="{{ producto[0] }}"
-                                    data-nombre="{{ producto[1] }}"
-                                    data-cantidad="{{ producto[3] }}"
-                                    data-stock-min="{{ producto[6] if producto[6] is not none else 0 }}"
-                                    data-fecha-vencimiento="{{ producto[7] or '' }}"
-                                    data-tipo="{{ producto[2] }}"
-                                    data-precio="{{ producto[4] if producto[4] is not none else 0 }}"
-                                    data-precio-compra="{{ producto[5] if producto[5] is not none else 0 }}"
-                                    data-codigo-barra="{{ producto[8] or '' }}">
+                                    data-id="{{ producto.id }}"
+                                    data-nombre="{{ producto.nombre }}"
+                                    data-cantidad="{{ producto.cantidad }}"
+                                    data-stock-min="{{ producto.stock_min if producto.stock_min is not none else 0 }}"
+                                    data-fecha-vencimiento="{{ producto.fecha_vencimiento or '' }}"
+                                    data-tipo="{{ producto.tipo }}"
+                                    data-precio="{{ producto.precio if producto.precio is not none else 0 }}"
+                                    data-precio-compra="{{ producto.precio_compra if producto.precio_compra is not none else 0 }}"
+                                    data-codigo-barra="{{ producto.codigo_barra or '' }}">
                                     <i class="fas fa-edit"></i> Editar
                                 </button>
 
-                                {% if producto[2] == 'stock' and producto[3] > 0 %}
+                                {% if producto.tipo == 'stock' and producto.cantidad > 0 %}
                                 <!-- Botones de descuento rápido solo para productos de stock -->
                                 <div class="quick-discount-buttons">
-                                    <button onclick="usarProducto({{ producto[0] }}, 1)" class="btn btn-sm btn-success"
+                                    <button onclick="usarProducto({{ producto.id }}, 1)" class="btn btn-sm btn-success"
                                         title="Usar 1 unidad">
                                         <i class="fas fa-minus"></i> -1
                                     </button>
-                                    {% if producto[3] >= 5 %}
-                                    <button onclick="usarProducto({{ producto[0] }}, 5)" class="btn btn-sm btn-warning"
+                                    {% if producto.cantidad >= 5 %}
+                                    <button onclick="usarProducto({{ producto.id }}, 5)" class="btn btn-sm btn-warning"
                                         title="Usar 5 unidades">
                                         <i class="fas fa-minus-circle"></i> -5
                                     </button>
                                     {% endif %}
                                     <button
-                                        onclick="mostrarDescuentoCustom({{ producto[0] }}, '{{ producto[1] }}', {{ producto[3] }})"
+                                        onclick="mostrarDescuentoCustom({{ producto.id }}, '{{ producto.nombre }}', {{ producto.cantidad }})"
                                         class="btn btn-sm btn-info" title="Cantidad personalizada">
                                         <i class="fas fa-keyboard"></i> Custom
                                     </button>
