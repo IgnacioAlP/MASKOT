@@ -11,6 +11,45 @@ def _normalizar_stock_min(valor, default=5):
     return max(0, stock_min)
 
 
+def normalizar_datos_producto_edicion(datos):
+    """Normaliza los valores del formulario de edición para evitar mezclar campos por orden."""
+    if datos is None:
+        datos = {}
+
+    cantidad_raw = datos.get('cantidad', 0)
+    precio_raw = datos.get('precio', 0)
+    precio_compra_raw = datos.get('precio_compra', None)
+    stock_min_raw = datos.get('stock_min', datos.get('stock_minimo', 5))
+
+    try:
+        cantidad = int(cantidad_raw) if cantidad_raw not in (None, '') else 0
+    except (TypeError, ValueError):
+        cantidad = 0
+
+    try:
+        precio = float(precio_raw) if precio_raw not in (None, '') else 0.0
+    except (TypeError, ValueError):
+        precio = 0.0
+
+    try:
+        precio_compra = float(precio_compra_raw) if precio_compra_raw not in (None, '') else precio
+    except (TypeError, ValueError):
+        precio_compra = precio
+
+    stock_min = _normalizar_stock_min(stock_min_raw, 5)
+
+    return {
+        'nombre': (datos.get('nombre') or '').strip(),
+        'tipo': (datos.get('tipo') or 'stock').strip() or 'stock',
+        'cantidad': cantidad,
+        'precio': precio,
+        'precio_compra': precio_compra,
+        'stock_min': stock_min,
+        'codigo_barra': (datos.get('codigo_barra') or '').strip() or None,
+        'fecha_vencimiento': datos.get('fecha_vencimiento') or None,
+    }
+
+
 def obtener_productos():
     """Obtiene todos los productos del inventario"""
     conexion = obtener_conexion()

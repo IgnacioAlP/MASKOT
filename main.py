@@ -1157,17 +1157,26 @@ def almacen():
                 producto_actual = productos_controlador.obtener_producto_por_id(producto_id)
                 if producto_actual:
                     tipo_real = tipo if tipo in ['stock', 'venta'] else producto_actual[2]
-                    precio_compra = float(request.form.get('precio_compra', producto_actual[5] if len(producto_actual) > 5 else 0) or 0)
+                    datos_edicion = productos_controlador.normalizar_datos_producto_edicion({
+                        'nombre': nombre,
+                        'tipo': tipo_real,
+                        'cantidad': cantidad,
+                        'precio': precio,
+                        'precio_compra': request.form.get('precio_compra', producto_actual[5] if len(producto_actual) > 5 else 0),
+                        'stock_min': stock_min,
+                        'codigo_barra': codigo_barra,
+                        'fecha_vencimiento': fecha_vencimiento,
+                    })
                     resultado = productos_controlador.actualizar_producto(
-                        producto_id,
-                        nombre,
-                        tipo_real,
-                        cantidad,
-                        precio,
-                        stock_min,
-                        fecha_vencimiento,
-                        codigo_barra,
-                        precio_compra
+                        producto_id=producto_id,
+                        nombre=datos_edicion['nombre'],
+                        tipo=datos_edicion['tipo'],
+                        cantidad=datos_edicion['cantidad'],
+                        precio=datos_edicion['precio'],
+                        stock_min=datos_edicion['stock_min'],
+                        fecha_vencimiento=datos_edicion['fecha_vencimiento'],
+                        codigo_barra=datos_edicion['codigo_barra'],
+                        precio_compra=datos_edicion['precio_compra'],
                     )
 
                     if resultado:
@@ -1246,16 +1255,27 @@ def editar_producto_api():
         precio_compra = float(data.get('precio_compra', precio) or 0)
         codigo_barra = str(data.get('codigo_barra', '') or '').strip() or None
 
+        datos_edicion = productos_controlador.normalizar_datos_producto_edicion({
+            'nombre': nombre,
+            'tipo': tipo,
+            'cantidad': cantidad,
+            'precio': precio,
+            'precio_compra': precio_compra,
+            'stock_min': stock_min,
+            'codigo_barra': codigo_barra,
+            'fecha_vencimiento': fecha_vencimiento,
+        })
+
         if productos_controlador.actualizar_producto(
-            producto_id,
-            nombre,
-            tipo,
-            cantidad,
-            precio,
-            stock_min,
-            fecha_vencimiento,
-            codigo_barra,
-            precio_compra,
+            producto_id=producto_id,
+            nombre=datos_edicion['nombre'],
+            tipo=datos_edicion['tipo'],
+            cantidad=datos_edicion['cantidad'],
+            precio=datos_edicion['precio'],
+            stock_min=datos_edicion['stock_min'],
+            fecha_vencimiento=datos_edicion['fecha_vencimiento'],
+            codigo_barra=datos_edicion['codigo_barra'],
+            precio_compra=datos_edicion['precio_compra'],
         ):
             return jsonify({'success': True, 'message': 'Producto actualizado exitosamente'})
         else:
