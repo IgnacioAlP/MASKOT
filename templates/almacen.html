@@ -348,8 +348,17 @@
                             {% if session.rol in ['dueño', 'admin', 'empleado'] %}
                             <div class="action-buttons">
                                 <button
-                                    onclick="editarProducto({{ producto[0] }}, '{{ producto[1].replace("'", "\\'") }}', {{ producto[3] }}, {{ producto[6] }}, '{{ producto[7] or '' }}', '{{ producto[2] }}', {{ producto[4] }}, {{ producto[5] }}, '{{ producto[8] or '' }}')"
-                                    class="btn btn-sm btn-primary">
+                                    type="button"
+                                    class="btn btn-sm btn-primary open-edit-modal"
+                                    data-id="{{ producto[0] }}"
+                                    data-nombre="{{ producto[1] }}"
+                                    data-cantidad="{{ producto[3] }}"
+                                    data-stock-min="{{ producto[6] if producto[6] is not none else 0 }}"
+                                    data-fecha-vencimiento="{{ producto[7] or '' }}"
+                                    data-tipo="{{ producto[2] }}"
+                                    data-precio="{{ producto[4] if producto[4] is not none else 0 }}"
+                                    data-precio-compra="{{ producto[5] if producto[5] is not none else 0 }}"
+                                    data-codigo-barra="{{ producto[8] or '' }}">
                                     <i class="fas fa-edit"></i> Editar
                                 </button>
 
@@ -695,24 +704,50 @@
     }
 
     function editarProducto(id, nombre, cantidad, stockMin, fechaVenc, tipo = 'stock', precio = 0, precioCompra = 0, codigoBarra = '') {
+        const modal = document.getElementById('editModal');
+        if (!modal) return;
+
         document.getElementById('edit_id').value = id;
-        document.getElementById('edit_nombre').value = nombre;
-        document.getElementById('edit_cantidad').value = cantidad;
-        document.getElementById('edit_stock_min').value = stockMin;
+        document.getElementById('edit_nombre').value = nombre || '';
+        document.getElementById('edit_cantidad').value = cantidad ?? 0;
+        document.getElementById('edit_stock_min').value = stockMin ?? 0;
         document.getElementById('edit_fecha_vencimiento').value = fechaVenc || '';
+
         const tipoSelect = document.getElementById('edit_tipo');
         if (tipoSelect) tipoSelect.value = (tipo === 'venta' || tipo === 'stock') ? tipo : 'stock';
+
         const precioInput = document.getElementById('edit_precio');
         if (precioInput) precioInput.value = Number(precio || 0).toFixed(2);
+
         const precioCompraInput = document.getElementById('edit_precio_compra');
         if (precioCompraInput) precioCompraInput.value = Number(precioCompra || 0).toFixed(2);
+
         const codigoInput = document.getElementById('edit_codigo_barra');
         if (codigoInput) codigoInput.value = codigoBarra || '';
-        document.getElementById('editModal').style.display = 'block';
+
+        modal.style.display = 'block';
     }
 
+    document.addEventListener('click', function (event) {
+        const trigger = event.target.closest('.open-edit-modal');
+        if (!trigger) return;
+
+        const id = trigger.dataset.id;
+        const nombre = trigger.dataset.nombre || '';
+        const cantidad = trigger.dataset.cantidad || 0;
+        const stockMin = trigger.dataset.stockMin || 0;
+        const fechaVenc = trigger.dataset.fechaVencimiento || '';
+        const tipo = trigger.dataset.tipo || 'stock';
+        const precio = trigger.dataset.precio || 0;
+        const precioCompra = trigger.dataset.precioCompra || 0;
+        const codigoBarra = trigger.dataset.codigoBarra || '';
+
+        editarProducto(id, nombre, Number(cantidad), Number(stockMin), fechaVenc, tipo, Number(precio), Number(precioCompra), codigoBarra);
+    });
+
     function cerrarModal() {
-        document.getElementById('editModal').style.display = 'none';
+        const modal = document.getElementById('editModal');
+        if (modal) modal.style.display = 'none';
     }
 
     window.onclick = function (event) {
