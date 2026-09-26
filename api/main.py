@@ -1958,6 +1958,7 @@ def almacen():
 
             conexion = obtener_conexion()
             with conexion.cursor() as cursor:
+                cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INT DEFAULT 5")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
                 cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
@@ -1988,9 +1989,9 @@ def almacen():
                     cursor.execute("""
                         UPDATE productos 
                         SET nombre = %s, codigo_barra = %s, tipo = %s, cantidad = %s, precio = %s,
-                            precio_compra = %s, stock_minimo = %s
+                            precio_compra = %s, stock_min = %s, stock_minimo = %s
                         WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, producto_id, tenant_id))
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, stock_minimo, producto_id, tenant_id))
                     
                     mensaje = f'Producto "{nombre}" actualizado correctamente.' if cursor.rowcount > 0 else f'Producto ID {producto_id} no encontrado.'
                     categoria = 'success' if cursor.rowcount > 0 else 'warning'
@@ -1999,9 +2000,9 @@ def almacen():
                         tipo = 'stock'
 
                     cursor.execute("""
-                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, tenant_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, tenant_id))
+                        INSERT INTO productos (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_min, stock_minimo, tenant_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (nombre, codigo_barra, tipo, cantidad, precio, precio_compra, stock_minimo, stock_minimo, tenant_id))
                     mensaje = f'Producto "{nombre}" registrado correctamente.'
                     categoria = 'success'
 
@@ -2019,13 +2020,14 @@ def almacen():
     try:
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INT DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INT DEFAULT 5")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS imagen VARCHAR(255)")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_compra NUMERIC(12,2) DEFAULT 0")
             cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1")
 
-            sql_query = "SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra FROM productos WHERE (tenant_id = %s OR tenant_id IS NULL)"
+            sql_query = "SELECT id, nombre, COALESCE(tipo::text, 'stock'), cantidad, precio, COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, imagen, codigo_barra FROM productos WHERE (tenant_id = %s OR tenant_id IS NULL)"
 
             if tipo_filtro == 'stock':
                 sql_query += " AND LOWER(COALESCE(tipo::text, 'stock')) = 'stock' "

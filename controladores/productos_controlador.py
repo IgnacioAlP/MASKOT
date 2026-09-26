@@ -59,9 +59,11 @@ def obtener_producto_por_id(producto_id):
     producto = None
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
-                       fecha_vencimiento, imagen, activo
+                SELECT id, nombre, tipo, cantidad, precio, COALESCE(precio_compra, 0),
+                       COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, imagen, activo
                 FROM productos 
                 WHERE id = %s AND tenant_id = %s
             """, (producto_id, tenant_id))
