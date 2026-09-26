@@ -39,9 +39,11 @@ def obtener_productos_mas_vendidos(limit=4):
     productos = []
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT p.id, p.nombre, p.tipo, p.cantidad, p.precio, COALESCE(p.precio_compra, 0), p.stock_min,
-                       p.fecha_vencimiento, p.imagen, p.activo
+                SELECT p.id, p.nombre, p.tipo, p.cantidad, p.precio, COALESCE(p.precio_compra, 0),
+                       COALESCE(p.stock_min, p.stock_minimo, 5), p.fecha_vencimiento, p.imagen, p.activo
                 FROM productos p
                 WHERE p.tipo = 'venta' AND p.cantidad > 0 AND p.activo = true AND p.tenant_id = %s
                 ORDER BY p.cantidad DESC, p.nombre ASC
@@ -79,9 +81,11 @@ def obtener_producto_por_codigo_barra(codigo_barra):
     producto = None
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min,
-                       fecha_vencimiento, imagen, activo
+                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0),
+                       COALESCE(stock_min, stock_minimo, 5), fecha_vencimiento, imagen, activo
                 FROM productos
                 WHERE codigo_barra = %s AND tenant_id = %s AND activo = true
             """, (codigo_barra, tenant_id))
@@ -98,9 +102,12 @@ def obtener_productos_por_busqueda(query, limite=20):
     productos = []
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             termino = f"%{query.strip()}%" if query else "%"
             cursor.execute("""
-                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0), stock_min, imagen
+                SELECT id, nombre, codigo_barra, tipo, cantidad, precio, COALESCE(precio_compra, 0),
+                       COALESCE(stock_min, stock_minimo, 5), imagen
                 FROM productos
                 WHERE tenant_id = %s AND activo = true
                   AND (
@@ -196,11 +203,13 @@ def obtener_productos_bajo_stock():
     productos = []
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_min INTEGER DEFAULT 5")
+            cursor.execute("ALTER TABLE productos ADD COLUMN IF NOT EXISTS stock_minimo INTEGER DEFAULT 5")
             cursor.execute("""
-                SELECT id, nombre, cantidad, precio, stock_min, tipo
+                SELECT id, nombre, cantidad, precio, COALESCE(stock_min, stock_minimo, 5), tipo
                 FROM productos 
-                WHERE cantidad <= stock_min AND activo = true AND tenant_id = %s
-                ORDER BY (cantidad - stock_min) ASC
+                WHERE cantidad <= COALESCE(stock_min, stock_minimo, 5) AND activo = true AND tenant_id = %s
+                ORDER BY (cantidad - COALESCE(stock_min, stock_minimo, 5)) ASC
             """, (tenant_id,))
             productos = cursor.fetchall()
     finally:
