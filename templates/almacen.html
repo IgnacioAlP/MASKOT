@@ -307,11 +307,11 @@
                             {% endif %}
                         </td>
                         <td>
-                            <span class="cantidad-badge {{ 'low-stock' if producto[3] <= producto[5] }}">
+                            <span class="cantidad-badge {{ 'low-stock' if producto[3] <= producto[6] }}">
                                 {{ producto[3] }}
                             </span>
                         </td>
-                        <td>{{ producto[5] }}</td>
+                        <td>{{ producto[6] }}</td>
                         <td>
                             {% if producto[6] %}
                             {% set dias_restantes = days_difference(producto[6]) %}
@@ -335,7 +335,7 @@
                                 {% elif dias_restantes <= 30 %} <span class="status-badge status-warning">
                                     <i class="fas fa-exclamation-triangle"></i> Por Vencer
                                     </span>
-                                    {% elif producto[3] <= producto[5] %} <span class="status-badge status-low-stock">
+                                    {% elif producto[3] <= producto[6] %} <span class="status-badge status-low-stock">
                                         <i class="fas fa-arrow-down"></i> Stock Bajo
                                         </span>
                                         {% else %}

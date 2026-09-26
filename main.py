@@ -1188,8 +1188,8 @@ def almacen():
         # Employees should only see internal stock items
         productos = productos_controlador.obtener_productos_por_tipo('stock')
         # For employees we still may want to show alerts; compute filtered lists
-        productos_bajo_stock = [p for p in productos if p[3] <= p[5]]
-        productos_por_vencer = [p for p in productos if p[6] and days_until(p[6]) <= 30]
+        productos_bajo_stock = [p for p in productos if p[3] <= p[6]]
+        productos_por_vencer = [p for p in productos if p[7] and days_until(p[7]) <= 30]
     else:
         # Admins and dueños see everything
         productos = productos_controlador.obtener_productos()
