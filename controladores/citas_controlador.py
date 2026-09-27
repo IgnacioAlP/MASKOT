@@ -132,21 +132,24 @@ def insertar_cita(cliente_nombre, cliente_email, servicio_id, fecha, hora,
 
 def eliminar_cita(id):
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     with conexion.cursor() as cursor:
-        cursor.execute("DELETE FROM citas WHERE id = %s", (id,))
+        cursor.execute("DELETE FROM citas WHERE id = %s AND tenant_id = %s", (id, tenant_id))
     conexion.commit()
     conexion.close()
 
 def cambiar_estado_cita(id, estado):
     """Cambia el estado de una cita ('pendiente', 'completada', 'cancelada')."""
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     with conexion.cursor() as cursor:
-        cursor.execute("UPDATE citas SET estado = %s WHERE id = %s", (estado, id))
+        cursor.execute("UPDATE citas SET estado = %s WHERE id = %s AND tenant_id = %s", (estado, id, tenant_id))
     conexion.commit()
     conexion.close()
 
 def obtener_cita_por_id(id):
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     cita = None
     with conexion.cursor() as cursor:
         cursor.execute("""
@@ -160,9 +163,9 @@ def obtener_cita_por_id(id):
             LEFT JOIN mascotas m ON cm.mascota_id = m.id
             LEFT JOIN citas_servicios cs ON c.id = cs.cita_id
             LEFT JOIN servicios s ON cs.servicio_id = s.id
-            WHERE c.id = %s
+            WHERE c.id = %s AND c.tenant_id = %s
             GROUP BY c.id, c.cliente_nombre, c.cliente_email, c.fecha, c.hora, c.estado, c.observaciones, c.precio_total
-        """, (id,))
+        """, (id, tenant_id))
         cita = cursor.fetchone()
     conexion.close()
     return cita
@@ -210,12 +213,13 @@ def obtener_citas_por_fecha(fecha):
 
 def actualizar_cita(id, cliente_nombre, cliente_email, servicio_id, fecha, hora, estado):
     conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
     with conexion.cursor() as cursor:
         cursor.execute(
-            "UPDATE citas SET cliente_nombre = %s, cliente_email = %s, fecha = %s, hora = %s, estado = %s WHERE id = %s",
-            (cliente_nombre, cliente_email, fecha, hora, estado, id)
+            "UPDATE citas SET cliente_nombre = %s, cliente_email = %s, fecha = %s, hora = %s, estado = %s WHERE id = %s AND tenant_id = %s",
+            (cliente_nombre, cliente_email, fecha, hora, estado, id, tenant_id)
         )
-        cursor.execute("DELETE FROM citas_servicios WHERE cita_id = %s", (id,))
+        cursor.execute("DELETE FROM citas_servicios WHERE cita_id = %s AND cita_id IN (SELECT id FROM citas WHERE tenant_id = %s)", (id, tenant_id))
         cursor.execute("INSERT INTO citas_servicios (cita_id, servicio_id) VALUES (%s, %s)", (id, servicio_id))
     conexion.commit()
     conexion.close()

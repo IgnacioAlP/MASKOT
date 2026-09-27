@@ -444,6 +444,7 @@ def dashboard():
         conexion = None
         try:
             conexion = obtener_conexion()
+            tenant_id = session.get('tenant_id', 1)
             with conexion.cursor() as cursor:
                 col_fecha = obtener_columna_fecha(cursor)
 
@@ -455,8 +456,9 @@ def dashboard():
                         COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
                         COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) NOT IN ('efectivo', 'yape', 'plin') THEN total ELSE 0 END), 0) AS total_tarjeta
                     FROM ventas
-                    WHERE DATE({col_fecha}) = %s::date OR {col_fecha}::text LIKE %s || '%%'
-                """, (hoy, hoy))
+                    WHERE (tenant_id = %s OR tenant_id IS NULL)
+                      AND (DATE({col_fecha}) = %s::date OR {col_fecha}::text LIKE %s || '%%')
+                """, (tenant_id, hoy, hoy))
                 
                 res = cursor.fetchone()
                 if res and res[0] is not None:
@@ -529,6 +531,7 @@ def dashboard():
 @app.route('/exportar-cierre-diario', methods=['GET'])
 def exportar_cierre_diario():
     fecha_filtro = request.args.get('fecha') or obtener_fecha_hoy_peru()
+    tenant_id = session.get('tenant_id', 1)
     conexion = None
     try:
         conexion = obtener_conexion()
@@ -538,9 +541,10 @@ def exportar_cierre_diario():
             cursor.execute(f"""
                 SELECT id, COALESCE(total, 0.0) AS total, COALESCE(metodo_pago, 'efectivo') AS metodo, {col_fecha} AS fecha
                 FROM ventas
-                WHERE DATE({col_fecha}::text) = %s::date OR {col_fecha}::text LIKE %s || '%%'
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                  AND (DATE({col_fecha}::text) = %s::date OR {col_fecha}::text LIKE %s || '%%')
                 ORDER BY id ASC
-            """, (fecha_filtro, fecha_filtro))
+            """, (tenant_id, fecha_filtro, fecha_filtro))
 
             registros = cursor.fetchall()
 

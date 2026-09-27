@@ -847,6 +847,7 @@ def dashboard():
         return redirect(url_for('login'))
     
     rol = session['rol']
+    tenant_id = session.get('tenant_id', 1)
     hoy = date.today().strftime('%Y-%m-%d')
     
     # Usar controladores para obtener datos
@@ -864,6 +865,66 @@ def dashboard():
             alertas_fidelizacion = fidelizacion.obtener_alertas_recientes(limit=10)
         except Exception as e:
             logger.warning(f"Error obteniendo alertas de fidelizacion: {e}")
+
+    cuadre_hoy = {
+        'cantidad_ventas': 0,
+        'efectivo': 0.0,
+        'yape': 0.0,
+        'tarjeta': 0.0,
+        'total': 0.0,
+    }
+
+    try:
+        conexion = obtener_conexion()
+        with conexion.cursor() as cursor:
+            columnas = [
+                'fecha_venta', 'fecha', 'created_at', 'fecha_registro', 'fechahora'
+            ]
+            col_fecha = 'fecha_venta'
+            cursor.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'ventas'
+                  AND column_name IN ('fecha_venta', 'fecha', 'created_at', 'fecha_registro', 'fechahora')
+                ORDER BY CASE column_name
+                    WHEN 'fecha_venta' THEN 1
+                    WHEN 'fecha' THEN 2
+                    WHEN 'created_at' THEN 3
+                    ELSE 4
+                END
+                LIMIT 1;
+            """)
+            fila = cursor.fetchone()
+            if fila:
+                col_fecha = fila[0]
+
+            cursor.execute(f"""
+                SELECT
+                    COUNT(*) AS cantidad_ventas,
+                    COALESCE(SUM(total), 0) AS total_soles,
+                    COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) = 'efectivo' THEN total ELSE 0 END), 0) AS total_efectivo,
+                    COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) IN ('yape', 'plin') THEN total ELSE 0 END), 0) AS total_yape,
+                    COALESCE(SUM(CASE WHEN LOWER(TRIM(metodo_pago)) NOT IN ('efectivo', 'yape', 'plin') THEN total ELSE 0 END), 0) AS total_tarjeta
+                FROM ventas
+                WHERE (tenant_id = %s OR tenant_id IS NULL)
+                  AND (DATE({col_fecha}) = %s::date OR {col_fecha}::text LIKE %s || '%%')
+            """, (tenant_id, hoy, hoy))
+            res = cursor.fetchone()
+            if res and res[0] is not None:
+                cuadre_hoy = {
+                    'cantidad_ventas': int(res[0] or 0),
+                    'efectivo': float(res[2] or 0),
+                    'yape': float(res[3] or 0),
+                    'tarjeta': float(res[4] or 0),
+                    'total': float(res[1] or 0),
+                }
+    except Exception as e:
+        logger.warning(f"Error calculando cuadre del día para tenant {tenant_id}: {e}")
+    finally:
+        try:
+            conexion.close()
+        except Exception:
+            pass
     
     if rol == 'dueño':
         total_empleados = len(personal_controlador.obtener_personal())
@@ -875,9 +936,11 @@ def dashboard():
                                total_empleados=total_empleados, 
                                servicios_activos=servicios_activos,
                                productos_bajos=productos_bajos,
-                               alertas_fidelizacion=alertas_fidelizacion)
+                               alertas_fidelizacion=alertas_fidelizacion,
+                               cuadre_hoy=cuadre_hoy,
+                               totales_dia=cuadre_hoy)
     
-    return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion)
+    return render_template('dashboard.html', citas_hoy=citas_hoy, alertas_fidelizacion=alertas_fidelizacion, cuadre_hoy=cuadre_hoy, totales_dia=cuadre_hoy)
 
 @app.route('/citas')
 def citas():
@@ -2085,8 +2148,8 @@ def ver_detalles_cita(cita_id):
                 c.precio_total
             FROM citas c
             LEFT JOIN servicios s ON c.servicio_id = s.id
-            WHERE c.id = %s
-        """, (cita_id,))
+            WHERE c.id = %s AND c.tenant_id = %s
+        """, (cita_id, session.get('tenant_id', 1)))
         
         cita = cursor.fetchone()
         
@@ -2162,8 +2225,8 @@ def editar_cita(cita_id):
                 UPDATE citas 
                 SET cliente_nombre = %s, cliente_email = %s, fecha = %s, 
                     hora = %s, servicio_id = %s, observaciones = %s
-                WHERE id = %s
-            """, (cliente_nombre, cliente_email, fecha, hora, servicio_id, observaciones, cita_id))
+                WHERE id = %s AND tenant_id = %s
+            """, (cliente_nombre, cliente_email, fecha, hora, servicio_id, observaciones, cita_id, session.get('tenant_id', 1)))
             
             conexion.commit()
             
@@ -2186,8 +2249,8 @@ def editar_cita(cita_id):
         cursor.execute("""
             SELECT id, cliente_nombre, cliente_email, servicio_id, fecha, hora, observaciones, estado
             FROM citas 
-            WHERE id = %s
-        """, (cita_id,))
+            WHERE id = %s AND tenant_id = %s
+        """, (cita_id, session.get('tenant_id', 1)))
         
         cita = cursor.fetchone()
         
@@ -2236,8 +2299,8 @@ def generar_recibo(cita_id):
                 c.observaciones,
                 c.estado
             FROM citas c
-            WHERE c.id = %s
-        """, (cita_id,))
+            WHERE c.id = %s AND c.tenant_id = %s
+        """, (cita_id, session.get('tenant_id', 1)))
         
         cita = cursor.fetchone()
         
