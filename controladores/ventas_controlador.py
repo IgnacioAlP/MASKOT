@@ -164,6 +164,21 @@ def procesar_venta(datos_venta):
         conexion.close()
 
 
+def _normalizar_fecha_venta(fecha_venta):
+    """Convierte strings ISO a datetime si la base los devuelve como texto."""
+    if fecha_venta is None:
+        return None
+    if hasattr(fecha_venta, 'strftime'):
+        return fecha_venta
+    if isinstance(fecha_venta, str):
+        for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d'):
+            try:
+                return datetime.strptime(fecha_venta, fmt)
+            except ValueError:
+                continue
+    return fecha_venta
+
+
 def obtener_detalle_venta(venta_id):
     """Obtiene el detalle de una venta"""
     conexion = obtener_conexion()
@@ -259,7 +274,7 @@ def obtener_detalle_venta(venta_id):
                 venta = {
                     'id': resultado[0],
                     'numero_venta': resultado[1] or '',
-                    'fecha_venta': resultado[2] if resultado[2] else None,
+                    'fecha_venta': _normalizar_fecha_venta(resultado[2]) if resultado[2] else None,
                     'subtotal': float(resultado[3]) if resultado[3] is not None else 0.0,
                     'igv': float(resultado[4]) if resultado[4] is not None else 0.0,
                     'total': float(resultado[5]) if resultado[5] is not None else 0.0,

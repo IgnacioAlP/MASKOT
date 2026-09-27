@@ -416,8 +416,20 @@
             <div class="ticket-number">#{{ venta.numero_venta }}</div>
             
             <div style="display: flex; justify-content: space-between; margin-top: 3mm;">
-                <div>Fecha: {{ venta.fecha_venta.strftime('%d/%m/%Y') }}</div>
-                <div>Hora: {{ venta.fecha_venta.strftime('%H:%M') }}</div>
+                <div>
+                    Fecha: {% if venta.fecha_venta and hasattr(venta.fecha_venta, 'strftime') %}
+                        {{ venta.fecha_venta.strftime('%d/%m/%Y') }}
+                    {% else %}
+                        {{ venta.fecha_venta if venta.fecha_venta else 'N/A' }}
+                    {% endif %}
+                </div>
+                <div>
+                    Hora: {% if venta.fecha_venta and hasattr(venta.fecha_venta, 'strftime') %}
+                        {{ venta.fecha_venta.strftime('%H:%M') }}
+                    {% else %}
+                        {{ venta.fecha_venta if venta.fecha_venta else 'N/A' }}
+                    {% endif %}
+                </div>
             </div>
             
             <div style="margin-top: 1mm;">
@@ -530,7 +542,12 @@
             </div>
             
             <div style="margin-top: 5mm; font-size: 9px;">
-                {{ venta.fecha_venta.strftime('%d/%m/%Y %H:%M:%S') }} - Sistema POS v1.0
+                {% if venta.fecha_venta and hasattr(venta.fecha_venta, 'strftime') %}
+                    {{ venta.fecha_venta.strftime('%d/%m/%Y %H:%M:%S') }}
+                {% else %}
+                    {{ venta.fecha_venta if venta.fecha_venta else 'Fecha no disponible' }}
+                {% endif %}
+                - Sistema POS v1.0
             </div>
         </div>
     </div>
