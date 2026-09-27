@@ -417,17 +417,21 @@
             
             <div style="display: flex; justify-content: space-between; margin-top: 3mm;">
                 <div>
-                    Fecha: {% if venta.fecha_venta and hasattr(venta.fecha_venta, 'strftime') %}
+                    Fecha: {% if venta.fecha_venta is string %}
+                        {{ venta.fecha_venta[:10] if venta.fecha_venta|length >= 10 else venta.fecha_venta }}
+                    {% elif venta.fecha_venta %}
                         {{ venta.fecha_venta.strftime('%d/%m/%Y') }}
                     {% else %}
-                        {{ venta.fecha_venta if venta.fecha_venta else 'N/A' }}
+                        N/A
                     {% endif %}
                 </div>
                 <div>
-                    Hora: {% if venta.fecha_venta and hasattr(venta.fecha_venta, 'strftime') %}
+                    Hora: {% if venta.fecha_venta is string %}
+                        {{ venta.fecha_venta[11:16] if venta.fecha_venta|length >= 16 else 'N/A' }}
+                    {% elif venta.fecha_venta %}
                         {{ venta.fecha_venta.strftime('%H:%M') }}
                     {% else %}
-                        {{ venta.fecha_venta if venta.fecha_venta else 'N/A' }}
+                        N/A
                     {% endif %}
                 </div>
             </div>
@@ -542,10 +546,12 @@
             </div>
             
             <div style="margin-top: 5mm; font-size: 9px;">
-                {% if venta.fecha_venta and hasattr(venta.fecha_venta, 'strftime') %}
+                {% if venta.fecha_venta is string %}
+                    {{ venta.fecha_venta }}
+                {% elif venta.fecha_venta %}
                     {{ venta.fecha_venta.strftime('%d/%m/%Y %H:%M:%S') }}
                 {% else %}
-                    {{ venta.fecha_venta if venta.fecha_venta else 'Fecha no disponible' }}
+                    Fecha no disponible
                 {% endif %}
                 - Sistema POS v1.0
             </div>
