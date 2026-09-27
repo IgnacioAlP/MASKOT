@@ -2744,34 +2744,41 @@ def procesar_venta_tienda():
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/venta/<int:venta_id>/ticket')
+@app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
+@app.route('/ventas/ticket/<int:venta_id>')
 @requiere_autenticacion(['admin', 'empleado', 'dueño'])
 def generar_ticket_venta(venta_id):
     """Genera un ticket para una venta"""
     try:
         venta = ventas_controlador.obtener_detalle_venta(venta_id)
-        
+
         if not venta:
             flash('Venta no encontrada.', 'error')
             return redirect(url_for('punto_de_venta'))
-        
+
         return render_template('ticket_venta.html', venta=venta)
-        
+
     except Exception as e:
         flash(f'Error al generar ticket: {e}', 'error')
         return redirect(url_for('punto_de_venta'))
+
+
+@app.route('/api/ventas/buscar', methods=['GET'])
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def buscar_productos_para_venta_api():
     """API para buscar productos disponibles para venta"""
     try:
         termino = request.args.get('q', '')
         categoria_id = request.args.get('categoria_id', type=int)
-        
+
         productos = ventas_controlador.buscar_productos_para_venta(
             termino_busqueda=termino,
             categoria_id=categoria_id,
             limit=50
         )
-        
+
         return jsonify({'productos': productos})
-        
+
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -2886,22 +2893,6 @@ def procesar_venta():
     except Exception as e:
         return jsonify({'success': False, 'error': f'Error procesando venta: {str(e)}'})
 
-@app.route('/venta/<int:venta_id>/ticket')
-@requiere_autenticacion(['admin', 'empleado', 'dueño'])
-def ticket_venta(venta_id):
-    """Genera ticket de venta para impresión"""
-    try:
-        venta = ventas_controlador.obtener_venta_por_id(venta_id)
-        
-        if not venta:
-            flash('Venta no encontrada.', 'error')
-            return redirect(url_for('historial_ventas'))
-        
-        return render_template('ticket_venta.html', venta=venta)
-        
-    except Exception as e:
-        flash(f'Error generando ticket: {e}', 'error')
-        return redirect(url_for('historial_ventas'))
 
 @app.route('/ventas/historial')
 @requiere_autenticacion(['admin', 'empleado', 'dueño'])

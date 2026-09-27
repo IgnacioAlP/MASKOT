@@ -1869,6 +1869,7 @@ def historial_ventas():
 
 # ─── VISTA Y GENERACIÓN DE TICKET DE VENTA ───────────────────────────────────
 
+@app.route('/venta/<int:venta_id>/ticket')
 @app.route('/venta/ticket/<int:venta_id>', endpoint='ticket_venta')
 @app.route('/ventas/ticket/<int:venta_id>')
 def ticket_venta(venta_id):
@@ -1902,7 +1903,7 @@ def ticket_venta(venta_id):
                 FROM ventas v
                 WHERE v.id = %s AND (v.tenant_id = %s OR v.tenant_id IS NULL)
             """, (venta_id, tenant_id))
-            
+
             r = cursor.fetchone()
             if r:
                 subtotal_f = float(r[7]) if r[7] is not None else 0.0
