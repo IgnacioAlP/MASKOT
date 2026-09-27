@@ -133,24 +133,28 @@
                     <div id="productos-container"
                         style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 0 15px 15px 15px; max-height: 52vh; overflow-y: auto;">
                         {% for producto in productos %}
+                        {% set stock_actual = producto[3]|int %}
+                        {% set sin_stock = stock_actual <= 0 %}
                         <div class="producto-card" data-nombre="{{ producto[1]|lower }}"
                             data-categoria="{% if 'alimento' in producto[1]|lower or 'comida' in producto[1]|lower %}alimento{% elif 'medicina' in producto[1]|lower or 'vacuna' in producto[1]|lower %}medicina{% elif 'collar' in producto[1]|lower or 'correa' in producto[1]|lower %}accesorio{% elif 'juguete' in producto[1]|lower %}juguete{% elif 'champú' in producto[1]|lower or 'shampoo' in producto[1]|lower %}higiene{% else %}otros{% endif %}"
-                            style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 12px; border-left: 4px solid #ffa301; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between;">
+                            data-stock="{{ stock_actual }}"
+                            style="background: {% if sin_stock %}#f8f9fa{% else %}#ffffff{% endif %}; border: 1px solid {% if sin_stock %}#d6d8db{% else %}#e9ecef{% endif %}; border-radius: 12px; padding: 12px; border-left: 4px solid {% if sin_stock %}#adb5bd{% else %}#ffa301{% endif %}; box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: flex; flex-direction: column; justify-content: space-between; opacity: {% if sin_stock %}0.65{% else %}1{% endif %};">
                             <div>
                                 <strong
-                                    style="display: block; color: #2c3e50; font-size: 15px; font-weight: 700; margin-bottom: 6px; line-height: 1.2;">{{
+                                    style="display: block; color: {% if sin_stock %}#6c757d{% else %}#2c3e50{% endif %}; font-size: 15px; font-weight: 700; margin-bottom: 6px; line-height: 1.2;">{{
                                     producto[1] }}</strong>
                                 <span
-                                    style="display: block; color: #ffa301; font-size: 18px; font-weight: 800; margin-bottom: 4px;">S/
+                                    style="display: block; color: {% if sin_stock %}#6c757d{% else %}#ffa301{% endif %}; font-size: 18px; font-weight: 800; margin-bottom: 4px;">S/
                                     {{ "%.2f"|format(producto[2]) }}</span>
                                 <span
-                                    style="color: #28a745; font-size: 12px; font-weight: 600; background: rgba(40, 167, 69, 0.1); padding: 2px 8px; border-radius: 6px; display: inline-block;">Stock:
+                                    style="color: {% if sin_stock %}#6c757d{% else %}#28a745{% endif %}; font-size: 12px; font-weight: 600; background: {% if sin_stock %}rgba(108,117,125,0.12){% else %}rgba(40, 167, 69, 0.1){% endif %}; padding: 2px 8px; border-radius: 6px; display: inline-block;">Stock:
                                     {{ producto[3] }}</span>
                             </div>
                             <button
-                                style="background: linear-gradient(135deg, #ffa301, #e6920e); border: none; border-radius: 8px; color: white; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; width: 100%; margin-top: 10px;"
-                                onclick='agregarProducto({{ producto[0] }}, "{{ producto[1].replace("\"", "\\\"") }}", {{ producto[2] }})'>
-                                <i class="fas fa-plus"></i> Agregar
+                                {% if sin_stock %}disabled{% endif %}
+                                style="background: {% if sin_stock %}#adb5bd{% else %}linear-gradient(135deg, #ffa301, #e6920e){% endif %}; border: none; border-radius: 8px; color: white; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: {% if sin_stock %}not-allowed{% else %}pointer{% endif %}; width: 100%; margin-top: 10px;"
+                                onclick='{% if not sin_stock %}agregarProducto({{ producto[0] }}, "{{ producto[1].replace("\"", "\\\"") }}", {{ producto[2] }}){% endif %}'>
+                                <i class="fas fa-{% if sin_stock %}ban{% else %}plus{% endif %}"></i> {% if sin_stock %}Sin stock{% else %}Agregar{% endif %}
                             </button>
                         </div>
                         {% endfor %}
@@ -512,10 +516,24 @@
         window.actualizarBotonPagar();
     };
 
-    window.agregarProducto = function (id, nombre, precio) {
+    window.agregarProducto = function (id, nombre, precio, stockDisponible = null) {
+        const stock = Number(stockDisponible ?? document.querySelector(`.producto-card[data-nombre="${(nombre || '').toLowerCase()}"]`)?.dataset?.stock ?? 0);
+        if (stock <= 0) {
+            posToast('❌ ' + nombre + ' está sin stock', '#dc3545');
+            return;
+        }
         const item = window.carrito.find(p => p.tipo !== 'servicio' && p.id === id);
-        if (item) { item.cantidad += 1; }
-        else { window.carrito.push({ id: id, nombre: nombre, precio: parseFloat(precio), cantidad: 1, tipo: 'producto' }); }
+        if (item) {
+            const disponibleEnCarrito = Number(stock || 0);
+            const nuevaCantidad = item.cantidad + 1;
+            if (nuevaCantidad > disponibleEnCarrito) {
+                posToast('❌ No hay suficiente stock para ' + nombre, '#dc3545');
+                return;
+            }
+            item.cantidad = nuevaCantidad;
+        } else {
+            window.carrito.push({ id: id, nombre: nombre, precio: parseFloat(precio), cantidad: 1, tipo: 'producto' });
+        }
         window.actualizarCarrito();
         posToast('✅ ' + nombre + ' agregado', '#28a745');
     };
@@ -899,7 +917,11 @@
             .then(data => {
                 if (data.productos && data.productos.length > 0) {
                     const p = data.productos[0];
-                    window.agregarProducto(p.id, p.nombre, p.precio);
+                    if ((p.stock ?? 0) <= 0) {
+                        posToast('❌ Producto sin stock: ' + p.nombre, '#dc3545');
+                        return;
+                    }
+                    window.agregarProducto(p.id, p.nombre, p.precio, p.stock);
                     document.getElementById('filtro-productos').value = '';
                 } else {
                     posToast('❌ No se encontró producto: ' + q, '#dc3545');

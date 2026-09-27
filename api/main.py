@@ -664,6 +664,7 @@ def punto_de_venta():
                 WHERE (tenant_id = %s OR tenant_id IS NULL) 
                   AND COALESCE(activo, true) = true
                   AND LOWER(tipo::text) = 'venta'
+                  AND COALESCE(cantidad, 0) > 0
                 ORDER BY nombre ASC
             """, (tenant_id,))
             
@@ -812,6 +813,7 @@ def api_buscar_productos():
                        COALESCE(codigo_barra::text, '') AS codigo_barra, 'General' AS categoria
                 FROM productos 
                 WHERE {where_clause}
+                  AND COALESCE(cantidad, 0) > 0
                 ORDER BY nombre ASC
                 LIMIT 50
             """, tuple(params))
@@ -877,6 +879,11 @@ def procesar_venta():
         if not items:
             return jsonify({'success': False, 'error': 'El carrito está vacío'}), 400
 
+        validacion = ventas_controlador.validar_stock_productos(items)
+        if not validacion.get('valido', False):
+            msg = (validacion.get('errores') or ['Stock insuficiente'])[0]
+            return jsonify({'success': False, 'error': msg}), 400
+
         # 1. Extraer ID del cliente si se envió
         raw_id = data.get('cliente_id') or data.get('id_cliente') or data.get('client_id')
         if isinstance(raw_id, dict):
@@ -911,6 +918,7 @@ def procesar_venta():
                 cliente_documento = doc_match.group(1).replace('DNI:', '').replace('RUC:', '').strip()
             cliente_nombre = re.sub(r'\s*\(.*?\)', '', cliente_nombre).strip()
 
+        hay_cliente_explicitado = bool(cliente_id) or bool(cliente_nombre and cliente_nombre.lower() not in ('cliente general', ''))
         if not cliente_nombre:
             cliente_nombre = 'Cliente General'
 
@@ -920,28 +928,27 @@ def procesar_venta():
         with conexion.cursor() as cursor:
             final_cliente_id = None
 
-            # A) Si nos enviaron un ID, verificar su existencia en la tabla clientes
+            # A) Prioridad: si el POS envió un ID válido, resolverlo y NO caer al general
             if cliente_id:
                 cursor.execute("""
                     SELECT id, nombre, COALESCE(documento, '') 
                     FROM clientes 
-                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+                    WHERE id = %s AND tenant_id = %s
                 """, (cliente_id, tenant_id))
                 cli_db = cursor.fetchone()
                 if cli_db:
                     final_cliente_id = cli_db[0]
-                    if cli_db[1] and cli_db[1].strip():
-                        cliente_nombre = cli_db[1].strip()
+                    cliente_nombre = cli_db[1].strip() if cli_db[1] else cliente_nombre
                     if cli_db[2] and not cliente_documento:
                         cliente_documento = cli_db[2]
 
-            # B) Si no hay ID pero el cliente no es 'Cliente General', buscar por Nombre/Documento
-            if not final_cliente_id and cliente_nombre.lower() != 'cliente general':
+            # B) Si no hubo ID pero el usuario sí eligió un cliente por nombre, buscarlo en el tenant actual
+            if not final_cliente_id and cliente_nombre and cliente_nombre.lower() != 'cliente general':
                 cursor.execute("""
                     SELECT id, nombre, COALESCE(documento, '') 
                     FROM clientes 
                     WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) 
-                      AND (tenant_id = %s OR tenant_id IS NULL) 
+                      AND tenant_id = %s
                     LIMIT 1
                 """, (cliente_nombre, tenant_id))
                 cli_db = cursor.fetchone()
@@ -950,46 +957,19 @@ def procesar_venta():
                     cliente_nombre = cli_db[1]
                     if cli_db[2] and not cliente_documento:
                         cliente_documento = cli_db[2]
-                else:
-                    # Crear automáticamente el cliente para tener su ID guardado.
-                    # Importante: el email debe ser único; no reutilizar un valor fijo porque
-                    # provoca conflicto cuando ya existe el registro de 'Cliente General'.
-                    try:
-                        email_auto = f"cliente_{int(time.time())}_{random.randint(1000,9999)}@pos.local"
-                        cursor.execute("""
-                            INSERT INTO clientes (nombre, email, documento, activo, tenant_id) 
-                            VALUES (%s, %s, %s, true, %s) 
-                            ON CONFLICT (email) DO NOTHING
-                            RETURNING id
-                        """, (cliente_nombre, email_auto, cliente_documento, tenant_id))
-                        res = cursor.fetchone()
-                        if res:
-                            final_cliente_id = res[0]
-                        else:
-                            cursor.execute("""
-                                SELECT id FROM clientes
-                                WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s))
-                                  AND tenant_id = %s
-                                LIMIT 1
-                            """, (cliente_nombre, tenant_id))
-                            row = cursor.fetchone()
-                            if row:
-                                final_cliente_id = row[0]
-                    except Exception as e_cli:
-                        logger.error(f"Error creando cliente automático: {e_cli}")
-                        conexion.rollback()
 
-            # C) Si es 'Cliente General' o falló la asignación previa, vincular con 'Cliente General' en DB si existe
-            if not final_cliente_id:
+            # C) Sólo usar "Cliente General" como fallback si no hubo selección explícita de cliente
+            if not final_cliente_id and not hay_cliente_explicitado:
                 cursor.execute("""
                     SELECT id FROM clientes 
                     WHERE LOWER(TRIM(nombre)) = 'cliente general' 
-                      AND (tenant_id = %s OR tenant_id IS NULL) 
+                      AND tenant_id = %s
                     LIMIT 1
                 """, (tenant_id,))
                 cli_gen = cursor.fetchone()
                 if cli_gen:
                     final_cliente_id = cli_gen[0]
+                    cliente_nombre = 'Cliente General'
                 else:
                     try:
                         email_general = f"cliente_general_{tenant_id}_{int(time.time())}@pos.local"
@@ -1002,6 +982,7 @@ def procesar_venta():
                         res_gen = cursor.fetchone()
                         if res_gen:
                             final_cliente_id = res_gen[0]
+                            cliente_nombre = 'Cliente General'
                         else:
                             cursor.execute("""
                                 SELECT id FROM clientes
@@ -1012,6 +993,7 @@ def procesar_venta():
                             row_gen = cursor.fetchone()
                             if row_gen:
                                 final_cliente_id = row_gen[0]
+                                cliente_nombre = 'Cliente General'
                     except Exception:
                         final_cliente_id = None
                         conexion.rollback()
