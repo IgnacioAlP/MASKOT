@@ -319,3 +319,53 @@ def actualizar_cliente(email_anterior, nuevo_email, telefono='', direccion=''):
         raise e
     finally:
         conexion.close()
+
+
+def obtener_clientes(tenant_id=None):
+    """Obtiene la lista de clientes activos del tenant."""
+    if tenant_id is None:
+        tenant_id = obtener_tenant_id()
+    conexion = obtener_conexion()
+    clientes = []
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, COALESCE(nombre, '') AS nombre, COALESCE(email, '') AS email, 
+                       COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, 
+                       COALESCE(documento, '') AS documento, COALESCE(activo, true) AS activo
+                FROM clientes
+                WHERE (tenant_id = %s OR tenant_id IS NULL) AND activo = true
+                ORDER BY nombre ASC
+            """, (tenant_id,))
+            for r in cursor.fetchall():
+                clientes.append({
+                    'id': r[0], 'nombre': r[1], 'email': r[2], 'telefono': r[3],
+                    'direccion': r[4], 'documento': r[5], 'activo': r[6],
+                    0: r[0], 1: r[1], 2: r[2], 3: r[3], 4: r[4], 5: r[5], 6: r[6]
+                })
+    finally:
+        conexion.close()
+    return clientes
+
+
+def obtener_cliente_por_id(cliente_id, tenant_id=None):
+    """Obtiene un cliente por su ID."""
+    if tenant_id is None:
+        tenant_id = obtener_tenant_id()
+    conexion = obtener_conexion()
+    cliente = None
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, COALESCE(nombre, '') AS nombre, COALESCE(email, '') AS email, 
+                       COALESCE(telefono, '') AS telefono, COALESCE(direccion, '') AS direccion, 
+                       COALESCE(documento, '') AS documento, COALESCE(activo, true) AS activo
+                FROM clientes
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
+            """, (cliente_id, tenant_id))
+            r = cursor.fetchone()
+            if r:
+                cliente = (r[0], r[1], r[2], r[3], r[4], r[5], r[6])
+    finally:
+        conexion.close()
+    return cliente

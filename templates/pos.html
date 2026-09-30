@@ -266,6 +266,7 @@
                             <option value="tarjeta">💳 Tarjeta</option>
                             <option value="yape">📱 Yape / Plin</option>
                             <option value="multipago">🔄 Multipago</option>
+                            <option value="credito">📋 Crédito (Por Cobrar)</option>
                         </select>
                     </div>
 
@@ -325,6 +326,38 @@
                             </select>
                             <input type="number" id="monto2" step="0.01" placeholder="Monto 2" readonly
                                 style="border: 1px solid #ced4da; border-radius: 6px; padding: 6px; font-size: 12px; background: #e9ecef; width: 100%; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <!-- CRÉDITO -->
+                    <div id="credito-section"
+                        style="display: none; background: #eff6ff; border-radius: 12px; padding: 12px; margin-bottom: 12px; border: 1px solid #bfdbfe;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <i class="fas fa-hand-holding-usd text-primary" style="font-size: 16px;"></i>
+                            <strong style="color: #1e40af; font-size: 13px;">Venta a Crédito</strong>
+                        </div>
+                        <div style="background: #ffffff; border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; border: 1px solid #dbeafe;">
+                            <small style="font-size: 11px; color: #1e3a8a; display: block; line-height: 1.3;">
+                                <i class="fas fa-info-circle me-1"></i> Se creará una cuenta por cobrar en el <strong>Módulo de Créditos</strong> vinculada al cliente seleccionado.
+                            </small>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                            <div>
+                                <span style="font-size: 11px; font-weight: 700; color: #1e40af; display: block; margin-bottom: 2px;">Días Plazo:</span>
+                                <input type="number" id="credito_dias_plazo" value="30" min="1" max="365"
+                                    style="border: 1px solid #93c5fd; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%; box-sizing: border-box;"
+                                    oninput="actualizarFechaVencimientoCredito(this.value)">
+                            </div>
+                            <div>
+                                <span style="font-size: 11px; font-weight: 700; color: #1e40af; display: block; margin-bottom: 2px;">Vencimiento:</span>
+                                <input type="date" id="credito_fecha_vencimiento"
+                                    style="border: 1px solid #93c5fd; border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 100%; box-sizing: border-box;">
+                            </div>
+                        </div>
+                        <div>
+                            <span style="font-size: 11px; font-weight: 700; color: #1e40af; display: block; margin-bottom: 2px;">Notas del Crédito:</span>
+                            <input type="text" id="credito_notas" placeholder="Ej. Cliente frecuente, pago a quincena..."
+                                style="border: 1px solid #93c5fd; border-radius: 6px; padding: 6px 8px; font-size: 12px; width: 100%; box-sizing: border-box;">
                         </div>
                     </div>
 
@@ -629,6 +662,37 @@
         window.actualizarBotonPagar();
     };
 
+    window.actualizarFechaVencimientoCredito = function (dias) {
+        dias = parseInt(dias) || 30;
+        const f = new Date();
+        f.setDate(f.getDate() + dias);
+        const inputVenc = document.getElementById('credito_fecha_vencimiento');
+        if (inputVenc) {
+            inputVenc.value = f.toISOString().split('T')[0];
+        }
+    };
+
+    window.cambiarMetodoPago = function () {
+        const metodo = document.getElementById('metodo_pago')?.value || 'efectivo';
+        const secDinero = document.getElementById('dinero-section');
+        const secMulti = document.getElementById('multipago-section');
+        const secCredito = document.getElementById('credito-section');
+
+        if (secDinero) secDinero.style.display = (metodo === 'efectivo') ? 'block' : 'none';
+        if (secMulti) {
+            secMulti.style.display = (metodo === 'multipago') ? 'block' : 'none';
+            if (metodo === 'multipago' && window.calcularMultipago) window.calcularMultipago();
+        }
+        if (secCredito) {
+            secCredito.style.display = (metodo === 'credito') ? 'block' : 'none';
+            if (metodo === 'credito') {
+                const dias = document.getElementById('credito_dias_plazo')?.value || 30;
+                window.actualizarFechaVencimientoCredito(dias);
+            }
+        }
+        window.actualizarBotonPagar();
+    };
+
     // ─── VALIDACIÓN RIGUROSA DEL BOTÓN PAGAR ──────────────────────────────────
     window.actualizarBotonPagar = function () {
         const btn = document.getElementById('btn-pagar');
@@ -636,7 +700,8 @@
 
         const totalCents = Math.round((window.total || 0) * 100);
 
-        if (!window.carrito || window.carrito.length === 0 || totalCents <= 0) {
+        // Permite procesar venta si hay items en el carrito y total >= 0 (permite ventas con precio 0)
+        if (!window.carrito || window.carrito.length === 0 || totalCents < 0) {
             btn.disabled = true;
             btn.style.background = '#adb5bd';
             btn.style.cursor = 'not-allowed';
@@ -684,14 +749,27 @@
         const clienteFinal = clienteNombre || 'Cliente General';
 
         const metodoPago = document.getElementById('metodo_pago')?.value || 'efectivo';
+
+        // Si es crédito, es OBLIGATORIO que se seleccione un cliente registrado
+        if (metodoPago === 'credito') {
+            if (!clienteId && (!clienteNombre || clienteNombre.toLowerCase() === 'cliente general')) {
+                alert('⚠️ Para registrar una venta a crédito, debe seleccionar o registrar un cliente específico (no se permite Cliente General).');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
+                }
+                return;
+            }
+        }
+
         let montoRecibido = parseFloat(document.getElementById('monto_recibido')?.value);
-        if (isNaN(montoRecibido) || montoRecibido < window.total) {
+        if (isNaN(montoRecibido) || montoRecibido < window.total || window.total === 0) {
             montoRecibido = window.total;
         }
         const cambioVal = Math.max(0, montoRecibido - window.total);
 
-        const subtotalCalc = window.total / 1.18;
-        const igvCalc = window.total - subtotalCalc;
+        const subtotalCalc = window.total > 0 ? (window.total / 1.18) : 0;
+        const igvCalc = window.total > 0 ? (window.total - subtotalCalc) : 0;
 
         let detalleMultipago = null;
         if (metodoPago === 'multipago') {
@@ -716,7 +794,11 @@
             cliente_id: clienteId,
             id_cliente: clienteId,
             cliente_nombre: clienteFinal,
-            nombre_cliente: clienteFinal
+            nombre_cliente: clienteFinal,
+
+            dias_plazo: parseInt(document.getElementById('credito_dias_plazo')?.value || 30),
+            fecha_vencimiento: document.getElementById('credito_fecha_vencimiento')?.value || null,
+            notas_credito: document.getElementById('credito_notas')?.value || ''
         };
 
         console.log(">>> ENVIANDO PAYLOAD DESDE POS:", payload);

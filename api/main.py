@@ -34,7 +34,8 @@ from controladores import (
     clientes_controlador,
     compras_controlador,
     ventas_controlador,
-    mascotas_controlador
+    mascotas_controlador,
+    creditos_controlador
 )
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
@@ -129,6 +130,13 @@ def _ensure_schema():
                         conn.commit()
                 except Exception:
                     conn.rollback()
+
+            try:
+                creditos_controlador.asegurar_tablas_credito(cursor)
+                conn.commit()
+            except Exception as e_cr:
+                conn.rollback()
+                logger.warning(f"Error asegurando tablas de credito: {e_cr}")
 
         conn.close()
     except Exception as e:
@@ -845,12 +853,18 @@ def api_validar_stock():
         conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             for item in items:
+                if item.get('tipo') == 'servicio' or item.get('es_servicio'):
+                    continue
                 pid = item.get('id')
                 cant = int(item.get('cantidad', 1))
                 if pid and str(pid).isdigit():
                     cursor.execute("SELECT nombre, cantidad FROM productos WHERE id = %s", (int(pid),))
                     row = cursor.fetchone()
                     if not row:
+                        # Si no es producto, verificar si es servicio
+                        cursor.execute("SELECT id FROM servicios WHERE id = %s", (int(pid),))
+                        if cursor.fetchone():
+                            continue
                         errores.append(f"Producto ID {pid} no encontrado.")
                     elif (row[1] or 0) < cant:
                         errores.append(f"Stock insuficiente para '{row[0]}'. Disponible: {row[1]}, Solicitado: {cant}")
@@ -1007,6 +1021,15 @@ def procesar_venta():
             cambio = float(data.get('cambio_entregado', data.get('cambio', 0.0)))
             metodo_pago = data.get('metodo_pago', 'efectivo')
 
+            if metodo_pago == 'credito':
+                if not final_cliente_id or not cliente_nombre or cliente_nombre.strip().lower() in ('cliente general', ''):
+                    conexion.rollback()
+                    conexion.close()
+                    return jsonify({
+                        'success': False,
+                        'error': 'Para ventas a crédito es obligatorio seleccionar un cliente registrado.'
+                    }), 400
+
             vendedor_id = session.get('usuario_id') or session.get('user_id')
             vendedor_nombre = session.get('usuario') or session.get('username') or 'Cajero'
             num_venta = f"VNT-{int(time.time())}"
@@ -1029,11 +1052,38 @@ def procesar_venta():
 
             venta_id = cursor.fetchone()[0]
 
+            # Reducir stock solo para productos físicos (ignorar servicios)
             for item in items:
+                if item.get('tipo') == 'servicio' or item.get('es_servicio'):
+                    continue
                 pid = item.get('id')
                 cant = int(item.get('cantidad', 1))
                 if pid and str(pid).isdigit():
                     cursor.execute("UPDATE productos SET cantidad = GREATEST(COALESCE(cantidad, 0) - %s, 0) WHERE id = %s", (cant, int(pid)))
+
+            # Si el pago fue a crédito, crear registro en la tabla credito
+            if metodo_pago == 'credito':
+                dias_plazo = int(data.get('dias_plazo', 30) or 30)
+                fecha_venc = data.get('fecha_vencimiento')
+                if not fecha_venc:
+                    fecha_venc = (fecha_actual + timedelta(days=dias_plazo)).date()
+
+                estado_cred = 'pagado' if total <= 0 else 'pendiente'
+                saldo_cred = 0.0 if total <= 0 else total
+                notas_cred = data.get('notas_credito') or f"Crédito por venta {num_venta}"
+
+                creditos_controlador.asegurar_tablas_credito(cursor)
+                cursor.execute("""
+                    INSERT INTO credito (
+                        venta_id, cliente_id, cliente_nombre, cliente_documento,
+                        monto_total, monto_pagado, saldo_pendiente,
+                        fecha_credito, fecha_vencimiento, estado, notas, tenant_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    venta_id, final_cliente_id, cliente_nombre, cliente_documento,
+                    total, 0.0, saldo_cred,
+                    fecha_actual, fecha_venc, estado_cred, notas_cred, tenant_id
+                ))
 
         conexion.commit()
         conexion.close()
@@ -3474,113 +3524,134 @@ def checkout():
     return render_template('checkout.html', items=items, total=subtotal, igv=igv, total_final=total_final)
 
 
-@app.route('/ventas/procesar', methods=['POST'])
-def procesar_venta_pos():
-    if 'rol' not in session:
-        return jsonify({'success': False, 'error': 'Sesión no válida'}), 401
+# ─── MÓDULO DE CRÉDITOS ──────────────────────────────────────────────────────
 
-    data = request.get_json() or {}
+@app.route('/creditos', endpoint='listar_creditos')
+@app.route('/creditos/listar')
+def listar_creditos():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
     tenant_id = session.get('tenant_id', 1)
-    
-    # 1. Obtener datos del cliente enviados desde el POS
-    raw_cliente_id = data.get('cliente_id') or data.get('id_cliente')
-    cliente_nombre_input = (data.get('cliente_nombre') or data.get('nombre_cliente') or '').strip()
+    estado = request.args.get('estado', 'todos').strip()
+    busqueda = request.args.get('busqueda', '').strip()
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
 
-    final_cliente_id = None
-    final_cliente_nombre = 'Cliente General'
-    final_cliente_doc = None
+    filtros = {
+        'estado': estado,
+        'busqueda': busqueda,
+        'fecha_inicio': fecha_inicio if fecha_inicio else None,
+        'fecha_fin': fecha_fin if fecha_fin else None
+    }
 
-    conexion = obtener_conexion()
-    try:
-        with conexion.cursor() as cursor:
-            # 2. Si se envió un ID, verificar que el cliente exista en la base de datos
-            if raw_cliente_id and str(raw_cliente_id).isdigit():
-                cursor.execute("""
-                    SELECT id, nombre, documento 
-                    FROM clientes 
-                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL) AND activo = TRUE
-                """, (int(raw_cliente_id), tenant_id))
-                
-                cli = cursor.fetchone()
-                if cli:
-                    final_cliente_id = cli[0]
-                    final_cliente_nombre = cli[1]
-                    final_cliente_doc = cli[2]
+    creditos = creditos_controlador.obtener_creditos(filtros, tenant_id)
+    resumen = creditos_controlador.obtener_resumen_creditos(tenant_id)
+    clientes = clientes_controlador.obtener_clientes(tenant_id)
 
-            # 3. Si no vino ID pero escribieron un nombre distinto a 'Cliente General', buscar por nombre exacto
-            elif cliente_nombre_input and cliente_nombre_input.lower() != 'cliente general':
-                cursor.execute("""
-                    SELECT id, nombre, documento 
-                    FROM clientes 
-                    WHERE LOWER(nombre) = LOWER(%s) AND (tenant_id = %s OR tenant_id IS NULL) AND activo = TRUE
-                    LIMIT 1
-                """, (cliente_nombre_input, tenant_id))
-                
-                cli = cursor.fetchone()
-                if cli:
-                    final_cliente_id = cli[0]
-                    final_cliente_nombre = cli[1]
-                    final_cliente_doc = cli[2]
-                else:
-                    # Si el nombre no existe en la BD, se asigna como nombre del comprobante pero SIN crear fila en clientes
-                    final_cliente_nombre = cliente_nombre_input
+    return render_template(
+        'creditos.html',
+        creditos=creditos,
+        resumen=resumen,
+        filtros=filtros,
+        clientes=clientes
+    )
 
-            # 4. Generar número de venta único
-            num_venta = f"VNT-{int(time.time())}"
-            fecha_actual = datetime.now(ZONA_HORARIA_PERU)
-            productos_json = json.dumps(data.get('productos', []), ensure_ascii=False)
 
-            # 5. Insertar la venta (final_cliente_id será NULL si es Cliente General)
-            cursor.execute("""
-                INSERT INTO ventas (
-                    numero_venta, fecha_venta, vendedor_id, vendedor_nombre,
-                    cliente_id, cliente_nombre, cliente_documento,
-                    productos, subtotal, igv, total, metodo_pago,
-                    monto_recibido, cambio_entregado, estado, tenant_id
-                ) VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s, %s, %s,
-                    %s, %s, 'completada', %s
-                ) RETURNING id
-            """, (
-                num_venta,
-                fecha_actual,
-                session.get('usuario_id'),
-                session.get('username', 'Cajero'),
-                final_cliente_id,  # Si es None, PostgreSQL inserta NULL automáticamente
-                final_cliente_nombre,
-                final_cliente_doc,
-                productos_json,
-                data.get('subtotal', 0),
-                data.get('igv', 0),
-                data.get('total', 0),
-                data.get('metodo_pago', 'efectivo'),
-                data.get('monto_recibido', 0),
-                data.get('cambio_entregado', 0),
-                tenant_id
-            ))
+@app.route('/creditos/nuevo', methods=['POST'])
+def nuevo_credito():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
-            venta_id = cursor.fetchone()[0]
+    tenant_id = session.get('tenant_id', 1)
+    cliente_id = request.form.get('cliente_id') or (request.json.get('cliente_id') if request.is_json else None)
+    monto = request.form.get('monto') or (request.json.get('monto') if request.is_json else 0.0)
+    fecha_vencimiento = request.form.get('fecha_vencimiento') or (request.json.get('fecha_vencimiento') if request.is_json else None)
+    notas = request.form.get('notas') or (request.json.get('notas') if request.is_json else None)
 
-            # 6. Descontar stock de los productos vendidos
-            for prod in data.get('productos', []):
-                if prod.get('tipo') != 'servicio' and prod.get('id'):
-                    cursor.execute("""
-                        UPDATE productos 
-                        SET cantidad = GREATEST(cantidad - %s, 0) 
-                        WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
-                    """, (prod.get('cantidad', 1), prod.get('id'), tenant_id))
+    if not cliente_id:
+        flash('Debe seleccionar un cliente para el crédito', 'error')
+        return redirect(url_for('listar_creditos'))
 
-        conexion.commit()
-        return jsonify({'success': True, 'venta_id': venta_id, 'numero_venta': num_venta})
+    cli = clientes_controlador.obtener_cliente_por_id(int(cliente_id), tenant_id)
+    if not cli:
+        flash('Cliente no encontrado', 'error')
+        return redirect(url_for('listar_creditos'))
 
-    except Exception as e:
-        conexion.rollback()
-        logger.error(f"Error procesando venta POS: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        conexion.close()
+    cliente_nombre = cli[1]
+    cliente_doc = cli[5] if len(cli) > 5 else None
+
+    res = creditos_controlador.crear_credito(
+        cliente_id=int(cliente_id),
+        cliente_nombre=cliente_nombre,
+        cliente_documento=cliente_doc,
+        monto_total=float(monto or 0.0),
+        fecha_vencimiento=fecha_vencimiento,
+        notas=notas,
+        tenant_id=tenant_id
+    )
+
+    if res.get('success'):
+        flash('Crédito creado exitosamente', 'success')
+    else:
+        flash(f"Error creando crédito: {res.get('error')}", 'error')
+
+    return redirect(url_for('listar_creditos'))
+
+
+@app.route('/creditos/<int:id>/abonar', methods=['POST'])
+def abonar_credito(id):
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    tenant_id = session.get('tenant_id', 1)
+    usuario_nombre = session.get('usuario') or session.get('username') or 'Cajero'
+
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+    monto = float(data.get('monto', 0.0) or 0.0)
+    metodo_pago = data.get('metodo_pago', 'efectivo')
+    notas = data.get('notas', '')
+
+    res = creditos_controlador.registrar_abono(
+        credito_id=id,
+        monto=monto,
+        metodo_pago=metodo_pago,
+        notas=notas,
+        usuario_nombre=usuario_nombre,
+        tenant_id=tenant_id
+    )
+
+    if request.is_json or request.headers.get('Accept') == 'application/json':
+        return jsonify(res)
+
+    if res.get('success'):
+        flash(f"Abono de S/ {monto:.2f} registrado exitosamente.", 'success')
+    else:
+        flash(f"Error: {res.get('error')}", 'error')
+
+    return redirect(url_for('listar_creditos'))
+
+
+@app.route('/api/creditos/<int:id>', methods=['GET'])
+def api_detalle_credito(id):
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    tenant_id = session.get('tenant_id', 1)
+    credito = creditos_controlador.obtener_credito_por_id(id, tenant_id)
+    if not credito:
+        return jsonify({'success': False, 'error': 'Crédito no encontrado'}), 404
+
+    if credito.get('fecha_credito'):
+        credito['fecha_credito'] = str(credito['fecha_credito'])
+    if credito.get('fecha_vencimiento'):
+        credito['fecha_vencimiento'] = str(credito['fecha_vencimiento'])
+    for ab in credito.get('abonos', []):
+        if ab.get('fecha_abono'):
+            ab['fecha_abono'] = str(ab['fecha_abono'])
+
+    return jsonify({'success': True, 'credito': credito})
 
 # ─── MÓDULO DE MASCOTAS ──────────────────────────────────────────────────────
 

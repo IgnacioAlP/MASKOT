@@ -1,0 +1,641 @@
+{% extends "base.html" %}
+
+{% block title %}Créditos y Cuentas por Cobrar - MASKOT{% endblock %}
+
+{% block extra_css %}
+<style>
+    .creditos-hero {
+        background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        color: white;
+        border-radius: 16px;
+        padding: 24px 28px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 24px rgba(30, 58, 138, 0.15);
+    }
+    .kpi-card {
+        background: white;
+        border-radius: 14px;
+        padding: 18px 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+    }
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+    .status-badge {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 5px 10px;
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .status-badge.pendiente {
+        background: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+    .status-badge.parcial {
+        background: #e0f2fe;
+        color: #0369a1;
+        border: 1px solid #bae6fd;
+    }
+    .status-badge.pagado {
+        background: #dcfce7;
+        color: #15803d;
+        border: 1px solid #bbf7d0;
+    }
+    .status-badge.vencido {
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+    }
+    .table-creditos {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+    }
+    .table-creditos th {
+        background: #f8fafc;
+        color: #475569;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 14px 16px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .table-creditos td {
+        padding: 14px 16px;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 13px;
+    }
+    .table-creditos tr:hover td {
+        background-color: #f8fafc;
+    }
+    .client-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ffa301, #6ccae2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header Banner -->
+    <div class="creditos-hero d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <h1 class="h3 fw-bold mb-1 d-flex align-items-center gap-2">
+                <i class="fas fa-hand-holding-usd text-warning"></i> Módulo de Créditos y Cobranzas
+            </h1>
+            <p class="mb-0 text-white-50">Gestiona las cuentas por cobrar, controla saldos pendientes y registra abonos de clientes.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-warning fw-bold text-dark shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoCredito">
+                <i class="fas fa-plus-circle me-1"></i> + Nuevo Crédito
+            </button>
+            <a href="{{ url_for('punto_de_venta') }}" class="btn btn-outline-light">
+                <i class="fas fa-cash-register me-1"></i> Ir al POS
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Cards Grid -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-primary bg-opacity-10 text-primary">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </div>
+                <div>
+                    <span class="text-muted small fw-semibold">Total Otorgado</span>
+                    <h3 class="mb-0 fw-bold text-dark">S/ {{ "%.2f"|format(resumen.total_otorgado) }}</h3>
+                    <small class="text-muted">{{ resumen.total_creditos }} créditos registrados</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-danger bg-opacity-10 text-danger">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <span class="text-muted small fw-semibold">Saldo Pendiente</span>
+                    <h3 class="mb-0 fw-bold text-danger">S/ {{ "%.2f"|format(resumen.total_pendiente) }}</h3>
+                    <small class="text-danger fw-semibold">{{ resumen.conteo_pendientes }} por cobrar</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-success bg-opacity-10 text-success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <span class="text-muted small fw-semibold">Total Cobrado</span>
+                    <h3 class="mb-0 fw-bold text-success">S/ {{ "%.2f"|format(resumen.total_cobrado) }}</h3>
+                    <small class="text-success">{{ resumen.conteo_pagados }} cancelados</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-lg-3">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-warning bg-opacity-10 text-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <span class="text-muted small fw-semibold">Créditos Vencidos</span>
+                    <h3 class="mb-0 fw-bold text-warning">{{ resumen.conteo_vencidos }}</h3>
+                    <small class="text-muted">Requieren gestión</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-3 p-lg-4">
+            <form method="GET" action="{{ url_for('listar_creditos') }}" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-muted">Buscar Cliente</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" name="busqueda" class="form-control border-start-0" placeholder="Nombre, DNI o teléfono..." value="{{ filtros.busqueda or '' }}">
+                    </div>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold text-muted">Estado</label>
+                    <select name="estado" class="form-select">
+                        <option value="todos" {% if filtros.estado == 'todos' %}selected{% endif %}>Todos</option>
+                        <option value="pendiente" {% if filtros.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                        <option value="parcial" {% if filtros.estado == 'parcial' %}selected{% endif %}>Parcial</option>
+                        <option value="pagado" {% if filtros.estado == 'pagado' %}selected{% endif %}>Pagado</option>
+                        <option value="vencido" {% if filtros.estado == 'vencido' %}selected{% endif %}>Vencido</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold text-muted">Fecha Desde</label>
+                    <input type="date" name="fecha_inicio" class="form-control" value="{{ filtros.fecha_inicio or '' }}">
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold text-muted">Fecha Hasta</label>
+                    <input type="date" name="fecha_fin" class="form-control" value="{{ filtros.fecha_fin or '' }}">
+                </div>
+
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                        <i class="fas fa-filter me-1"></i> Filtrar
+                    </button>
+                    <a href="{{ url_for('listar_creditos') }}" class="btn btn-outline-secondary" title="Limpiar Filtros">
+                        <i class="fas fa-undo"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Credits Table Card -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-white py-3 px-4 border-0 d-flex justify-content-between align-items-center">
+            <h2 class="h5 fw-bold mb-0 text-dark">
+                <i class="fas fa-list-alt text-primary me-2"></i>Lista de Créditos ({{ creditos|length }})
+            </h2>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-creditos mb-0">
+                <thead>
+                    <tr>
+                        <th>N° Crédito</th>
+                        <th>Fecha Emisión</th>
+                        <th>Cliente</th>
+                        <th>Venta / Referencia</th>
+                        <th>Monto Total</th>
+                        <th>Pagado</th>
+                        <th>Saldo Pendiente</th>
+                        <th>Vencimiento</th>
+                        <th>Estado</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if creditos %}
+                        {% for c in creditos %}
+                        <tr>
+                            <td>
+                                <strong class="text-primary">#CR-{{ "%04d"|format(c.id) }}</strong>
+                            </td>
+                            <td>
+                                <div>{{ c.fecha_credito.strftime('%d/%m/%Y') if c.fecha_credito else '-' }}</div>
+                                <small class="text-muted">{{ c.fecha_credito.strftime('%H:%M') if c.fecha_credito else '' }}</small>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="client-avatar">
+                                        {{ c.cliente_nombre[:1].upper() if c.cliente_nombre else 'C' }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ c.cliente_nombre }}</div>
+                                        <div class="text-muted small">
+                                            {% if c.cliente_documento %}<span class="badge bg-light text-secondary me-1">DNI/RUC: {{ c.cliente_documento }}</span>{% endif %}
+                                            {% if c.cliente_telefono %}<span><i class="fas fa-phone-alt me-1"></i>{{ c.cliente_telefono }}</span>{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if c.numero_venta %}
+                                    <a href="/venta/ticket/{{ c.venta_id }}" target="_blank" class="badge bg-primary-subtle text-primary text-decoration-none">
+                                        <i class="fas fa-receipt me-1"></i>{{ c.numero_venta }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted small">Crédito Directo</span>
+                                {% endif %}
+                                {% if c.notas %}
+                                    <div class="text-muted small text-truncate" style="max-width: 160px;" title="{{ c.notas }}">
+                                        {{ c.notas }}
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="fw-bold text-dark">S/ {{ "%.2f"|format(c.monto_total) }}</span>
+                            </td>
+                            <td>
+                                <span class="text-success fw-semibold">S/ {{ "%.2f"|format(c.monto_pagado) }}</span>
+                            </td>
+                            <td>
+                                {% if c.saldo_pendiente > 0 %}
+                                    <span class="fw-bold text-danger">S/ {{ "%.2f"|format(c.saldo_pendiente) }}</span>
+                                {% else %}
+                                    <span class="badge bg-success-subtle text-success">S/ 0.00</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if c.fecha_vencimiento %}
+                                    <div>{{ c.fecha_vencimiento.strftime('%d/%m/%Y') }}</div>
+                                    {% if c.saldo_pendiente > 0 %}
+                                        {% if c.dias_restantes is not none %}
+                                            {% if c.dias_restantes < 0 %}
+                                                <span class="badge bg-danger">Vencido hace {{ (c.dias_restantes)|abs }}d</span>
+                                            {% elif c.dias_restantes == 0 %}
+                                                <span class="badge bg-warning text-dark">Vence hoy</span>
+                                            {% elif c.dias_restantes <= 5 %}
+                                                <span class="badge bg-warning text-dark">{{ c.dias_restantes }}d restantes</span>
+                                            {% else %}
+                                                <span class="text-muted small">{{ c.dias_restantes }}d restantes</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="status-badge {{ c.estado }}">
+                                    {% if c.estado == 'pagado' %}
+                                        <i class="fas fa-check-circle"></i> Pagado
+                                    {% elif c.estado == 'parcial' %}
+                                        <i class="fas fa-adjust"></i> Parcial
+                                    {% elif c.estado == 'vencido' %}
+                                        <i class="fas fa-exclamation-circle"></i> Vencido
+                                    {% else %}
+                                        <i class="fas fa-clock"></i> Pendiente
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                <div class="d-flex justify-content-end gap-1">
+                                    {% if c.saldo_pendiente > 0 %}
+                                    <button class="btn btn-sm btn-success fw-semibold" onclick="abrirModalAbono({{ c.id }}, '{{ c.cliente_nombre }}', {{ c.saldo_pendiente }})" title="Registrar Abono">
+                                        <i class="fas fa-hand-holding-usd me-1"></i> Abonar
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-primary" onclick="verDetallesCredito({{ c.id }})" title="Ver Historial de Abonos">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-muted">
+                                <i class="fas fa-inbox fa-3x mb-3 text-secondary opacity-50"></i>
+                                <p class="mb-1 fw-semibold">No se encontraron créditos registrados con los filtros seleccionados.</p>
+                                <small>Los créditos se generan automáticamente al procesar ventas con método de pago "Crédito" o registrándolos manualmente.</small>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Registrar Abono / Pago -->
+<div class="modal fade" id="modalAbono" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-success text-white py-3 px-4">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-cash-register me-2"></i>Registrar Abono al Crédito
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAbono" method="POST" action="">
+                <div class="modal-body p-4">
+                    <div class="alert alert-light border rounded-3 p-3 mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Cliente:</span>
+                            <strong id="abonoClienteNombre" class="text-dark">---</strong>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Saldo Pendiente:</span>
+                            <span class="h5 mb-0 fw-bold text-danger" id="abonoSaldoPendiente">S/ 0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Monto a Abonar (S/.) *</label>
+                        <div class="input-group">
+                            <span class="input-group-text">S/</span>
+                            <input type="number" step="0.01" min="0.01" name="monto" id="inputMontoAbono" class="form-control form-control-lg fw-bold" required placeholder="0.00">
+                            <button type="button" class="btn btn-outline-secondary" onclick="llenarMontoTotal()">
+                                Pagar Todo
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Método de Pago *</label>
+                        <select name="metodo_pago" class="form-select">
+                            <option value="efectivo">💵 Efectivo</option>
+                            <option value="yape">📱 Yape / Plin</option>
+                            <option value="tarjeta">💳 Tarjeta (POS)</option>
+                            <option value="transferencia">🏦 Transferencia Bancaria</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Notas / Referencia (Opcional)</label>
+                        <input type="text" name="notas" class="form-control" placeholder="Ej. Pago con billete de 100, N° op Yape 4587...">
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">
+                        <i class="fas fa-check-circle me-1"></i> Confirmar Abono
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Nuevo Crédito Manual -->
+<div class="modal fade" id="modalNuevoCredito" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-primary text-white py-3 px-4">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-plus-circle me-2"></i>Registrar Nuevo Crédito Manual
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('nuevo_credito') }}">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Seleccionar Cliente *</label>
+                        <select name="cliente_id" class="form-select select2-cliente" required>
+                            <option value="">-- Selecciona un cliente registrado --</option>
+                            {% for cli in clientes %}
+                                <option value="{{ cli.id or cli[0] }}">
+                                    {{ cli.nombre or cli[1] }} {% if cli.documento or cli[5] %}(Doc: {{ cli.documento or cli[5] }}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">El crédito debe asociarse a un cliente registrado.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Monto del Crédito (S/.) *</label>
+                        <div class="input-group">
+                            <span class="input-group-text">S/</span>
+                            <input type="number" step="0.01" min="0.00" name="monto" class="form-control form-control-lg fw-bold" required placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Fecha de Vencimiento *</label>
+                        <input type="date" name="fecha_vencimiento" class="form-control" id="nuevoCreditoFechaVenc" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-dark">Motivo / Notas del Crédito</label>
+                        <textarea name="notas" class="form-control" rows="2" placeholder="Ej. Servicio médico a crédito, productos veterinarios con pago a 30 días..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-secondary px-3" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="fas fa-save me-1"></i> Guardar Crédito
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Ver Detalle de Crédito y Abonos -->
+<div class="modal fade" id="modalDetalleCredito" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h5 class="modal-title fw-bold" id="detalleCreditoTitulo">
+                    <i class="fas fa-receipt me-2 text-warning"></i>Detalle del Crédito
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="detalleLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Cargando información del crédito...</p>
+                </div>
+                <div id="detalleContenido" style="display:none;">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <span class="text-muted small d-block">Cliente</span>
+                                <strong class="h6 d-block mb-1 text-dark" id="detClienteNombre">---</strong>
+                                <span class="small text-muted" id="detClienteDoc"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-muted small">Monto Total:</span>
+                                    <strong id="detMontoTotal" class="text-dark">S/ 0.00</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-1">
+                                    <span class="text-muted small">Total Pagado:</span>
+                                    <span class="text-success fw-bold" id="detMontoPagado">S/ 0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted small">Saldo Pendiente:</span>
+                                    <span class="text-danger fw-bold h6 mb-0" id="detSaldoPendiente">S/ 0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold mb-3 d-flex align-items-center gap-2">
+                        <i class="fas fa-history text-primary"></i> Historial de Abonos Realizados
+                    </h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha y Hora</th>
+                                    <th>Monto Abonado</th>
+                                    <th>Método de Pago</th>
+                                    <th>Atendido por</th>
+                                    <th>Notas</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detAbonosTbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light p-3">
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let saldoPendienteActual = 0;
+
+    // Set default date for new credit modal to +30 days
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputFechaVenc = document.getElementById('nuevoCreditoFechaVenc');
+        if (inputFechaVenc) {
+            const fecha = new Date();
+            fecha.setDate(fecha.getDate() + 30);
+            inputFechaVenc.value = fecha.toISOString().split('T')[0];
+        }
+    });
+
+    function abrirModalAbono(creditoId, clienteNombre, saldoPendiente) {
+        saldoPendienteActual = saldoPendiente;
+        document.getElementById('formAbono').action = `/creditos/${creditoId}/abonar`;
+        document.getElementById('abonoClienteNombre').innerText = clienteNombre;
+        document.getElementById('abonoSaldoPendiente').innerText = `S/ ${saldoPendiente.toFixed(2)}`;
+        
+        const inputMonto = document.getElementById('inputMontoAbono');
+        inputMonto.max = saldoPendiente;
+        inputMonto.value = saldoPendiente.toFixed(2);
+
+        const modal = new bootstrap.Modal(document.getElementById('modalAbono'));
+        modal.show();
+    }
+
+    function llenarMontoTotal() {
+        document.getElementById('inputMontoAbono').value = saldoPendienteActual.toFixed(2);
+    }
+
+    function verDetallesCredito(creditoId) {
+        const modal = new bootstrap.Modal(document.getElementById('modalDetalleCredito'));
+        modal.show();
+
+        document.getElementById('detalleLoading').style.display = 'block';
+        document.getElementById('detalleContenido').style.display = 'none';
+
+        fetch(`/api/creditos/${creditoId}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('detalleLoading').style.display = 'none';
+                if (!data.success) {
+                    alert('Error: ' + data.error);
+                    modal.hide();
+                    return;
+                }
+
+                const c = data.credito;
+                document.getElementById('detalleCreditoTitulo').innerHTML = `
+                    <i class="fas fa-receipt me-2 text-warning"></i>Detalle del Crédito #CR-${String(c.id).padStart(4, '0')}
+                `;
+                document.getElementById('detClienteNombre').innerText = c.cliente_nombre;
+                document.getElementById('detClienteDoc').innerText = c.cliente_documento ? `DNI/RUC: ${c.cliente_documento}` : '';
+                document.getElementById('detMontoTotal').innerText = `S/ ${c.monto_total.toFixed(2)}`;
+                document.getElementById('detMontoPagado').innerText = `S/ ${c.monto_pagado.toFixed(2)}`;
+                document.getElementById('detSaldoPendiente').innerText = `S/ ${c.saldo_pendiente.toFixed(2)}`;
+
+                const tbody = document.getElementById('detAbonosTbody');
+                if (c.abonos && c.abonos.length > 0) {
+                    let html = '';
+                    c.abonos.forEach(ab => {
+                        html += `
+                            <tr>
+                                <td>${ab.fecha_abono ? ab.fecha_abono.substring(0, 16) : '-'}</td>
+                                <td class="fw-bold text-success">S/ ${ab.monto.toFixed(2)}</td>
+                                <td><span class="badge bg-light text-dark border text-uppercase">${ab.metodo_pago}</span></td>
+                                <td>${ab.usuario_nombre || 'Cajero'}</td>
+                                <td><small class="text-muted">${ab.notas || '-'}</small></td>
+                            </tr>
+                        `;
+                    });
+                    tbody.innerHTML = html;
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center py-3 text-muted">
+                                Aún no se han registrado abonos para este crédito.
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                document.getElementById('detalleContenido').style.display = 'block';
+            })
+            .catch(err => {
+                document.getElementById('detalleLoading').style.display = 'none';
+                alert('Error al consultar los detalles del crédito.');
+            });
+    }
+</script>
+{% endblock %}

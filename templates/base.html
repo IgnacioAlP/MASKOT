@@ -76,6 +76,11 @@
                             <i class="fas fa-cash-register me-2"></i>Ventas
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('listar_creditos') }}">
+                            <i class="fas fa-hand-holding-usd me-2"></i>Créditos
+                        </a>
+                    </li>
                     {% if session.rol == 'empleado' %}
                     <li class="nav-item">
                         <a class="nav-link maskot-nav-link" href="{{ url_for('almacen') }}">
@@ -98,6 +103,8 @@
                                         class="fas fa-users me-2"></i>Personal</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('clientes') }}"><i
                                         class="fas fa-address-card me-2"></i>Clientes</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('listar_creditos') }}"><i
+                                        class="fas fa-hand-holding-usd me-2"></i>Créditos y Cuentas por Cobrar</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('almacen') }}"><i
                                         class="fas fa-boxes me-2"></i>Almacén</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('mascota') }}"><i

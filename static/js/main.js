@@ -1829,16 +1829,24 @@ window.cambiarMetodoPago = function() {
     const metodo = document.getElementById('metodo_pago').value;
     const dineroSection = document.getElementById('dinero-section');
     const multipagoSection = document.getElementById('multipago-section');
+    const creditoSection = document.getElementById('credito-section');
     if (metodo === 'efectivo') {
-        dineroSection.style.display = 'block';
-        multipagoSection.style.display = 'none';
+        if (dineroSection) dineroSection.style.display = 'block';
+        if (multipagoSection) multipagoSection.style.display = 'none';
+        if (creditoSection) creditoSection.style.display = 'none';
     } else if (metodo === 'multipago') {
-        dineroSection.style.display = 'none';
-        multipagoSection.style.display = 'block';
+        if (dineroSection) dineroSection.style.display = 'none';
+        if (multipagoSection) multipagoSection.style.display = 'block';
+        if (creditoSection) creditoSection.style.display = 'none';
         window.calcularMultipago && window.calcularMultipago();
+    } else if (metodo === 'credito') {
+        if (dineroSection) dineroSection.style.display = 'none';
+        if (multipagoSection) multipagoSection.style.display = 'none';
+        if (creditoSection) creditoSection.style.display = 'block';
     } else {
-        dineroSection.style.display = 'none';
-        multipagoSection.style.display = 'none';
+        if (dineroSection) dineroSection.style.display = 'none';
+        if (multipagoSection) multipagoSection.style.display = 'none';
+        if (creditoSection) creditoSection.style.display = 'none';
     }
     window.actualizarBotonPagar && window.actualizarBotonPagar();
 }
@@ -1940,13 +1948,13 @@ window.actualizarBotonPagar = function() {
     }
     if (metodo === 'efectivo') {
         const montoRecibido = parseFloat(document.getElementById('monto_recibido').value) || 0;
-        puedeProceder = montoRecibido >= window.total && window.total > 0;
+        puedeProceder = montoRecibido >= window.total && window.total >= 0;
     } else if (metodo === 'multipago') {
         const monto1 = parseFloat(document.getElementById('monto1').value) || 0;
         const monto2 = parseFloat(document.getElementById('monto2').value) || 0;
-        puedeProceder = (monto1 + monto2) >= window.total && monto1 > 0 && monto2 > 0 && window.total > 0;
+        puedeProceder = (monto1 + monto2) >= window.total && window.total >= 0;
     } else {
-        puedeProceder = window.total > 0;
+        puedeProceder = window.total >= 0;
     }
     if (puedeProceder) {
         btnPagar.disabled = false;
@@ -2042,7 +2050,13 @@ window.procesarPago = function() {
                 const referenciaYape = referenciaYapeElem ? (referenciaYapeElem.value || '').trim() : '';
 
                 const payload = {
-                    productos: venta.productos.map(p => ({id: p.id, nombre: p.nombre, precio: p.precio, cantidad: p.cantidad})),
+                    productos: venta.productos.map(p => ({
+                        id: p.id,
+                        nombre: p.nombre,
+                        precio: p.precio,
+                        cantidad: p.cantidad,
+                        tipo: p.tipo || 'producto'
+                    })),
                     subtotal: venta.subtotal,
                     igv: venta.igv,
                     total: venta.total,

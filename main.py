@@ -19,7 +19,8 @@ from controladores import (
     asistencia_controlador,
     clientes_controlador,
     compras_controlador,
-    ventas_controlador
+    ventas_controlador,
+    creditos_controlador
 )
 # Módulo de fidelización (moved into controladores)
 from controladores import fidelizacion_controlador as fidelizacion
@@ -2817,7 +2818,7 @@ def procesar_venta():
         data['vendedor_nombre'] = session.get('usuario', 'Usuario')
         
         # Validar método de pago
-        metodos_validos = ['efectivo', 'tarjeta', 'yape', 'multipago']
+        metodos_validos = ['efectivo', 'tarjeta', 'yape', 'multipago', 'credito']
         if data['metodo_pago'] not in metodos_validos:
             return jsonify({'success': False, 'error': 'Método de pago no válido'})
 
@@ -3076,6 +3077,137 @@ def toggle_tenant(tenant_id):
     finally:
         conexion.close()
     return redirect(url_for('gestionar_tenants'))
+
+
+# ─── MÓDULO DE CRÉDITOS ──────────────────────────────────────────────────────
+
+@app.route('/creditos', endpoint='listar_creditos')
+@app.route('/creditos/listar')
+def listar_creditos():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    tenant_id = session.get('tenant_id', 1)
+    estado = request.args.get('estado', 'todos').strip()
+    busqueda = request.args.get('busqueda', '').strip()
+    fecha_inicio = request.args.get('fecha_inicio', '').strip()
+    fecha_fin = request.args.get('fecha_fin', '').strip()
+
+    filtros = {
+        'estado': estado,
+        'busqueda': busqueda,
+        'fecha_inicio': fecha_inicio if fecha_inicio else None,
+        'fecha_fin': fecha_fin if fecha_fin else None
+    }
+
+    creditos = creditos_controlador.obtener_creditos(filtros, tenant_id)
+    resumen = creditos_controlador.obtener_resumen_creditos(tenant_id)
+    clientes = clientes_controlador.obtener_clientes(tenant_id)
+
+    return render_template(
+        'creditos.html',
+        creditos=creditos,
+        resumen=resumen,
+        filtros=filtros,
+        clientes=clientes
+    )
+
+
+@app.route('/creditos/nuevo', methods=['POST'])
+def nuevo_credito():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    tenant_id = session.get('tenant_id', 1)
+    cliente_id = request.form.get('cliente_id') or (request.json.get('cliente_id') if request.is_json else None)
+    monto = request.form.get('monto') or (request.json.get('monto') if request.is_json else 0.0)
+    fecha_vencimiento = request.form.get('fecha_vencimiento') or (request.json.get('fecha_vencimiento') if request.is_json else None)
+    notas = request.form.get('notas') or (request.json.get('notas') if request.is_json else None)
+
+    if not cliente_id:
+        flash('Debe seleccionar un cliente para el crédito', 'error')
+        return redirect(url_for('listar_creditos'))
+
+    cli = clientes_controlador.obtener_cliente_por_id(int(cliente_id), tenant_id)
+    if not cli:
+        flash('Cliente no encontrado', 'error')
+        return redirect(url_for('listar_creditos'))
+
+    cliente_nombre = cli[1]
+    cliente_doc = cli[5] if len(cli) > 5 else None
+
+    res = creditos_controlador.crear_credito(
+        cliente_id=int(cliente_id),
+        cliente_nombre=cliente_nombre,
+        cliente_documento=cliente_doc,
+        monto_total=float(monto or 0.0),
+        fecha_vencimiento=fecha_vencimiento,
+        notas=notas,
+        tenant_id=tenant_id
+    )
+
+    if res.get('success'):
+        flash('Crédito creado exitosamente', 'success')
+    else:
+        flash(f"Error creando crédito: {res.get('error')}", 'error')
+
+    return redirect(url_for('listar_creditos'))
+
+
+@app.route('/creditos/<int:id>/abonar', methods=['POST'])
+def abonar_credito(id):
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    tenant_id = session.get('tenant_id', 1)
+    usuario_nombre = session.get('usuario') or session.get('username') or 'Cajero'
+
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+    monto = float(data.get('monto', 0.0) or 0.0)
+    metodo_pago = data.get('metodo_pago', 'efectivo')
+    notas = data.get('notas', '')
+
+    res = creditos_controlador.registrar_abono(
+        credito_id=id,
+        monto=monto,
+        metodo_pago=metodo_pago,
+        notas=notas,
+        usuario_nombre=usuario_nombre,
+        tenant_id=tenant_id
+    )
+
+    if request.is_json or request.headers.get('Accept') == 'application/json':
+        return jsonify(res)
+
+    if res.get('success'):
+        flash(f"Abono de S/ {monto:.2f} registrado exitosamente.", 'success')
+    else:
+        flash(f"Error: {res.get('error')}", 'error')
+
+    return redirect(url_for('listar_creditos'))
+
+
+@app.route('/api/creditos/<int:id>', methods=['GET'])
+def api_detalle_credito(id):
+    if 'rol' not in session:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+
+    tenant_id = session.get('tenant_id', 1)
+    credito = creditos_controlador.obtener_credito_por_id(id, tenant_id)
+    if not credito:
+        return jsonify({'success': False, 'error': 'Crédito no encontrado'}), 404
+
+    if credito.get('fecha_credito'):
+        credito['fecha_credito'] = str(credito['fecha_credito'])
+    if credito.get('fecha_vencimiento'):
+        credito['fecha_vencimiento'] = str(credito['fecha_vencimiento'])
+    for ab in credito.get('abonos', []):
+        if ab.get('fecha_abono'):
+            ab['fecha_abono'] = str(ab['fecha_abono'])
+
+    return jsonify({'success': True, 'credito': credito})
+
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ Controlador para el manejo y procesamiento de ventas (PostgreSQL / Supabase)
 """
 
 from bd import obtener_conexion, obtener_tenant_id
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 
@@ -60,14 +60,18 @@ def procesar_venta(datos_venta):
             cliente_documento = datos_venta.get('cliente_documento')
             notas = datos_venta.get('notas')
 
-            # Si el nombre no viene provisto desde el cliente, se resuelve con el cliente_id
-            if not cliente_nombre:
-                cliente_id_raw = datos_venta.get('cliente_id')
-                cliente_nombre, doc_res = resolver_cliente(cursor, cliente_id_raw, tenant_id)
+            # Resolver cliente explícito sin caer al general cuando ya se seleccionó uno
+            cliente_id_raw = datos_venta.get('cliente_id') or datos_venta.get('id_cliente') or datos_venta.get('clienteId')
+            if cliente_id_raw is not None and str(cliente_id_raw).strip() != '':
+                cliente_nombre_resuelto, doc_res = resolver_cliente(cursor, cliente_id_raw, tenant_id)
+                if cliente_nombre_resuelto and cliente_nombre_resuelto.strip() not in ('Cliente General', ''):
+                    cliente_nombre = cliente_nombre_resuelto
+                    if not cliente_documento:
+                        cliente_documento = doc_res
+            elif not cliente_nombre:
+                cliente_nombre, doc_res = resolver_cliente(cursor, None, tenant_id)
                 if not cliente_documento:
                     cliente_documento = doc_res
-
-            
 
             # Calcular totales si no vienen
             if 'subtotal' not in datos_venta or 'total' not in datos_venta:
@@ -116,9 +120,9 @@ def procesar_venta(datos_venta):
                     numero_venta, fecha_venta, subtotal, igv, total,
                     metodo_pago, monto_recibido, cambio_entregado, referencia_pago,
                     estado, vendedor_id, vendedor_nombre, productos,
-                    cliente_nombre, cliente_documento, notas,
+                    cliente_id, cliente_nombre, cliente_documento, notas,
                     tenant_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 numero_venta, datetime.now(), datos_venta['subtotal'],
@@ -126,15 +130,16 @@ def procesar_venta(datos_venta):
                 datos_venta.get('monto_recibido', None), datos_venta.get('cambio_entregado', datos_venta.get('cambio', 0)),
                 referencia,
                 'completada', vendedor_id, vendedor_nombre, json.dumps(productos),
+                datos_venta.get('cliente_id') or datos_venta.get('id_cliente') or None,
                 cliente_nombre, cliente_documento, notas,
                 tenant_id
             ))
 
             venta_id = cursor.fetchone()[0]
 
-            # Reducir stock dentro de la misma transacción
+            # Reducir stock dentro de la misma transacción (solo productos físicos)
             for p in productos:
-                if p.get('tipo') == 'servicio':
+                if p.get('tipo') == 'servicio' or p.get('es_servicio'):
                     continue
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
@@ -145,6 +150,56 @@ def procesar_venta(datos_venta):
                     nombre_db = rname[0] if rname and rname[0] else f'id {pid}'
                     conexion.rollback()
                     return {'success': False, 'error': f'No hay suficiente stock para el producto "{nombre_db}"'}
+
+            # Si el método de pago es crédito, crear registro en la tabla credito
+            if datos_venta.get('metodo_pago') == 'credito':
+                cid = datos_venta.get('cliente_id') or datos_venta.get('id_cliente')
+                if not cid or not cliente_nombre or cliente_nombre.strip().lower() in ('cliente general', ''):
+                    conexion.rollback()
+                    return {'success': False, 'error': 'Para ventas a crédito es obligatorio seleccionar un cliente registrado.'}
+
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS credito (
+                        id SERIAL PRIMARY KEY,
+                        venta_id INT NULL REFERENCES ventas(id) ON DELETE SET NULL,
+                        cliente_id INT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+                        cliente_nombre VARCHAR(255) NOT NULL,
+                        cliente_documento VARCHAR(50),
+                        monto_total NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+                        monto_pagado NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+                        saldo_pendiente NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+                        fecha_credito TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        fecha_vencimiento DATE,
+                        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                        notas TEXT,
+                        tenant_id INT DEFAULT 1,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+
+                dias_plazo = int(datos_venta.get('dias_plazo', 30) or 30)
+                fecha_venc = datos_venta.get('fecha_vencimiento')
+                if not fecha_venc:
+                    fecha_venc = (datetime.now() + timedelta(days=dias_plazo)).date()
+
+                tot_val = float(datos_venta.get('total', 0.0))
+                est_cred = 'pagado' if tot_val <= 0 else 'pendiente'
+                sal_cred = 0.0 if tot_val <= 0 else tot_val
+
+                cursor.execute("""
+                    INSERT INTO credito (
+                        venta_id, cliente_id, cliente_nombre, cliente_documento,
+                        monto_total, monto_pagado, saldo_pendiente,
+                        fecha_credito, fecha_vencimiento, estado, notas, tenant_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s)
+                """, (
+                    venta_id, cid, cliente_nombre, cliente_documento,
+                    tot_val, 0.0, sal_cred,
+                    fecha_venc, est_cred,
+                    datos_venta.get('notas_credito') or f"Crédito por venta {numero_venta}",
+                    tenant_id
+                ))
 
             conexion.commit()
 
@@ -583,13 +638,17 @@ def obtener_productos_mas_vendidos(fecha_inicio=None, fecha_fin=None, limit=10):
 
 
 def validar_stock_productos(productos):
-    """Valida si hay stock suficiente para la lista de productos."""
+    """Valida si hay stock suficiente para la lista de productos (ignora servicios)."""
     errores = []
     errores_obj = []
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
             for p in productos:
+                # Los servicios no manejan inventario de productos físicos
+                if p.get('tipo') == 'servicio' or p.get('es_servicio'):
+                    continue
+
                 pid = p.get('id')
                 cantidad = int(p.get('cantidad', p.get('qty', 0)) or 0)
                 nombre_prov = p.get('nombre') or None
@@ -598,9 +657,17 @@ def validar_stock_productos(productos):
                     errores.append(msg)
                     errores_obj.append({'id': pid, 'nombre': nombre_prov or '', 'msg': msg})
                     continue
+
                 cursor.execute("SELECT cantidad, nombre FROM productos WHERE id = %s", (pid,))
                 row = cursor.fetchone()
                 if not row:
+                    # Fallback de seguridad: si no está en productos, verificar si es un servicio
+                    cursor.execute("SELECT id, nombre FROM servicios WHERE id = %s", (pid,))
+                    row_serv = cursor.fetchone()
+                    if row_serv:
+                        p['tipo'] = 'servicio'
+                        continue
+
                     msg = f'Producto "{nombre_prov or pid}" no existe'
                     errores.append(msg)
                     errores_obj.append({'id': pid, 'nombre': nombre_prov or '', 'msg': msg})

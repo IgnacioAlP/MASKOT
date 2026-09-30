@@ -64,6 +64,14 @@
                     <p>Exportar informe a Excel</p>
                 </a>
 
+                <!-- Card Créditos -->
+                <a href="{{ url_for('listar_creditos') }}" class="action-card"
+                    style="border-left: 4px solid #f59e0b;">
+                    <i class="fas fa-hand-holding-usd" style="color: #f59e0b;"></i>
+                    <h3>Módulo de Créditos</h3>
+                    <p>Cobros, saldos y abonos</p>
+                </a>
+
                 {% if session.rol in ['admin', 'empleado'] %}
                 <a href="{{ url_for('citas') }}" class="action-card">
                     <i class="fas fa-calendar-check"></i>
