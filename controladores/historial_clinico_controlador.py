@@ -22,10 +22,10 @@ def asegurar_tabla_historial(cursor):
 
 def obtener_mascotas_con_alertas(tenant_id=None):
     tenant_id = tenant_id if tenant_id is not None else obtener_tenant_id()
-    conexion = obtener_conexion()
+    conexion = None
     try:
+        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            asegurar_tabla_historial(cursor)
             cursor.execute("""
                 SELECT m.id, m.nombre, m.especie, COALESCE(m.raza, ''),
                                              COALESCE(c.nombre, 'Sin dueño'), COALESCE(c.telefono, ''),
@@ -70,7 +70,6 @@ def obtener_mascota_historial(mascota_id, tenant_id=None):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            asegurar_tabla_historial(cursor)
             cursor.execute("""
                 SELECT m.id, m.nombre, m.especie, COALESCE(m.raza, ''),
                        COALESCE(m.edad, 0), COALESCE(m.peso, 0),
@@ -134,10 +133,10 @@ def registrar_visita(mascota_id, fecha_visita, servicio, diagnostico='', tratami
     if not servicio or not fecha_visita:
         return {'success': False, 'error': 'La fecha y el servicio son obligatorios.'}
 
-    conexion = obtener_conexion()
+    conexion = None
     try:
+        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            asegurar_tabla_historial(cursor)
             cursor.execute("""
                 SELECT id FROM mascotas
                 WHERE id = %s AND tenant_id = %s AND activo = TRUE
@@ -156,7 +155,9 @@ def registrar_visita(mascota_id, fecha_visita, servicio, diagnostico='', tratami
             conexion.commit()
             return {'success': True, 'visita_id': visita_id}
     except Exception as e:
-        conexion.rollback()
+        if conexion:
+            conexion.rollback()
         return {'success': False, 'error': str(e)}
     finally:
-        conexion.close()
+        if conexion:
+            conexion.close()

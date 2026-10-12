@@ -89,6 +89,8 @@ def _ensure_schema():
                 if not cursor.fetchone():
                     cursor.execute(sql)
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
+            creditos_controlador.asegurar_tablas_credito(cursor)
+            historial_clinico_controlador.asegurar_tabla_historial(cursor)
         conn.commit()
     except Exception as e:
         if conn:

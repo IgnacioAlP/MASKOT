@@ -134,6 +134,7 @@ def _ensure_schema():
 
             try:
                 creditos_controlador.asegurar_tablas_credito(cursor)
+                historial_clinico_controlador.asegurar_tabla_historial(cursor)
                 conn.commit()
             except Exception as e_cr:
                 conn.rollback()
@@ -1030,7 +1031,6 @@ def procesar_venta():
             if metodo_pago == 'credito':
                 if not final_cliente_id or not cliente_nombre or cliente_nombre.strip().lower() in ('cliente general', ''):
                     conexion.rollback()
-                    conexion.close()
                     return jsonify({
                         'success': False,
                         'error': 'Para ventas a crédito es obligatorio seleccionar un cliente registrado.'
@@ -1078,7 +1078,6 @@ def procesar_venta():
                 saldo_cred = 0.0 if total <= 0 else total
                 notas_cred = data.get('notas_credito') or f"Crédito por venta {num_venta}"
 
-                creditos_controlador.asegurar_tablas_credito(cursor)
                 cursor.execute("""
                     INSERT INTO credito (
                         venta_id, cliente_id, cliente_nombre, cliente_documento,
@@ -1092,7 +1091,6 @@ def procesar_venta():
                 ))
 
         conexion.commit()
-        conexion.close()
 
         return jsonify({'success': True, 'venta_id': venta_id, 'ticket_url': f"/venta/ticket/{venta_id}"})
 
@@ -1106,6 +1104,9 @@ def procesar_venta():
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        if 'conexion' in locals() and conexion:
+            conexion.close()
 
 @app.route('/ventas/scan-push', methods=['POST'])
 def scan_push():

@@ -175,26 +175,6 @@ def procesar_venta(datos_venta):
                     conexion.rollback()
                     return {'success': False, 'error': 'Para ventas a crédito es obligatorio seleccionar un cliente registrado.'}
 
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS credito (
-                        id SERIAL PRIMARY KEY,
-                        venta_id INT NULL REFERENCES ventas(id) ON DELETE SET NULL,
-                        cliente_id INT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-                        cliente_nombre VARCHAR(255) NOT NULL,
-                        cliente_documento VARCHAR(50),
-                        monto_total NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-                        monto_pagado NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-                        saldo_pendiente NUMERIC(12,2) NOT NULL DEFAULT 0.00,
-                        fecha_credito TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        fecha_vencimiento DATE,
-                        estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
-                        notas TEXT,
-                        tenant_id INT DEFAULT 1,
-                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                    );
-                """)
-
                 dias_plazo = int(datos_venta.get('dias_plazo', 30) or 30)
                 fecha_venc = datos_venta.get('fecha_vencimiento')
                 if not fecha_venc:

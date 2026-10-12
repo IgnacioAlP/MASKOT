@@ -13,19 +13,22 @@ logger = logging.getLogger(__name__)
 
 def asegurar_metodo_pago_credito():
     """Asegura que el enum de ventas permita registrar pagos a crédito."""
-    conexion = obtener_conexion()
+    conexion = None
     try:
+        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("ALTER TYPE public.metodo_pago_enum ADD VALUE IF NOT EXISTS 'multipago'")
             cursor.execute("ALTER TYPE public.metodo_pago_enum ADD VALUE IF NOT EXISTS 'credito'")
         conexion.commit()
         return True
     except Exception as e:
-        conexion.rollback()
+        if conexion:
+            conexion.rollback()
         logger.warning(f"No se pudo habilitar el método de pago crédito: {e}")
         return False
     finally:
-        conexion.close()
+        if conexion:
+            conexion.close()
 
 
 def asegurar_tablas_credito(cursor):
@@ -68,11 +71,13 @@ def asegurar_tablas_credito(cursor):
 def crear_credito(cliente_id, cliente_nombre, cliente_documento=None, monto_total=0.0,
                   venta_id=None, fecha_vencimiento=None, notas=None, tenant_id=None):
     """Crea un nuevo registro de crédito para un cliente."""
-    conexion = obtener_conexion()
     if tenant_id is None:
         tenant_id = obtener_tenant_id()
 
-    monto_total = float(monto_total or 0.0)
+    try:
+        monto_total = float(monto_total or 0.0)
+    except (TypeError, ValueError):
+        return {'success': False, 'error': 'El monto del crédito debe ser un número válido.'}
     if not math.isfinite(monto_total) or monto_total <= 0:
         return {'success': False, 'error': 'El monto del crédito debe ser mayor a cero.'}
     estado = 'pendiente'
@@ -81,9 +86,10 @@ def crear_credito(cliente_id, cliente_nombre, cliente_documento=None, monto_tota
     if not fecha_vencimiento:
         fecha_vencimiento = (datetime.now() + timedelta(days=30)).date()
 
+    conexion = None
     try:
+        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
-            asegurar_tablas_credito(cursor)
             cursor.execute("""
                 SELECT nombre, documento FROM clientes
                 WHERE id = %s AND tenant_id = %s AND activo = TRUE
@@ -110,11 +116,13 @@ def crear_credito(cliente_id, cliente_nombre, cliente_documento=None, monto_tota
             conexion.commit()
             return {'success': True, 'credito_id': credito_id}
     except Exception as e:
-        conexion.rollback()
+        if conexion:
+            conexion.rollback()
         logger.error(f"Error creando crédito: {e}")
         return {'success': False, 'error': str(e)}
     finally:
-        conexion.close()
+        if conexion:
+            conexion.close()
 
 
 def obtener_creditos(filtros=None, tenant_id=None):
@@ -129,8 +137,6 @@ def obtener_creditos(filtros=None, tenant_id=None):
 
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_credito(cursor)
-
             # Auto-actualizar créditos vencidos
             cursor.execute("""
                 UPDATE credito 
@@ -241,7 +247,6 @@ def obtener_credito_por_id(credito_id, tenant_id=None):
 
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_credito(cursor)
             cursor.execute("""
                 SELECT 
                     cr.id,
@@ -332,8 +337,6 @@ def registrar_abono(credito_id, monto, metodo_pago='efectivo', notas=None, usuar
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_credito(cursor)
-
             cursor.execute("""
                 SELECT monto_total, monto_pagado, saldo_pendiente, estado
                 FROM credito
@@ -417,8 +420,6 @@ def obtener_resumen_creditos(tenant_id=None):
 
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_credito(cursor)
-
             cursor.execute("""
                 SELECT 
                     COALESCE(SUM(monto_total), 0) AS total_otorgado,

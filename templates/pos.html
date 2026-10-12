@@ -803,8 +803,11 @@
 
         console.log(">>> ENVIANDO PAYLOAD DESDE POS:", payload);
 
+        const requestController = new AbortController();
+        const requestTimeout = setTimeout(() => requestController.abort(), 35000);
         fetch('/ventas/procesar', {
             method: 'POST',
+            signal: requestController.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -836,12 +839,15 @@
             })
             .catch(err => {
                 console.error('Error:', err);
-                alert('Ocurrió un error al guardar la venta.');
+                alert(err.name === 'AbortError'
+                    ? 'La base de datos tardó demasiado en responder. La operación fue cancelada; vuelve a consultar las ventas antes de reintentar.'
+                    : 'Ocurrió un error al guardar la venta.');
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
                 }
-            });
+            })
+            .finally(() => clearTimeout(requestTimeout));
     };
 
     window.imprimirTicket = function () {

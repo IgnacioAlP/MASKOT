@@ -58,9 +58,15 @@ def construir_config_db():
 
 def obtener_conexion():
     db_cfg = construir_config_db()
+    connect_timeout = int(os.environ.get('DB_CONNECT_TIMEOUT_SECONDS', '10'))
+    statement_timeout = int(os.environ.get('DB_STATEMENT_TIMEOUT_MS', '30000'))
+    lock_timeout = int(os.environ.get('DB_LOCK_TIMEOUT_MS', '5000'))
+    connection_options = f"-c statement_timeout={statement_timeout} -c lock_timeout={lock_timeout}"
 
     if 'url' in db_cfg:
-        conn = psycopg2.connect(db_cfg['url'])
+        conn = psycopg2.connect(
+            db_cfg['url'], connect_timeout=connect_timeout, options=connection_options
+        )
     else:
         conn = psycopg2.connect(
             host=db_cfg['host'],
@@ -68,7 +74,9 @@ def obtener_conexion():
             dbname=db_cfg['dbname'],
             user=db_cfg['user'],
             password=db_cfg['password'],
-            sslmode=db_cfg.get('sslmode', 'require')
+            sslmode=db_cfg.get('sslmode', 'require'),
+            connect_timeout=connect_timeout,
+            options=connection_options
         )
 
     with conn.cursor() as cursor:
