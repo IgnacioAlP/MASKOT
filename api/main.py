@@ -35,7 +35,8 @@ from controladores import (
     compras_controlador,
     ventas_controlador,
     mascotas_controlador,
-    creditos_controlador
+    creditos_controlador,
+    historial_clinico_controlador
 )
 from controladores import fidelizacion_controlador as fidelizacion_ctrl
 
@@ -147,6 +148,11 @@ try:
     _ensure_schema()
 except Exception:
     pass
+
+try:
+    creditos_controlador.asegurar_metodo_pago_credito()
+except Exception as e:
+    logger.warning(f"No se pudo asegurar el método de pago crédito: {e}")
 
 
 @app.route('/health', methods=['GET'])
@@ -3299,43 +3305,112 @@ def eliminar_cita(cita_id):
 
 @app.route('/compras/nueva', methods=['GET', 'POST'])
 def nueva_compra():
-    """Registra una compra de insumos para reabastecer el inventario."""
+    """Registra documentos de compra de proveedor con una o más líneas."""
     if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
 
-    productos = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
-    compras_recientes = compras_controlador.obtener_compras_por_fecha(limit=6) if hasattr(compras_controlador, 'obtener_compras_por_fecha') else []
-
     if request.method == 'POST':
         try:
-            producto_id = request.form.get('producto_id')
-            cantidad = int(request.form.get('cantidad', '0'))
-            precio_compra = float(request.form.get('precio_compra', '0') or 0)
-            proveedor = (request.form.get('proveedor') or '').strip() or 'Proveedor interno'
-            observaciones = (request.form.get('observaciones') or '').strip()
-
-            if not producto_id or cantidad <= 0 or precio_compra <= 0:
-                flash('Debes indicar producto, cantidad y precio válido.', 'error')
-                return redirect(url_for('nueva_compra'))
-
-            ok = compras_controlador.registrar_entrada_inventario(
-                producto_id=int(producto_id),
-                cantidad=cantidad,
-                precio_compra=precio_compra,
-                proveedor=proveedor,
-                observaciones=observaciones
+            items = json.loads(request.form.get('items_json') or '[]')
+            documento = {
+                'proveedor': request.form.get('proveedor', '').strip(),
+                'tipo_comprobante': request.form.get('tipo_comprobante', 'FC'),
+                'serie': request.form.get('serie', '').strip(),
+                'numero_comprobante': request.form.get('numero_comprobante', '').strip(),
+                'fecha_emision': request.form.get('fecha_emision'),
+                'fecha_entrega': request.form.get('fecha_entrega'),
+                'dias_plazo': request.form.get('dias_plazo', '0'),
+                'moneda': request.form.get('moneda', 'PEN'),
+                'tipo_cambio': request.form.get('tipo_cambio', '1'),
+                'local_actual': request.form.get('local_actual', '01'),
+                'almacen_actual': request.form.get('almacen_actual', '01'),
+                'flete': request.form.get('flete', '0'),
+                'percepcion': request.form.get('percepcion', '0'),
+                'observaciones': request.form.get('observaciones', '').strip(),
+            }
+            resultado = compras_controlador.registrar_compra_inventario(
+                documento, items, session.get('tenant_id', 1)
             )
-            if ok:
-                flash('Compra registrada y stock actualizado.', 'success')
+            if resultado.get('success'):
+                flash(f"Compra #{resultado['compra_id']} registrada. El inventario fue actualizado.", 'success')
             else:
-                flash('No se pudo registrar la compra.', 'error')
+                flash(resultado.get('error') or 'No se pudo registrar la compra.', 'error')
         except Exception as exc:
-            logger.error(f'Error registrando compra: {exc}')
-            flash(f'Error al registrar la compra: {exc}', 'error')
+            logger.error(f'Error registrando compra de proveedor: {exc}')
+            flash('No se pudo procesar el documento. Revisa los datos e inténtalo de nuevo.', 'error')
         return redirect(url_for('nueva_compra'))
 
-    return render_template('compras_nueva.html', productos=productos, compras_recientes=compras_recientes)
+    productos = productos_controlador.obtener_productos()
+    compras_recientes = compras_controlador.obtener_compras_inventario(session.get('tenant_id', 1), limit=6)
+    return render_template('compras_documento.html', productos=productos, compras_recientes=compras_recientes,
+                           fecha_hoy=date.today().isoformat())
+
+
+@app.route('/compras/insumos')
+def historial_compras_inventario():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    compras = compras_controlador.obtener_compras_inventario(session.get('tenant_id', 1), limit=100)
+    return render_template('compras_inventario.html', compras=compras)
+
+
+@app.route('/compras/insumos/<int:compra_id>')
+def detalle_compra_inventario(compra_id):
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    compra = compras_controlador.obtener_detalle_compra_inventario(compra_id, session.get('tenant_id', 1))
+    if not compra:
+        flash('Documento de compra no encontrado.', 'error')
+        return redirect(url_for('historial_compras_inventario'))
+    return render_template('detalle_compra_inventario.html', compra=compra)
+
+
+@app.route('/historial-clinico')
+def historial_clinico():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    mascotas = historial_clinico_controlador.obtener_mascotas_con_alertas(session.get('tenant_id', 1))
+    return render_template('historial_clinico.html', mascotas=mascotas, fecha_hoy=date.today().isoformat())
+
+
+@app.route('/historial-clinico/mascota/<int:mascota_id>')
+def detalle_historial_clinico(mascota_id):
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+    mascota, visitas = historial_clinico_controlador.obtener_mascota_historial(
+        mascota_id, session.get('tenant_id', 1)
+    )
+    if not mascota:
+        flash('Mascota no encontrada.', 'error')
+        return redirect(url_for('historial_clinico'))
+    return render_template('detalle_historial_clinico.html', mascota=mascota, visitas=visitas,
+                           fecha_hoy=date.today().isoformat())
+
+
+@app.route('/historial-clinico/registrar', methods=['POST'])
+def registrar_historial_clinico():
+    if 'rol' not in session or session['rol'] not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'No autorizado'}), 401
+    try:
+        resultado = historial_clinico_controlador.registrar_visita(
+            int(request.form.get('mascota_id') or 0), request.form.get('fecha_visita'),
+            request.form.get('servicio', '').strip(), request.form.get('diagnostico', '').strip(),
+            request.form.get('tratamiento', '').strip(), request.form.get('indicaciones', '').strip(),
+            request.form.get('proxima_cita') or None, session.get('tenant_id', 1)
+        )
+        flash('Visita agregada al historial clínico.' if resultado.get('success') else resultado.get('error'),
+              'success' if resultado.get('success') else 'error')
+    except (TypeError, ValueError):
+        flash('Selecciona una mascota válida para registrar la visita.', 'error')
+    return_to = request.form.get('return_to', '')
+    if not return_to.startswith('/') or return_to.startswith('//'):
+        return_to = url_for('historial_clinico')
+    return redirect(return_to)
 
 
 @app.route('/compras')
@@ -3565,33 +3640,52 @@ def nuevo_credito():
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     tenant_id = session.get('tenant_id', 1)
-    cliente_id = request.form.get('cliente_id') or (request.json.get('cliente_id') if request.is_json else None)
-    monto = request.form.get('monto') or (request.json.get('monto') if request.is_json else 0.0)
-    fecha_vencimiento = request.form.get('fecha_vencimiento') or (request.json.get('fecha_vencimiento') if request.is_json else None)
-    notas = request.form.get('notas') or (request.json.get('notas') if request.is_json else None)
+    data = request.get_json(silent=True) or request.form.to_dict()
+    cliente_id = data.get('cliente_id')
+    monto = data.get('monto', 0.0)
+    fecha_vencimiento = data.get('fecha_vencimiento')
+    notas = data.get('notas')
 
     if not cliente_id:
-        flash('Debe seleccionar un cliente para el crédito', 'error')
+        message = 'Debe seleccionar un cliente para el crédito.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': message}), 400
+        flash(message, 'error')
         return redirect(url_for('listar_creditos'))
 
-    cli = clientes_controlador.obtener_cliente_por_id(int(cliente_id), tenant_id)
+    try:
+        cliente_id = int(cliente_id)
+        monto = float(monto)
+    except (TypeError, ValueError):
+        message = 'El cliente y el monto deben ser válidos.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': message}), 400
+        flash(message, 'error')
+        return redirect(url_for('listar_creditos'))
+
+    cli = clientes_controlador.obtener_cliente_por_id(cliente_id, tenant_id)
     if not cli:
-        flash('Cliente no encontrado', 'error')
+        message = 'Cliente no encontrado en este local.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': message}), 404
+        flash(message, 'error')
         return redirect(url_for('listar_creditos'))
 
     cliente_nombre = cli[1]
     cliente_doc = cli[5] if len(cli) > 5 else None
 
     res = creditos_controlador.crear_credito(
-        cliente_id=int(cliente_id),
+        cliente_id=cliente_id,
         cliente_nombre=cliente_nombre,
         cliente_documento=cliente_doc,
-        monto_total=float(monto or 0.0),
+        monto_total=monto,
         fecha_vencimiento=fecha_vencimiento,
         notas=notas,
         tenant_id=tenant_id
     )
 
+    if request.is_json:
+        return jsonify(res), 201 if res.get('success') else 400
     if res.get('success'):
         flash('Crédito creado exitosamente', 'success')
     else:

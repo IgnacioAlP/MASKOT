@@ -62,6 +62,23 @@ def procesar_venta(datos_venta):
 
             # Resolver cliente explícito sin caer al general cuando ya se seleccionó uno
             cliente_id_raw = datos_venta.get('cliente_id') or datos_venta.get('id_cliente') or datos_venta.get('clienteId')
+            if datos_venta.get('metodo_pago') == 'credito':
+                if cliente_id_raw is None or not str(cliente_id_raw).strip().isdigit():
+                    conexion.rollback()
+                    return {'success': False, 'error': 'Para ventas a crédito debes seleccionar un cliente registrado.'}
+                cursor.execute(
+                    "SELECT id, nombre, documento FROM clientes WHERE id = %s AND tenant_id = %s AND activo = TRUE",
+                    (int(cliente_id_raw), tenant_id)
+                )
+                cliente_credito = cursor.fetchone()
+                if not cliente_credito:
+                    conexion.rollback()
+                    return {'success': False, 'error': 'El cliente seleccionado no existe en este local.'}
+                cliente_id_raw = cliente_credito[0]
+                cliente_nombre = cliente_credito[1]
+                cliente_documento = cliente_documento or cliente_credito[2]
+                datos_venta['cliente_id'] = cliente_id_raw
+
             if cliente_id_raw is not None and str(cliente_id_raw).strip() != '':
                 cliente_nombre_resuelto, doc_res = resolver_cliente(cursor, cliente_id_raw, tenant_id)
                 if cliente_nombre_resuelto and cliente_nombre_resuelto.strip() not in ('Cliente General', ''):

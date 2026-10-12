@@ -5,9 +5,27 @@ MASKOT - Petshop y Veterinaria
 
 from bd import obtener_conexion, obtener_tenant_id
 from datetime import datetime, date, timedelta
+import math
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def asegurar_metodo_pago_credito():
+    """Asegura que el enum de ventas permita registrar pagos a crédito."""
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("ALTER TYPE public.metodo_pago_enum ADD VALUE IF NOT EXISTS 'multipago'")
+            cursor.execute("ALTER TYPE public.metodo_pago_enum ADD VALUE IF NOT EXISTS 'credito'")
+        conexion.commit()
+        return True
+    except Exception as e:
+        conexion.rollback()
+        logger.warning(f"No se pudo habilitar el método de pago crédito: {e}")
+        return False
+    finally:
+        conexion.close()
 
 
 def asegurar_tablas_credito(cursor):
@@ -55,8 +73,10 @@ def crear_credito(cliente_id, cliente_nombre, cliente_documento=None, monto_tota
         tenant_id = obtener_tenant_id()
 
     monto_total = float(monto_total or 0.0)
-    estado = 'pagado' if monto_total <= 0 else 'pendiente'
-    saldo_pendiente = 0.0 if monto_total <= 0 else monto_total
+    if not math.isfinite(monto_total) or monto_total <= 0:
+        return {'success': False, 'error': 'El monto del crédito debe ser mayor a cero.'}
+    estado = 'pendiente'
+    saldo_pendiente = monto_total
 
     if not fecha_vencimiento:
         fecha_vencimiento = (datetime.now() + timedelta(days=30)).date()
@@ -64,6 +84,16 @@ def crear_credito(cliente_id, cliente_nombre, cliente_documento=None, monto_tota
     try:
         with conexion.cursor() as cursor:
             asegurar_tablas_credito(cursor)
+            cursor.execute("""
+                SELECT nombre, documento FROM clientes
+                WHERE id = %s AND tenant_id = %s AND activo = TRUE
+            """, (int(cliente_id), tenant_id))
+            cliente = cursor.fetchone()
+            if not cliente:
+                conexion.rollback()
+                return {'success': False, 'error': 'El cliente seleccionado no existe en este local.'}
+            cliente_nombre = cliente[0]
+            cliente_documento = cliente_documento or cliente[1]
             cursor.execute("""
                 INSERT INTO credito (
                     venta_id, cliente_id, cliente_nombre, cliente_documento,

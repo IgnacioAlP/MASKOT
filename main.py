@@ -3,6 +3,7 @@ import logging
 import time
 from datetime import datetime, date
 import hashlib
+import json
 import os
 from werkzeug.utils import secure_filename
 from flask import send_from_directory
@@ -20,7 +21,8 @@ from controladores import (
     clientes_controlador,
     compras_controlador,
     ventas_controlador,
-    creditos_controlador
+    creditos_controlador,
+    historial_clinico_controlador
 )
 # Módulo de fidelización (moved into controladores)
 from controladores import fidelizacion_controlador as fidelizacion
@@ -68,64 +70,44 @@ _pos_device_queues = {}
 
 
 def _ensure_schema():
-    """Añade columnas / ajusta columnas existentes si aún no existen (migración ligera al arranque)."""
-    # (tabla, columna_a_verificar, SQL_a_ejecutar_si_falta)
+    """Añade columnas faltantes en PostgreSQL sin interrumpir el arranque."""
     column_migrations = [
-        ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN codigo_barra VARCHAR(100) DEFAULT NULL"),
-        ("productos", "precio_compra", "ALTER TABLE productos ADD COLUMN precio_compra NUMERIC(12,2) DEFAULT 0"),
-        ("citas",     "tenant_id",   "ALTER TABLE citas ADD COLUMN tenant_id INT DEFAULT 1"),
-        ("ventas",    "tenant_id",   "ALTER TABLE ventas ADD COLUMN tenant_id INT DEFAULT 1"),
+        ("productos", "codigo_barra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS codigo_barra VARCHAR(100) DEFAULT NULL"),
+        ("productos", "precio_compra", "ALTER TABLE productos ADD COLUMN IF NOT EXISTS precio_compra NUMERIC(12,2) DEFAULT 0"),
+        ("citas", "tenant_id", "ALTER TABLE citas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
+        ("ventas", "tenant_id", "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1"),
     ]
+    conn = None
     try:
         conn = obtener_conexion()
         with conn.cursor() as cursor:
-            # --- columnas faltantes ---
             for table, column, sql in column_migrations:
-                cursor.execute(f"SHOW COLUMNS FROM `{table}` LIKE %s", (column,))
+                cursor.execute("""
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s AND column_name = %s
+                """, (table, column))
                 if not cursor.fetchone():
                     cursor.execute(sql)
-                    conn.commit()
                     logger.info(f"Schema migration: columna '{column}' añadida a {table}.")
-
-            # --- ventas.id debe tener AUTO_INCREMENT ---
-            cursor.execute("SHOW COLUMNS FROM `ventas` LIKE 'id'")
-            id_col = cursor.fetchone()
-            # id_col tuple: (Field, Type, Null, Key, Default, Extra)
-            if id_col and 'auto_increment' not in (id_col[5] or '').lower():
-                cursor.execute("ALTER TABLE ventas MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT")
-                conn.commit()
-                logger.info("Schema migration: AUTO_INCREMENT añadido a ventas.id.")
-
-            # --- ventas.vendedor_nombre debe aceptar NULL (puede no existir en instancias viejas) ---
-            cursor.execute("SHOW COLUMNS FROM `ventas` LIKE 'vendedor_nombre'")
-            vn_col = cursor.fetchone()
-            if vn_col:
-                # Si es NOT NULL, hacerlo nullable
-                if (vn_col[2] or '').upper() == 'NO':
-                    cursor.execute("ALTER TABLE ventas MODIFY COLUMN vendedor_nombre VARCHAR(100) DEFAULT NULL")
-                    conn.commit()
-                    logger.info("Schema migration: ventas.vendedor_nombre ahora acepta NULL.")
-
-            # --- ventas.metodo_pago debe incluir 'multipago' ---
-            cursor.execute("SHOW COLUMNS FROM `ventas` LIKE 'metodo_pago'")
-            mp_col = cursor.fetchone()
-            if mp_col and 'multipago' not in (mp_col[1] or '').lower():
-                cursor.execute(
-                    "ALTER TABLE ventas MODIFY COLUMN metodo_pago "
-                    "ENUM('efectivo','tarjeta','yape','multipago') NOT NULL DEFAULT 'efectivo'"
-                )
-                conn.commit()
-                logger.info("Schema migration: 'multipago' añadido al ENUM ventas.metodo_pago.")
-
-        conn.close()
+        conn.commit()
     except Exception as e:
+        if conn:
+            conn.rollback()
         logger.warning(f"Schema migration check failed: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
 try:
     _ensure_schema()
 except Exception:
     pass
+
+try:
+    creditos_controlador.asegurar_metodo_pago_credito()
+except Exception as e:
+    logger.warning(f"No se pudo asegurar el método de pago crédito: {e}")
 
 # Manejador de errores global
 @app.errorhandler(Exception)
@@ -2452,53 +2434,100 @@ def test_estado():
 @app.route('/compras/nueva', methods=['GET', 'POST'])
 @requiere_autenticacion(['admin', 'empleado', 'dueño'])
 def nueva_compra():
-    """Registro de compras de insumos para reabastecer inventario."""
-    productos = []
-    compras_recientes = []
-
-    try:
-        productos = productos_controlador.obtener_productos() if hasattr(productos_controlador, 'obtener_productos') else []
-        compras_recientes = compras_controlador.obtener_compras_por_fecha(limit=6) if hasattr(compras_controlador, 'obtener_compras_por_fecha') else []
-    except Exception as e:
-        logger.warning(f"No se pudieron cargar productos o compras recientes: {e}")
-
+    """Registra documentos de compra de proveedor con una o más líneas."""
     if request.method == 'POST':
         try:
-            producto_id = request.form.get('producto_id')
-            cantidad = request.form.get('cantidad', '0').strip()
-            precio_compra = request.form.get('precio_compra', '0').strip()
-            proveedor = request.form.get('proveedor', '').strip() or 'Proveedor interno'
-            observaciones = request.form.get('observaciones', '').strip()
-            tipo_comprobante = (request.form.get('tipo_comprobante') or 'BC').strip().upper()
-            serie = request.form.get('serie', '').strip()
-            numero_comprobante = request.form.get('numero_comprobante', '').strip()
-
-            if not producto_id or not cantidad or not precio_compra:
-                flash('Debe seleccionar producto, cantidad y precio de compra.', 'error')
-                return redirect(url_for('nueva_compra'))
-
-            ok = compras_controlador.registrar_entrada_inventario(
-                producto_id=int(producto_id),
-                cantidad=int(cantidad),
-                precio_compra=float(precio_compra),
-                proveedor=proveedor,
-                observaciones=observaciones,
-                tipo_comprobante=tipo_comprobante,
-                serie=serie,
-                numero_comprobante=numero_comprobante
+            items = json.loads(request.form.get('items_json') or '[]')
+            documento = {
+                'proveedor': request.form.get('proveedor', '').strip(),
+                'tipo_comprobante': request.form.get('tipo_comprobante', 'FC'),
+                'serie': request.form.get('serie', '').strip(),
+                'numero_comprobante': request.form.get('numero_comprobante', '').strip(),
+                'fecha_emision': request.form.get('fecha_emision'),
+                'fecha_entrega': request.form.get('fecha_entrega'),
+                'dias_plazo': request.form.get('dias_plazo', '0'),
+                'moneda': request.form.get('moneda', 'PEN'),
+                'tipo_cambio': request.form.get('tipo_cambio', '1'),
+                'local_actual': request.form.get('local_actual', '01'),
+                'almacen_actual': request.form.get('almacen_actual', '01'),
+                'flete': request.form.get('flete', '0'),
+                'percepcion': request.form.get('percepcion', '0'),
+                'observaciones': request.form.get('observaciones', '').strip(),
+            }
+            resultado = compras_controlador.registrar_compra_inventario(
+                documento, items, session.get('tenant_id', 1)
             )
-
-            if ok:
-                flash('Compra de insumo registrada correctamente. El stock se actualizó.', 'success')
+            if resultado.get('success'):
+                flash(f"Compra #{resultado['compra_id']} registrada. El inventario fue actualizado.", 'success')
             else:
-                flash('No se pudo registrar la compra. Revisa los datos.', 'error')
+                flash(resultado.get('error') or 'No se pudo registrar la compra.', 'error')
         except Exception as e:
-            logger.error(f"Error registrando compra de insumo: {e}")
-            flash(f'Error al registrar compra: {e}', 'error')
+            logger.error(f"Error registrando compra de proveedor: {e}")
+            flash('No se pudo procesar el documento. Revisa los datos e inténtalo de nuevo.', 'error')
 
         return redirect(url_for('nueva_compra'))
 
-    return render_template('compras_nueva.html', productos=productos, compras_recientes=compras_recientes)
+    productos = productos_controlador.obtener_productos()
+    compras_recientes = compras_controlador.obtener_compras_inventario(session.get('tenant_id', 1), limit=6)
+    return render_template('compras_documento.html', productos=productos, compras_recientes=compras_recientes,
+                           fecha_hoy=date.today().isoformat())
+
+
+@app.route('/compras/insumos')
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def historial_compras_inventario():
+    compras = compras_controlador.obtener_compras_inventario(session.get('tenant_id', 1), limit=100)
+    return render_template('compras_inventario.html', compras=compras)
+
+
+@app.route('/compras/insumos/<int:compra_id>')
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def detalle_compra_inventario(compra_id):
+    compra = compras_controlador.obtener_detalle_compra_inventario(compra_id, session.get('tenant_id', 1))
+    if not compra:
+        flash('Documento de compra no encontrado.', 'error')
+        return redirect(url_for('historial_compras_inventario'))
+    return render_template('detalle_compra_inventario.html', compra=compra)
+
+
+@app.route('/historial-clinico')
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def historial_clinico():
+    mascotas = historial_clinico_controlador.obtener_mascotas_con_alertas(session.get('tenant_id', 1))
+    return render_template('historial_clinico.html', mascotas=mascotas, fecha_hoy=date.today().isoformat())
+
+
+@app.route('/historial-clinico/mascota/<int:mascota_id>')
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def detalle_historial_clinico(mascota_id):
+    mascota, visitas = historial_clinico_controlador.obtener_mascota_historial(
+        mascota_id, session.get('tenant_id', 1)
+    )
+    if not mascota:
+        flash('Mascota no encontrada.', 'error')
+        return redirect(url_for('historial_clinico'))
+    return render_template('detalle_historial_clinico.html', mascota=mascota, visitas=visitas,
+                           fecha_hoy=date.today().isoformat())
+
+
+@app.route('/historial-clinico/registrar', methods=['POST'])
+@requiere_autenticacion(['admin', 'empleado', 'dueño'])
+def registrar_historial_clinico():
+    try:
+        resultado = historial_clinico_controlador.registrar_visita(
+            int(request.form.get('mascota_id') or 0), request.form.get('fecha_visita'),
+            request.form.get('servicio', '').strip(), request.form.get('diagnostico', '').strip(),
+            request.form.get('tratamiento', '').strip(), request.form.get('indicaciones', '').strip(),
+            request.form.get('proxima_cita') or None, session.get('tenant_id', 1)
+        )
+        flash('Visita agregada al historial clínico.' if resultado.get('success') else resultado.get('error'),
+              'success' if resultado.get('success') else 'error')
+    except (TypeError, ValueError):
+        flash('Selecciona una mascota válida para registrar la visita.', 'error')
+    return_to = request.form.get('return_to', '')
+    if not return_to.startswith('/') or return_to.startswith('//'):
+        return_to = url_for('historial_clinico')
+    return redirect(return_to)
 
 
 @app.route('/compras')
@@ -3120,33 +3149,52 @@ def nuevo_credito():
         return jsonify({'success': False, 'error': 'No autorizado'}), 401
 
     tenant_id = session.get('tenant_id', 1)
-    cliente_id = request.form.get('cliente_id') or (request.json.get('cliente_id') if request.is_json else None)
-    monto = request.form.get('monto') or (request.json.get('monto') if request.is_json else 0.0)
-    fecha_vencimiento = request.form.get('fecha_vencimiento') or (request.json.get('fecha_vencimiento') if request.is_json else None)
-    notas = request.form.get('notas') or (request.json.get('notas') if request.is_json else None)
+    data = request.get_json(silent=True) or request.form.to_dict()
+    cliente_id = data.get('cliente_id')
+    monto = data.get('monto', 0.0)
+    fecha_vencimiento = data.get('fecha_vencimiento')
+    notas = data.get('notas')
 
     if not cliente_id:
-        flash('Debe seleccionar un cliente para el crédito', 'error')
+        message = 'Debe seleccionar un cliente para el crédito.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': message}), 400
+        flash(message, 'error')
         return redirect(url_for('listar_creditos'))
 
-    cli = clientes_controlador.obtener_cliente_por_id(int(cliente_id), tenant_id)
+    try:
+        cliente_id = int(cliente_id)
+        monto = float(monto)
+    except (TypeError, ValueError):
+        message = 'El cliente y el monto deben ser válidos.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': message}), 400
+        flash(message, 'error')
+        return redirect(url_for('listar_creditos'))
+
+    cli = clientes_controlador.obtener_cliente_por_id(cliente_id, tenant_id)
     if not cli:
-        flash('Cliente no encontrado', 'error')
+        message = 'Cliente no encontrado en este local.'
+        if request.is_json:
+            return jsonify({'success': False, 'error': message}), 404
+        flash(message, 'error')
         return redirect(url_for('listar_creditos'))
 
     cliente_nombre = cli[1]
     cliente_doc = cli[5] if len(cli) > 5 else None
 
     res = creditos_controlador.crear_credito(
-        cliente_id=int(cliente_id),
+        cliente_id=cliente_id,
         cliente_nombre=cliente_nombre,
         cliente_documento=cliente_doc,
-        monto_total=float(monto or 0.0),
+        monto_total=monto,
         fecha_vencimiento=fecha_vencimiento,
         notas=notas,
         tenant_id=tenant_id
     )
 
+    if request.is_json:
+        return jsonify(res), 201 if res.get('success') else 400
     if res.get('success'):
         flash('Crédito creado exitosamente', 'success')
     else:

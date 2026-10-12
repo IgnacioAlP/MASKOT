@@ -28,4 +28,6 @@ Usa la contraseña real de Supabase. No la subas al repositorio ni la escribas e
 
 La aplicación ejecuta migraciones ligeras al arrancar para columnas faltantes. Para cambios estructurales grandes, ejecuta los SQL de `migrations/` directamente en Supabase antes de probar el flujo completo.
 
+Antes de usar el historial clínico y las compras por documento, ejecuta `migrations/004_clinical_history_and_supplier_purchases.sql` en el SQL Editor de Supabase. Esta migración crea las tablas de detalle e índices y habilita los métodos de pago `multipago` y `credito`.
+
 Los archivos escritos durante una función serverless son temporales. Los uploads usan `/tmp/uploads` en Vercel y no deben considerarse almacenamiento permanente.

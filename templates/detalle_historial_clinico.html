@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Historial de {{ mascota[1] }} - MASKOT{% endblock %}
+
+{% block content %}
+<main class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <a class="small" href="{{ url_for('historial_clinico') }}"><i class="fas fa-arrow-left me-1"></i>Historial clínico</a>
+            <h1 class="h3 mt-2 mb-1">{{ mascota[1] }}</h1>
+            <div class="text-secondary">{{ mascota[2] }}{% if mascota[3] %} · {{ mascota[3] }}{% endif %} · Responsable: {{ mascota[6] }}</div>
+            <div class="small text-secondary">Edad: {{ mascota[4] or 'No indicada' }} · Peso: {{ mascota[5] or 'No indicado' }}</div>
+        </div>
+        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalVisita"><i class="fas fa-plus me-2"></i>Registrar visita</button>
+    </div>
+
+    <section class="mb-4">
+        <h2 class="h5 mb-3">Visitas y atenciones</h2>
+        {% for visita in visitas %}
+        <article class="border-start border-3 border-primary ps-3 pb-4 mb-3">
+            <div class="d-flex flex-wrap justify-content-between gap-2">
+                <div><h3 class="h6 mb-1">{{ visita.servicio }}</h3><div class="small text-secondary">{{ visita.fecha|dateformat }} · {{ visita.origen }}</div></div>
+                {% if visita.proxima_cita %}<span class="badge text-bg-warning">Próxima cita: {{ visita.proxima_cita|dateformat }}</span>{% endif %}
+            </div>
+            {% if visita.diagnostico %}<p class="mb-1 mt-2"><strong>Diagnóstico:</strong> {{ visita.diagnostico }}</p>{% endif %}
+            {% if visita.tratamiento %}<p class="mb-1"><strong>Tratamiento:</strong> {{ visita.tratamiento }}</p>{% endif %}
+            {% if visita.indicaciones %}<p class="mb-0"><strong>Indicaciones:</strong> {{ visita.indicaciones }}</p>{% endif %}
+        </article>
+        {% else %}<div class="border p-4 text-center text-secondary">Esta mascota todavía no tiene visitas registradas. Puedes agregar la primera desde aquí.</div>{% endfor %}
+    </section>
+</main>
+
+<div class="modal fade" id="modalVisita" tabindex="-1" aria-labelledby="modalVisitaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+        <form method="POST" action="{{ url_for('registrar_historial_clinico') }}">
+            <div class="modal-header"><h2 class="modal-title h5" id="modalVisitaLabel">Nueva visita · {{ mascota[1] }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+            <div class="modal-body row g-3">
+                <input type="hidden" name="mascota_id" value="{{ mascota[0] }}">
+                <input type="hidden" name="return_to" value="{{ request.path }}">
+                <div class="col-md-6"><label class="form-label" for="visitaFecha">Fecha de visita</label><input class="form-control" type="date" id="visitaFecha" name="fecha_visita" value="{{ fecha_hoy }}" required></div>
+                <div class="col-md-6"><label class="form-label" for="visitaProxima">Próxima cita</label><input class="form-control" type="date" id="visitaProxima" name="proxima_cita"></div>
+                <div class="col-12"><label class="form-label" for="visitaServicio">Servicio brindado</label><input class="form-control" id="visitaServicio" name="servicio" required maxlength="255" placeholder="Consulta, vacuna, grooming..."></div>
+                <div class="col-12"><label class="form-label" for="visitaDiagnostico">Diagnóstico</label><textarea class="form-control" id="visitaDiagnostico" name="diagnostico" rows="2"></textarea></div>
+                <div class="col-12"><label class="form-label" for="visitaTratamiento">Tratamiento</label><textarea class="form-control" id="visitaTratamiento" name="tratamiento" rows="2"></textarea></div>
+                <div class="col-12"><label class="form-label" for="visitaIndicaciones">Indicaciones y observaciones</label><textarea class="form-control" id="visitaIndicaciones" name="indicaciones" rows="2"></textarea></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-primary" type="submit">Guardar visita</button></div>
+        </form>
+    </div></div>
+</div>
+{% endblock %}

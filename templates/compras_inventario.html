@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Documentos de compra - MASKOT{% endblock %}
+
+{% block content %}
+<main class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+        <div><div class="small text-secondary">INVENTARIO / PROVEEDORES</div><h1 class="h3 mb-0">Documentos de compra</h1></div>
+        <a class="btn btn-primary" href="{{ url_for('nueva_compra') }}"><i class="fas fa-plus me-2"></i>Nueva compra</a>
+    </div>
+    <div class="table-responsive border bg-white">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Tipo</th><th>Fecha</th><th>Proveedor</th><th>Artículos</th><th class="text-end">Total</th><th></th></tr></thead>
+            <tbody>
+                {% for compra in compras %}
+                <tr>
+                    <td>{{ compra[2] }} {{ compra[3] or '' }}-{{ compra[4] or compra[0] }}</td><td>{{ compra[5]|dateformat }}</td>
+                    <td>{{ compra[1] }}</td><td>{{ compra[8] }}</td><td class="text-end">{{ compra[7] }} {{ '%.2f'|format(compra[6]) }}</td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('detalle_compra_inventario', compra_id=compra[0]) }}">Ver detalle</a></td>
+                </tr>
+                {% else %}<tr><td colspan="6" class="text-center text-secondary py-5">No hay documentos registrados.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</main>
+{% endblock %}

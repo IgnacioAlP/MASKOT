@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar compra - MASKOT{% endblock %}
+
+{% block extra_css %}
+<style>
+    .purchase-page { max-width: 1440px; }
+    .purchase-toolbar { border-bottom: 1px solid #d7dde2; }
+    .purchase-toolbar .btn { min-width: 112px; }
+    .purchase-fields { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 12px 16px; }
+    .purchase-fields .wide { grid-column: span 2; }
+    .purchase-grid-wrap { max-height: 48vh; min-height: 270px; overflow: auto; border: 1px solid #cbd2d8; }
+    .purchase-grid { min-width: 1060px; margin: 0; }
+    .purchase-grid th { position: sticky; top: 0; z-index: 1; background: #edf0f2; white-space: nowrap; font-size: 12px; }
+    .purchase-grid td { padding: 5px; vertical-align: middle; }
+    .purchase-grid input, .purchase-grid select { min-width: 78px; padding: 5px 7px; }
+    .purchase-grid .product-select { min-width: 220px; }
+    .purchase-summary { display: grid; grid-template-columns: repeat(4, minmax(115px, 1fr)); gap: 10px; }
+    .purchase-summary output { display: block; background: #eef0f1; padding: 8px 10px; min-height: 37px; font-weight: 700; }
+    @media (max-width: 768px) {
+        .purchase-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .purchase-fields .wide { grid-column: span 2; }
+        .purchase-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="container-fluid purchase-page py-4 px-lg-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+        <div>
+            <div class="small text-secondary">INVENTARIO / PROVEEDORES</div>
+            <h1 class="h3 mb-0">Factura de compra</h1>
+        </div>
+        <nav class="d-flex flex-wrap gap-2" aria-label="Acciones de compra">
+            <a class="btn btn-outline-secondary" href="{{ url_for('historial_compras_inventario') }}"><i class="fas fa-folder-open me-2"></i>Documentos</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('almacen') }}"><i class="fas fa-boxes me-2"></i>Productos</a>
+            <a class="btn btn-outline-secondary" href="{{ url_for('historial_compras') }}"><i class="fas fa-receipt me-2"></i>Ventas web</a>
+        </nav>
+    </div>
+
+    <form method="POST" id="formCompra" class="bg-white border shadow-sm">
+        <div class="purchase-toolbar d-flex flex-wrap align-items-center gap-2 p-3">
+            <button class="btn btn-primary" type="submit"><i class="fas fa-save me-2"></i>Grabar</button>
+            <button class="btn btn-outline-secondary" type="button" id="addLineTop"><i class="fas fa-plus me-2"></i>Agregar producto</button>
+            <span class="ms-auto small text-secondary">Los productos y el stock se guardan juntos al confirmar.</span>
+        </div>
+
+        <section class="p-3 p-lg-4" aria-label="Datos del comprobante">
+            <div class="purchase-fields">
+                <div>
+                    <label class="form-label" for="tipo_comprobante">Tipo</label>
+                    <select class="form-select" id="tipo_comprobante" name="tipo_comprobante">
+                        <option value="FC">Factura</option><option value="BC">Boleta</option><option value="NC">Nota de crédito</option>
+                    </select>
+                </div>
+                <div><label class="form-label" for="serie">Serie</label><input class="form-control" id="serie" name="serie" maxlength="30" placeholder="F001"></div>
+                <div><label class="form-label" for="numero_comprobante">Número</label><input class="form-control" id="numero_comprobante" name="numero_comprobante" maxlength="50" placeholder="00001234"></div>
+                <div><label class="form-label" for="fecha_emision">Fecha de emisión</label><input class="form-control" type="date" id="fecha_emision" name="fecha_emision" value="{{ fecha_hoy }}" required></div>
+                <div><label class="form-label" for="fecha_entrega">Fecha de entrega</label><input class="form-control" type="date" id="fecha_entrega" name="fecha_entrega"></div>
+                <div><label class="form-label" for="dias_plazo">Nro. días</label><input class="form-control" type="number" id="dias_plazo" name="dias_plazo" min="0" value="0"></div>
+                <div><label class="form-label" for="moneda">Moneda</label><select class="form-select" id="moneda" name="moneda"><option value="PEN">S/ Soles</option><option value="USD">US$ Dólares</option></select></div>
+                <div><label class="form-label" for="tipo_cambio">Tipo de cambio</label><input class="form-control" type="number" step="0.0001" min="0.0001" id="tipo_cambio" name="tipo_cambio" value="1"></div>
+                <div class="wide"><label class="form-label" for="proveedor">Proveedor</label><input class="form-control" id="proveedor" name="proveedor" required maxlength="255" autocomplete="organization" placeholder="Nombre o razón social"></div>
+                <div><label class="form-label" for="local_actual">Local</label><input class="form-control" id="local_actual" name="local_actual" value="01"></div>
+                <div><label class="form-label" for="almacen_actual">Almacén</label><input class="form-control" id="almacen_actual" name="almacen_actual" value="01"></div>
+                <div class="wide"><label class="form-label" for="observaciones">Observaciones</label><input class="form-control" id="observaciones" name="observaciones" placeholder="Notas del documento"></div>
+            </div>
+        </section>
+
+        <section class="px-3 pb-3" aria-label="Productos de la compra">
+            <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                <h2 class="h6 mb-0">Detalle de productos</h2>
+                <label class="form-check mb-0"><input class="form-check-input" type="checkbox" id="sinIgv"><span class="form-check-label">Sin IGV</span></label>
+            </div>
+            <div class="purchase-grid-wrap">
+                <table class="table table-sm table-hover purchase-grid">
+                    <thead><tr><th>Producto</th><th>Und</th><th>Factor</th><th>Cantidad</th><th>Precio</th><th>% Desc.</th><th>% IGV</th><th>Total</th><th></th></tr></thead>
+                    <tbody id="purchaseLines"></tbody>
+                </table>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-primary" type="button" id="addLine"><i class="fas fa-plus me-1"></i>Agregar línea</button>
+                <span class="small text-secondary align-self-center">El costo ingresado actualiza el costo de compra del producto.</span>
+            </div>
+        </section>
+
+        <section class="border-top bg-light p-3 p-lg-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-lg-8">
+                    <div class="purchase-summary">
+                        <div><label class="form-label small mb-1">Neto</label><output id="sumNeto">0.00</output></div>
+                        <div><label class="form-label small mb-1">Descuento</label><output id="sumDescuento">0.00</output></div>
+                        <div><label class="form-label small mb-1">IGV</label><output id="sumIgv">0.00</output></div>
+                        <div><label class="form-label small mb-1" for="flete">Flete</label><input class="form-control" type="number" name="flete" id="flete" min="0" step="0.01" value="0"></div>
+                        <div><label class="form-label small mb-1" for="percepcion">Percepción</label><input class="form-control" type="number" name="percepcion" id="percepcion" min="0" step="0.01" value="0"></div>
+                        <div><label class="form-label small mb-1">Subtotal</label><output id="sumSubtotal">0.00</output></div>
+                        <div class="fw-bold text-danger"><label class="form-label small mb-1">TOTAL</label><output id="sumTotal">0.00</output></div>
+                        <div><label class="form-label small mb-1">Productos</label><output id="sumItems">0</output></div>
+                    </div>
+                </div>
+                <div class="col-lg-4 d-grid">
+                    <input type="hidden" name="items_json" id="itemsJson">
+                    <button class="btn btn-success btn-lg" type="submit"><i class="fas fa-check me-2"></i>Registrar compra</button>
+                    <button class="btn btn-link mt-1" type="button" id="recalculate">Recalcular totales</button>
+                </div>
+            </div>
+        </section>
+    </form>
+
+    <datalist id="productList">
+        {% for producto in productos %}
+        <option value="{{ producto[1] }}" data-id="{{ producto[0] }}" data-price="{{ producto[5] or 0 }}"></option>
+        {% endfor %}
+    </datalist>
+    <select id="productCatalog" class="d-none" aria-hidden="true">
+        {% for producto in productos %}
+        <option value="{{ producto[0] }}" data-price="{{ producto[5] or 0 }}">{{ producto[1] }} (stock {{ producto[3] }})</option>
+        {% endfor %}
+    </select>
+
+    <section class="mt-4" aria-label="Compras recientes">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h2 class="h5 mb-0">Documentos recientes</h2>
+            <a href="{{ url_for('historial_compras_inventario') }}">Ver todos</a>
+        </div>
+        <div class="table-responsive bg-white border">
+            <table class="table table-hover mb-0">
+                <thead><tr><th>Documento</th><th>Proveedor</th><th>Fecha</th><th>Artículos</th><th class="text-end">Total</th></tr></thead>
+                <tbody>
+                    {% for compra in compras_recientes %}
+                    <tr>
+                        <td><a href="{{ url_for('detalle_compra_inventario', compra_id=compra[0]) }}">{{ compra[2] }} {{ compra[3] or '' }}-{{ compra[4] or compra[0] }}</a></td>
+                        <td>{{ compra[1] }}</td><td>{{ compra[5]|dateformat }}</td><td>{{ compra[8] }}</td>
+                        <td class="text-end">{{ compra[7] }} {{ '%.2f'|format(compra[6]) }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="5" class="text-center text-secondary py-4">Aún no hay documentos de compra.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+(() => {
+    const body = document.getElementById('purchaseLines');
+    const catalog = document.getElementById('productCatalog');
+    const noTax = document.getElementById('sinIgv');
+    const money = value => (Number(value) || 0).toFixed(2);
+
+    function addLine() {
+        const row = document.createElement('tr');
+        const productCell = row.insertCell();
+        const product = document.createElement('select');
+        product.className = 'form-select product-select';
+        product.required = true;
+        product.add(new Option('Seleccionar producto', ''));
+        [...catalog.options].forEach(option => {
+            const productOption = new Option(option.text, option.value);
+            productOption.dataset.price = option.dataset.price;
+            product.add(productOption);
+        });
+        productCell.append(product);
+
+        const fields = [
+            ['unidad', 'text', 'UND', ''], ['factor', 'number', '1', '0.001'],
+            ['cantidad', 'number', '1', '1'], ['precio_unitario', 'number', '', '0.01'],
+            ['descuento_pct', 'number', '0', '0.01'], ['igv_pct', 'number', noTax.checked ? '0' : '18', '0.01']
+        ];
+        const inputs = {};
+        fields.forEach(([key, type, initial, step]) => {
+            const cell = row.insertCell();
+            const input = document.createElement('input');
+            input.className = 'form-control'; input.type = type; input.value = initial;
+            input.dataset.key = key;
+            if (type === 'number') { input.min = key === 'descuento_pct' ? '0' : '0'; input.step = step; }
+            if (key === 'precio_unitario') input.required = true;
+            if (key === 'unidad') input.maxLength = 30;
+            cell.append(input); inputs[key] = input;
+        });
+        const totalCell = row.insertCell();
+        totalCell.className = 'text-end fw-semibold'; totalCell.dataset.lineTotal = '';
+        const removeCell = row.insertCell();
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'btn btn-sm btn-outline-danger';
+        remove.setAttribute('aria-label', 'Quitar producto'); remove.innerHTML = '<i class="fas fa-trash"></i>';
+        remove.addEventListener('click', () => { row.remove(); recalculate(); });
+        removeCell.append(remove);
+        product.addEventListener('change', () => {
+            const option = product.selectedOptions[0];
+            inputs.precio_unitario.value = option?.dataset.price || '';
+            recalculate();
+        });
+        row.addEventListener('input', recalculate);
+        body.append(row);
+        recalculate();
+    }
+
+    function recalculate() {
+        let net = 0, discount = 0, tax = 0, count = 0;
+        [...body.rows].forEach(row => {
+            const values = Object.fromEntries([...row.querySelectorAll('[data-key]')].map(input => [input.dataset.key, Number(input.value) || 0]));
+            const gross = values.factor * values.cantidad * values.precio_unitario;
+            const lineDiscount = gross * values.descuento_pct / 100;
+            const lineTax = (gross - lineDiscount) * values.igv_pct / 100;
+            const lineTotal = gross - lineDiscount + lineTax;
+            row.querySelector('[data-line-total]').textContent = money(lineTotal);
+            net += gross; discount += lineDiscount; tax += lineTax; count += values.cantidad;
+        });
+        const freight = Number(document.getElementById('flete').value) || 0;
+        const perception = Number(document.getElementById('percepcion').value) || 0;
+        const subtotal = net - discount + tax;
+        document.getElementById('sumNeto').textContent = money(net);
+        document.getElementById('sumDescuento').textContent = money(discount);
+        document.getElementById('sumIgv').textContent = money(tax);
+        document.getElementById('sumSubtotal').textContent = money(subtotal);
+        document.getElementById('sumTotal').textContent = money(subtotal + freight + perception);
+        document.getElementById('sumItems').textContent = String(count);
+    }
+
+    document.getElementById('formCompra').addEventListener('submit', event => {
+        const items = [...body.rows].map(row => {
+            const product = row.querySelector('select');
+            const item = Object.fromEntries([...row.querySelectorAll('[data-key]')].map(input => [input.dataset.key, input.value]));
+            return {...item, producto_id: product.value};
+        }).filter(item => item.producto_id);
+        if (!items.length || items.length !== body.rows.length) {
+            event.preventDefault(); alert('Agrega al menos un producto y selecciónalo del catálogo.'); return;
+        }
+        document.getElementById('itemsJson').value = JSON.stringify(items);
+    });
+    document.getElementById('addLine').addEventListener('click', addLine);
+    document.getElementById('addLineTop').addEventListener('click', addLine);
+    document.getElementById('recalculate').addEventListener('click', recalculate);
+    document.getElementById('flete').addEventListener('input', recalculate);
+    document.getElementById('percepcion').addEventListener('input', recalculate);
+    noTax.addEventListener('change', () => {
+        body.querySelectorAll('[data-key="igv_pct"]').forEach(input => input.value = noTax.checked ? '0' : '18');
+        recalculate();
+    });
+    document.getElementById('moneda').addEventListener('change', event => {
+        document.getElementById('tipo_cambio').value = event.target.value === 'PEN' ? '1' : '3.75';
+    });
+    addLine();
+})();
+</script>
+{% endblock %}

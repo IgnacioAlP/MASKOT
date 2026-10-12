@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de compra - MASKOT{% endblock %}
+
+{% block content %}
+{% set doc = compra.compra %}
+<main class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div><a class="small" href="{{ url_for('historial_compras_inventario') }}"><i class="fas fa-arrow-left me-1"></i>Documentos de compra</a><h1 class="h3 mt-2 mb-1">{{ doc[2] }} {{ doc[3] or '' }}-{{ doc[4] or doc[0] }}</h1><div class="text-secondary">{{ doc[1] }} · {{ doc[5]|dateformat }}</div></div>
+        <a class="btn btn-primary" href="{{ url_for('nueva_compra') }}"><i class="fas fa-plus me-2"></i>Nueva compra</a>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="border p-3 h-100"><div class="small text-secondary">Entrega</div><strong>{{ doc[6]|dateformat if doc[6] else 'Sin fecha' }}</strong></div></div>
+        <div class="col-md-3"><div class="border p-3 h-100"><div class="small text-secondary">Moneda / cambio</div><strong>{{ doc[8] }} · {{ doc[9] }}</strong></div></div>
+        <div class="col-md-3"><div class="border p-3 h-100"><div class="small text-secondary">Local / almacén</div><strong>{{ doc[10] }} / {{ doc[11] }}</strong></div></div>
+        <div class="col-md-3"><div class="border p-3 h-100"><div class="small text-secondary">Plazo</div><strong>{{ doc[7] }} días</strong></div></div>
+    </div>
+    <div class="table-responsive border bg-white">
+        <table class="table table-hover mb-0"><thead class="table-light"><tr><th>Producto</th><th>Unidad</th><th>Factor</th><th>Cantidad</th><th>Precio</th><th>Desc.</th><th>IGV</th><th class="text-end">Total</th></tr></thead>
+            <tbody>{% for item in compra.items %}<tr><td>{{ item[0] }}</td><td>{{ item[1] }}</td><td>{{ item[2] }}</td><td>{{ item[3] }}</td><td>{{ '%.2f'|format(item[4]) }}</td><td>{{ item[5] }}%</td><td>{{ item[6] }}%</td><td class="text-end">{{ '%.2f'|format(item[7]) }}</td></tr>{% else %}<tr><td colspan="8" class="text-center">Sin líneas</td></tr>{% endfor %}</tbody>
+        </table>
+    </div>
+    <div class="row justify-content-end mt-3"><div class="col-md-5 col-lg-4">
+        <dl class="row mb-0"><dt class="col-7">Neto</dt><dd class="col-5 text-end">{{ doc[8] }} {{ '%.2f'|format(doc[12]) }}</dd><dt class="col-7">Descuento</dt><dd class="col-5 text-end">{{ '%.2f'|format(doc[13]) }}</dd><dt class="col-7">Flete</dt><dd class="col-5 text-end">{{ '%.2f'|format(doc[14]) }}</dd><dt class="col-7">IGV</dt><dd class="col-5 text-end">{{ '%.2f'|format(doc[15]) }}</dd><dt class="col-7">Percepción</dt><dd class="col-5 text-end">{{ '%.2f'|format(doc[16]) }}</dd><dt class="col-7 h5">Total</dt><dd class="col-5 text-end h5">{{ doc[8] }} {{ '%.2f'|format(doc[17]) }}</dd></dl>
+    </div></div>
+    {% if doc[18] %}<p class="mt-3"><strong>Observaciones:</strong> {{ doc[18] }}</p>{% endif %}
+</main>
+{% endblock %}
