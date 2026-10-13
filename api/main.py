@@ -916,6 +916,12 @@ def procesar_venta():
             if str_id.isdigit() and int(str_id) > 0:
                 cliente_id = int(str_id)
 
+        if data.get('metodo_pago') == 'credito' and not cliente_id:
+            return jsonify({
+                'success': False,
+                'error': 'Selecciona un cliente desde los resultados de búsqueda. Escribir el nombre no lo vincula a su cuenta.'
+            }), 400
+
         # 2. Extraer Nombre y Documento del cliente
         raw_nombre = (
             data.get('cliente_nombre') or 
@@ -954,7 +960,7 @@ def procesar_venta():
                 cursor.execute("""
                     SELECT id, nombre, COALESCE(documento, '') 
                     FROM clientes 
-                    WHERE id = %s AND tenant_id = %s
+                    WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL)
                 """, (cliente_id, tenant_id))
                 cli_db = cursor.fetchone()
                 if cli_db:
@@ -969,7 +975,7 @@ def procesar_venta():
                     SELECT id, nombre, COALESCE(documento, '') 
                     FROM clientes 
                     WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(%s)) 
-                      AND tenant_id = %s
+                                            AND (tenant_id = %s OR tenant_id IS NULL)
                     LIMIT 1
                 """, (cliente_nombre, tenant_id))
                 cli_db = cursor.fetchone()
@@ -1033,7 +1039,7 @@ def procesar_venta():
                     conexion.rollback()
                     return jsonify({
                         'success': False,
-                        'error': 'Para ventas a crédito es obligatorio seleccionar un cliente registrado.'
+                        'error': 'No se encontró el cliente seleccionado en este local. Vuelve a elegirlo en los resultados.'
                     }), 400
 
             vendedor_id = session.get('usuario_id') or session.get('user_id')

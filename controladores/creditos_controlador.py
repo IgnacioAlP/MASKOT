@@ -92,7 +92,7 @@ def crear_credito(cliente_id, cliente_nombre, cliente_documento=None, monto_tota
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT nombre, documento FROM clientes
-                WHERE id = %s AND tenant_id = %s AND activo = TRUE
+                WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL) AND activo = TRUE
             """, (int(cliente_id), tenant_id))
             cliente = cursor.fetchone()
             if not cliente:

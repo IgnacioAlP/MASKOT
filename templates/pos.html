@@ -752,8 +752,8 @@
 
         // Si es crédito, es OBLIGATORIO que se seleccione un cliente registrado
         if (metodoPago === 'credito') {
-            if (!clienteId && (!clienteNombre || clienteNombre.toLowerCase() === 'cliente general')) {
-                alert('⚠️ Para registrar una venta a crédito, debe seleccionar o registrar un cliente específico (no se permite Cliente General).');
+            if (!Number.isInteger(clienteId) || clienteId <= 0) {
+                alert('Para vender a crédito, selecciona al cliente desde los resultados de búsqueda. Escribir el nombre no lo vincula a su cuenta.');
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = '<i class="fas fa-credit-card"></i> PAGAR';
@@ -912,7 +912,7 @@
 
     function posClienteSeleccionar(nombre, id) {
         document.getElementById('cliente_nombre').value = nombre;
-        document.getElementById('cliente_id').value = id || '';
+        document.getElementById('cliente_id').value = /^\d+$/.test(String(id || '')) ? String(id) : '';
         posActualizarBadgeDirecto(nombre);
         posClienteCerrar();
     }
@@ -921,7 +921,13 @@
         const badge = document.getElementById('cliente-badge');
         if (!badge) return;
         if (val && val.trim() !== '') {
-            badge.innerHTML = `<i class="fas fa-user-check"></i> Asignado: <strong>${val}</strong> <button type="button" onclick="posClienteLimpiar()" style="background:none;border:none;color:#dc3545;cursor:pointer;font-weight:bold;margin-left:5px;">✕</button>`;
+            const clienteSeleccionado = Boolean(document.getElementById('cliente_id')?.value);
+            badge.innerHTML = clienteSeleccionado
+                ? `<i class="fas fa-user-check"></i> Asignado: <strong>${val}</strong> <button type="button" onclick="posClienteLimpiar()" style="background:none;border:none;color:#dc3545;cursor:pointer;font-weight:bold;margin-left:5px;">✕</button>`
+                : `<i class="fas fa-user-clock"></i> Selecciona <strong>${val}</strong> en los resultados para vincularlo a la venta.`;
+            badge.style.background = clienteSeleccionado ? '#e8f5e9' : '#fff3cd';
+            badge.style.borderColor = clienteSeleccionado ? '#c8e6c9' : '#ffe69c';
+            badge.style.color = clienteSeleccionado ? '#2e7d32' : '#664d03';
             badge.style.display = 'block';
         } else {
             badge.style.display = 'none';

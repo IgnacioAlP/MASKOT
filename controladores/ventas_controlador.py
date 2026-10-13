@@ -65,9 +65,9 @@ def procesar_venta(datos_venta):
             if datos_venta.get('metodo_pago') == 'credito':
                 if cliente_id_raw is None or not str(cliente_id_raw).strip().isdigit():
                     conexion.rollback()
-                    return {'success': False, 'error': 'Para ventas a crédito debes seleccionar un cliente registrado.'}
+                    return {'success': False, 'error': 'Selecciona un cliente desde los resultados de búsqueda para vincular el crédito.'}
                 cursor.execute(
-                    "SELECT id, nombre, documento FROM clientes WHERE id = %s AND tenant_id = %s AND activo = TRUE",
+                    "SELECT id, nombre, documento FROM clientes WHERE id = %s AND (tenant_id = %s OR tenant_id IS NULL) AND activo = TRUE",
                     (int(cliente_id_raw), tenant_id)
                 )
                 cliente_credito = cursor.fetchone()
