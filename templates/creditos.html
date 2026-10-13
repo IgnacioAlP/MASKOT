@@ -373,8 +373,9 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form id="formAbono" method="POST" action="">
+                <form id="formAbono" method="POST" action="" class="no-animation">
                 <div class="modal-body p-4">
+                    <div id="abonoError" class="alert alert-danger d-none" role="alert"></div>
                     <div class="alert alert-light border rounded-3 p-3 mb-3">
                         <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted small">Cliente:</span>
@@ -630,6 +631,55 @@
     function llenarMontoTotal() {
         document.getElementById('inputMontoAbono').value = saldoPendienteActual.toFixed(2);
     }
+
+    document.getElementById('formAbono')?.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const button = this.querySelector('button[type="submit"]');
+        let errorBox = this.querySelector('#abonoError');
+        if (!errorBox) {
+            errorBox = document.createElement('div');
+            errorBox.id = 'abonoError';
+            errorBox.className = 'alert alert-danger d-none';
+            errorBox.setAttribute('role', 'alert');
+            this.querySelector('.modal-body')?.prepend(errorBox);
+        }
+        if (!button) {
+            errorBox.textContent = 'No se encontró el botón para confirmar el abono.';
+            errorBox.classList.remove('d-none');
+            return;
+        }
+
+        const originalHtml = button.innerHTML;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        errorBox.classList.add('d-none');
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Registrando...';
+
+        try {
+            const response = await fetch(this.action, {
+                method: 'POST',
+                body: new FormData(this),
+                signal: controller.signal,
+                headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json'}
+            });
+            const result = await response.json().catch(() => null);
+            if (!result) throw new Error(`Respuesta inesperada del servidor (HTTP ${response.status}).`);
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || `No se pudo registrar el abono (HTTP ${response.status}).`);
+            }
+            window.location.reload();
+        } catch (error) {
+            errorBox.textContent = error.name === 'AbortError'
+                ? 'La base de datos tardó demasiado. Verifica el saldo antes de volver a enviar el abono.'
+                : error.message || 'No se pudo registrar el abono.';
+            errorBox.classList.remove('d-none');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    });
 
     function verDetallesCredito(creditoId) {
         const modal = new bootstrap.Modal(document.getElementById('modalDetalleCredito'));

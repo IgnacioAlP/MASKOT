@@ -61,7 +61,6 @@ def registrar_compra_inventario(documento, items, tenant_id=None):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_compras_inventario(cursor)
             lineas = []
             subtotal = Decimal('0')
             descuento_total = Decimal('0')
@@ -173,7 +172,6 @@ def obtener_compras_inventario(tenant_id=None, limit=50):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_compras_inventario(cursor)
             cursor.execute("""
                 SELECT c.id, c.proveedor, c.tipo_comprobante, c.serie, c.numero_comprobante,
                        c.fecha_emision, c.total, c.moneda, COUNT(d.id)
@@ -194,7 +192,6 @@ def obtener_detalle_compra_inventario(compra_id, tenant_id=None):
     conexion = obtener_conexion()
     try:
         with conexion.cursor() as cursor:
-            asegurar_tablas_compras_inventario(cursor)
             cursor.execute("""
                 SELECT id, proveedor, tipo_comprobante, serie, numero_comprobante, fecha_emision,
                        fecha_entrega, dias_plazo, moneda, tipo_cambio, local_actual, almacen_actual,

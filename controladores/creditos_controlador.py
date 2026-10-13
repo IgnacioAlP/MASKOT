@@ -330,12 +330,16 @@ def registrar_abono(credito_id, monto, metodo_pago='efectivo', notas=None, usuar
     if tenant_id is None:
         tenant_id = obtener_tenant_id()
 
-    monto = float(monto or 0.0)
-    if monto <= 0:
-        return {'success': False, 'error': 'El monto del abono debe ser mayor a 0'}
-
-    conexion = obtener_conexion()
     try:
+        monto = float(monto or 0.0)
+    except (TypeError, ValueError):
+        return {'success': False, 'error': 'El monto del abono debe ser un número válido.'}
+    if not math.isfinite(monto) or monto <= 0:
+        return {'success': False, 'error': 'El monto del abono debe ser mayor a cero.'}
+
+    conexion = None
+    try:
+        conexion = obtener_conexion()
         with conexion.cursor() as cursor:
             cursor.execute("""
                 SELECT monto_total, monto_pagado, saldo_pendiente, estado
@@ -395,11 +399,13 @@ def registrar_abono(credito_id, monto, metodo_pago='efectivo', notas=None, usuar
             }
 
     except Exception as e:
-        conexion.rollback()
+        if conexion:
+            conexion.rollback()
         logger.error(f"Error registrando abono: {e}")
         return {'success': False, 'error': str(e)}
     finally:
-        conexion.close()
+        if conexion:
+            conexion.close()
 
 
 def obtener_resumen_creditos(tenant_id=None):

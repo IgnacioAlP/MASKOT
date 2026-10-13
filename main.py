@@ -2438,33 +2438,41 @@ def test_estado():
 def nueva_compra():
     """Registra documentos de compra de proveedor con una o más líneas."""
     if request.method == 'POST':
+        expects_json = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         try:
-            items = json.loads(request.form.get('items_json') or '[]')
+            data = request.get_json(silent=True) or request.form.to_dict()
+            items = data.get('items') if isinstance(data.get('items'), list) else json.loads(data.get('items_json') or '[]')
             documento = {
-                'proveedor': request.form.get('proveedor', '').strip(),
-                'tipo_comprobante': request.form.get('tipo_comprobante', 'FC'),
-                'serie': request.form.get('serie', '').strip(),
-                'numero_comprobante': request.form.get('numero_comprobante', '').strip(),
-                'fecha_emision': request.form.get('fecha_emision'),
-                'fecha_entrega': request.form.get('fecha_entrega'),
-                'dias_plazo': request.form.get('dias_plazo', '0'),
-                'moneda': request.form.get('moneda', 'PEN'),
-                'tipo_cambio': request.form.get('tipo_cambio', '1'),
-                'local_actual': request.form.get('local_actual', '01'),
-                'almacen_actual': request.form.get('almacen_actual', '01'),
-                'flete': request.form.get('flete', '0'),
-                'percepcion': request.form.get('percepcion', '0'),
-                'observaciones': request.form.get('observaciones', '').strip(),
+                'proveedor': (data.get('proveedor') or '').strip(),
+                'tipo_comprobante': data.get('tipo_comprobante', 'FC'),
+                'serie': (data.get('serie') or '').strip(),
+                'numero_comprobante': (data.get('numero_comprobante') or '').strip(),
+                'fecha_emision': data.get('fecha_emision'),
+                'fecha_entrega': data.get('fecha_entrega'),
+                'dias_plazo': data.get('dias_plazo', '0'),
+                'moneda': data.get('moneda', 'PEN'),
+                'tipo_cambio': data.get('tipo_cambio', '1'),
+                'local_actual': data.get('local_actual', '01'),
+                'almacen_actual': data.get('almacen_actual', '01'),
+                'flete': data.get('flete', '0'),
+                'percepcion': data.get('percepcion', '0'),
+                'observaciones': (data.get('observaciones') or '').strip(),
             }
             resultado = compras_controlador.registrar_compra_inventario(
                 documento, items, session.get('tenant_id', 1)
             )
             if resultado.get('success'):
+                if expects_json:
+                    return jsonify(resultado), 201
                 flash(f"Compra #{resultado['compra_id']} registrada. El inventario fue actualizado.", 'success')
             else:
+                if expects_json:
+                    return jsonify(resultado), 400
                 flash(resultado.get('error') or 'No se pudo registrar la compra.', 'error')
         except Exception as e:
             logger.error(f"Error registrando compra de proveedor: {e}")
+            if expects_json:
+                return jsonify({'success': False, 'error': str(exc)}), 400
             flash('No se pudo procesar el documento. Revisa los datos e inténtalo de nuevo.', 'error')
 
         return redirect(url_for('nueva_compra'))
@@ -3203,7 +3211,10 @@ def abonar_credito(id):
     usuario_nombre = session.get('usuario') or session.get('username') or 'Cajero'
 
     data = request.get_json(silent=True) or request.form.to_dict() or {}
-    monto = float(data.get('monto', 0.0) or 0.0)
+    try:
+        monto = float(data.get('monto', 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'El monto del abono debe ser un número válido.'}), 400
     metodo_pago = data.get('metodo_pago', 'efectivo')
     notas = data.get('notas', '')
 
@@ -3216,8 +3227,8 @@ def abonar_credito(id):
         tenant_id=tenant_id
     )
 
-    if request.is_json or request.headers.get('Accept') == 'application/json':
-        return jsonify(res)
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept') == 'application/json':
+        return jsonify(res), 200 if res.get('success') else 400
 
     if res.get('success'):
         flash(f"Abono de S/ {monto:.2f} registrado exitosamente.", 'success')
