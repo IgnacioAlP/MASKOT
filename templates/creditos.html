@@ -433,8 +433,9 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('nuevo_credito') }}">
+                <form method="POST" action="{{ url_for('nuevo_credito') }}" id="formNuevoCredito" class="no-animation">
                 <div class="modal-body p-4">
+                    <div id="nuevoCreditoError" class="alert alert-danger d-none" role="alert"></div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold text-dark">Seleccionar Cliente *</label>
                         <select name="cliente_id" class="form-select select2-cliente" required>
@@ -557,6 +558,46 @@
             const fecha = new Date();
             fecha.setDate(fecha.getDate() + 30);
             inputFechaVenc.value = fecha.toISOString().split('T')[0];
+        }
+    });
+
+    const formNuevoCredito = document.getElementById('formNuevoCredito');
+    formNuevoCredito?.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const button = this.querySelector('button[type="submit"]');
+        const errorBox = document.getElementById('nuevoCreditoError');
+        const originalHtml = button.innerHTML;
+        const timeoutController = new AbortController();
+        const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
+        errorBox.classList.add('d-none');
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+
+        try {
+            const payload = Object.fromEntries(new FormData(this).entries());
+            const response = await fetch(this.action, {
+                method: 'POST',
+                signal: timeoutController.signal,
+                headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json().catch(() => null);
+            if (!result) {
+                throw new Error(`El servidor devolvió una respuesta inesperada (HTTP ${response.status}).`);
+            }
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || `No se pudo guardar el crédito (HTTP ${response.status}).`);
+            }
+            window.location.reload();
+        } catch (error) {
+            errorBox.textContent = error.name === 'AbortError'
+                ? 'La base de datos no respondió a tiempo. No vuelvas a enviar hasta verificar si el crédito aparece en la lista.'
+                : error.message || 'No se pudo guardar el crédito.';
+            errorBox.classList.remove('d-none');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        } finally {
+            clearTimeout(timeoutId);
         }
     });
 

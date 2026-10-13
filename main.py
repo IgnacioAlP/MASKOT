@@ -3174,21 +3174,10 @@ def nuevo_credito():
         flash(message, 'error')
         return redirect(url_for('listar_creditos'))
 
-    cli = clientes_controlador.obtener_cliente_por_id(cliente_id, tenant_id)
-    if not cli:
-        message = 'Cliente no encontrado en este local.'
-        if request.is_json:
-            return jsonify({'success': False, 'error': message}), 404
-        flash(message, 'error')
-        return redirect(url_for('listar_creditos'))
-
-    cliente_nombre = cli[1]
-    cliente_doc = cli[5] if len(cli) > 5 else None
-
     res = creditos_controlador.crear_credito(
         cliente_id=cliente_id,
-        cliente_nombre=cliente_nombre,
-        cliente_documento=cliente_doc,
+        cliente_nombre='',
+        cliente_documento=None,
         monto_total=monto,
         fecha_vencimiento=fecha_vencimiento,
         notas=notas,

@@ -32,11 +32,12 @@
 
 <div class="modal fade" id="modalVisita" tabindex="-1" aria-labelledby="modalVisitaLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
-        <form method="POST" action="{{ url_for('registrar_historial_clinico') }}">
+        <form method="POST" action="{{ url_for('registrar_historial_clinico') }}" class="no-animation" data-async-clinical>
             <div class="modal-header"><h2 class="modal-title h5" id="modalVisitaLabel">Nueva visita · {{ mascota[1] }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
             <div class="modal-body row g-3">
                 <input type="hidden" name="mascota_id" value="{{ mascota[0] }}">
                 <input type="hidden" name="return_to" value="{{ request.path }}">
+                <div class="col-12"><div class="alert alert-danger d-none mb-0" data-submit-error role="alert"></div></div>
                 <div class="col-md-6"><label class="form-label" for="visitaFecha">Fecha de visita</label><input class="form-control" type="date" id="visitaFecha" name="fecha_visita" value="{{ fecha_hoy }}" required></div>
                 <div class="col-md-6"><label class="form-label" for="visitaProxima">Próxima cita</label><input class="form-control" type="date" id="visitaProxima" name="proxima_cita"></div>
                 <div class="col-12"><label class="form-label" for="visitaServicio">Servicio brindado</label><input class="form-control" id="visitaServicio" name="servicio" required maxlength="255" placeholder="Consulta, vacuna, grooming..."></div>
@@ -48,4 +49,37 @@
         </form>
     </div></div>
 </div>
+<script>
+document.querySelector('form[data-async-clinical]')?.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    const button = this.querySelector('button[type="submit"]');
+    const errorBox = this.querySelector('[data-submit-error]');
+    const originalHtml = button.innerHTML;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    errorBox.classList.add('d-none');
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+
+    try {
+        const response = await fetch(this.action, {
+            method: 'POST', body: new FormData(this), signal: controller.signal,
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        });
+        if (!response.ok) {
+            throw new Error(`El servidor respondió con HTTP ${response.status}. La visita no pudo confirmarse.`);
+        }
+        window.location.assign(response.url);
+    } catch (error) {
+        errorBox.textContent = error.name === 'AbortError'
+            ? 'La base de datos no respondió a tiempo. Revisa el historial antes de volver a intentarlo.'
+            : error.message || 'No se pudo guardar la visita.';
+        errorBox.classList.remove('d-none');
+        button.disabled = false;
+        button.innerHTML = originalHtml;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+});
+</script>
 {% endblock %}
