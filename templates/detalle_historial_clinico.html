@@ -53,7 +53,19 @@
 document.querySelector('form[data-async-clinical]')?.addEventListener('submit', async function(event) {
     event.preventDefault();
     const button = this.querySelector('button[type="submit"]');
-    const errorBox = this.querySelector('[data-submit-error]');
+    let errorBox = this.querySelector('[data-submit-error]');
+    if (!errorBox) {
+        errorBox = document.createElement('div');
+        errorBox.className = 'alert alert-danger d-none mb-0';
+        errorBox.setAttribute('role', 'alert');
+        errorBox.dataset.submitError = '';
+        this.querySelector('.modal-body')?.prepend(errorBox);
+    }
+    if (!button) {
+        errorBox.textContent = 'No se encontró el botón para guardar la visita.';
+        errorBox.classList.remove('d-none');
+        return;
+    }
     const originalHtml = button.innerHTML;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);

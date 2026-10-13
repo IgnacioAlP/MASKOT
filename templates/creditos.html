@@ -565,7 +565,19 @@
     formNuevoCredito?.addEventListener('submit', async function(event) {
         event.preventDefault();
         const button = this.querySelector('button[type="submit"]');
-        const errorBox = document.getElementById('nuevoCreditoError');
+        let errorBox = this.querySelector('#nuevoCreditoError');
+        if (!errorBox) {
+            errorBox = document.createElement('div');
+            errorBox.id = 'nuevoCreditoError';
+            errorBox.className = 'alert alert-danger d-none';
+            errorBox.setAttribute('role', 'alert');
+            this.querySelector('.modal-body')?.prepend(errorBox);
+        }
+        if (!button) {
+            errorBox.textContent = 'No se encontró el botón para guardar el crédito.';
+            errorBox.classList.remove('d-none');
+            return;
+        }
         const originalHtml = button.innerHTML;
         const timeoutController = new AbortController();
         const timeoutId = setTimeout(() => timeoutController.abort(), 30000);
