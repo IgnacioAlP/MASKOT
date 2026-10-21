@@ -7,9 +7,10 @@
     <header class="mb-4">
         <p class="text-uppercase text-secondary small fw-semibold mb-1">Fidelización</p>
         <h1 class="h2 mb-1">Mi cartilla</h1>
-        <p class="text-secondary mb-0">{{ cliente[1] }} · {{ cartilla.nombre }}</p>
+        <p class="text-secondary mb-0">{{ cliente[1] }} · {{ cartilla.nombre or 'Cartilla de visitas' }}</p>
     </header>
 
+    {% if cartilla.programa_activo %}
     <section class="border rounded-2 p-4 p-md-5 mb-4 bg-light" aria-label="Progreso de visitas">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
             <div>
@@ -31,6 +32,11 @@
         </div>
         <p class="small text-secondary mt-3 mb-0">Al completar la cartilla, se activa el beneficio y comienza un nuevo ciclo.</p>
     </section>
+    {% else %}
+    <div class="alert alert-warning mb-4" role="status">
+        El programa de fidelización no está activo en este momento. El personal debe configurar un beneficio para habilitar los sellos.
+    </div>
+    {% endif %}
 
     <section>
         <h2 class="h5 mb-3">Mis beneficios</h2>

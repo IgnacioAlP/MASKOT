@@ -225,7 +225,12 @@ def obtener_cartillas_admin(tenant_id=None):
                 ORDER BY fc.created_at DESC
             """, (tenant_id,))
             historial_cartillas = cursor.fetchall()
-            return cartillas, recompensas, historial_cartillas
+            resultado = cartillas, recompensas, historial_cartillas
+        conexion.commit()
+        return resultado
+    except Exception:
+        conexion.rollback()
+        raise
     finally:
         conexion.close()
 
@@ -235,6 +240,13 @@ def obtener_cartilla_cliente(cliente_id, tenant_id=None):
     tenant_id = tenant_id or obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT nombre, sellos_objetivo
+                FROM fidelizacion_programas
+                WHERE tenant_id = %s AND activo = TRUE
+                ORDER BY id DESC LIMIT 1
+            """, (tenant_id,))
+            programa = cursor.fetchone()
             _sincronizar_visitas_completadas(cursor, cliente_id, tenant_id)
             cursor.execute("""
                 SELECT fc.sellos, COALESCE(fp.sellos_objetivo, 10), fp.nombre
@@ -253,7 +265,7 @@ def obtener_cartilla_cliente(cliente_id, tenant_id=None):
             recompensas = cursor.fetchall()
             cartilla = {
                 'sellos': actual[0], 'objetivo': actual[1], 'nombre': actual[2],
-                'recompensas': recompensas,
+                'recompensas': recompensas, 'programa_activo': programa is not None,
             }
         conexion.commit()
         return cartilla
