@@ -146,11 +146,48 @@ def guardar_programa(beneficio_nombre, beneficio_descripcion, tenant_id=None):
         conexion.close()
 
 
+def _sincronizar_visitas_completadas(cursor, cliente_id, tenant_id):
+    cursor.execute("""
+        SELECT c.id
+        FROM citas c
+        LEFT JOIN clientes cl
+          ON c.cliente_id IS NULL
+         AND LOWER(cl.email) = LOWER(c.cliente_email)
+         AND cl.tenant_id = c.tenant_id
+        WHERE c.tenant_id = %s
+          AND c.estado::text = 'completada'
+          AND COALESCE(c.cliente_id, cl.id) = %s
+          AND NOT EXISTS (
+              SELECT 1 FROM fidelizacion_visitas fv WHERE fv.cita_id = c.id
+          )
+        ORDER BY c.fecha, c.hora, c.id
+    """, (tenant_id, cliente_id))
+    for (cita_id,) in cursor.fetchall():
+        registrar_visita_en_transaccion(cursor, cita_id, cliente_id, tenant_id)
+
+
 def obtener_cartillas_admin(tenant_id=None):
     conexion = obtener_conexion()
     tenant_id = tenant_id or obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT DISTINCT COALESCE(c.cliente_id, cl.id)
+                FROM citas c
+                LEFT JOIN clientes cl
+                  ON c.cliente_id IS NULL
+                 AND LOWER(cl.email) = LOWER(c.cliente_email)
+                 AND cl.tenant_id = c.tenant_id
+                WHERE c.tenant_id = %s AND c.estado::text = 'completada'
+                  AND COALESCE(c.cliente_id, cl.id) IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM fidelizacion_visitas fv WHERE fv.cita_id = c.id
+                  )
+            """, (tenant_id,))
+            clientes_pendientes = [row[0] for row in cursor.fetchall()]
+            for cliente_id in clientes_pendientes:
+                _sincronizar_visitas_completadas(cursor, cliente_id, tenant_id)
+
             cursor.execute("""
                 SELECT cl.id, cl.nombre, cl.email, cl.telefono,
                        COALESCE(fc.sellos, 0), COALESCE(fp.sellos_objetivo, 10),
@@ -198,6 +235,7 @@ def obtener_cartilla_cliente(cliente_id, tenant_id=None):
     tenant_id = tenant_id or obtener_tenant_id()
     try:
         with conexion.cursor() as cursor:
+            _sincronizar_visitas_completadas(cursor, cliente_id, tenant_id)
             cursor.execute("""
                 SELECT fc.sellos, COALESCE(fp.sellos_objetivo, 10), fp.nombre
                 FROM fidelizacion_cartillas fc
@@ -213,10 +251,15 @@ def obtener_cartilla_cliente(cliente_id, tenant_id=None):
                 ORDER BY created_at DESC
             """, (cliente_id, tenant_id))
             recompensas = cursor.fetchall()
-            return {
+            cartilla = {
                 'sellos': actual[0], 'objetivo': actual[1], 'nombre': actual[2],
                 'recompensas': recompensas,
             }
+        conexion.commit()
+        return cartilla
+    except Exception:
+        conexion.rollback()
+        raise
     finally:
         conexion.close()
 
