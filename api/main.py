@@ -4088,12 +4088,21 @@ def fidelizacion():
             elif not beneficio_nombre or not beneficio_descripcion:
                 flash('Completa el nombre y la descripción del beneficio.', 'error')
             else:
-                fidelizacion_ctrl.guardar_programa(beneficio_nombre, beneficio_descripcion)
-                flash('Programa de fidelización actualizado.', 'success')
+                try:
+                    fidelizacion_ctrl.guardar_programa(beneficio_nombre, beneficio_descripcion)
+                    flash('Programa de fidelización actualizado.', 'success')
+                except Exception:
+                    logger.exception('No se pudo guardar el programa de fidelización')
+                    flash('No se guardó el beneficio. Verifica que ejecutaste migrations/005_fidelizacion_cartillas.sql en Supabase.', 'error')
         return redirect(url_for('fidelizacion'))
 
-    programa = fidelizacion_ctrl.obtener_programa_activo()
-    cartillas, recompensas, historial_cartillas = fidelizacion_ctrl.obtener_cartillas_admin()
+    try:
+        programa = fidelizacion_ctrl.obtener_programa_activo()
+        cartillas, recompensas, historial_cartillas = fidelizacion_ctrl.obtener_cartillas_admin()
+    except Exception:
+        logger.exception('No se pudo cargar el módulo de fidelización')
+        flash('No se pudo cargar fidelización. Verifica que ejecutaste migrations/005_fidelizacion_cartillas.sql en Supabase.', 'error')
+        programa, cartillas, recompensas, historial_cartillas = None, [], [], []
     return render_template(
         'fidelizacion.html', programa=programa, cartillas=cartillas,
         recompensas=recompensas, historial_cartillas=historial_cartillas
