@@ -51,11 +51,13 @@
                 {% if session.rol %}
                 <!-- MENÚ PARA USUARIOS CON SESIÓN INICIADA -->
                 <ul class="navbar-nav me-auto">
+                    {% if session.rol != 'cliente' %}
                     <li class="nav-item">
                         <a class="nav-link maskot-nav-link" href="{{ url_for('dashboard') }}">
                             <i class="fas fa-tachometer-alt me-2"></i>Dashboard
                         </a>
                     </li>
+                    {% endif %}
 
                     {% if session.rol in ['admin', 'empleado'] %}
                     <li class="nav-item">
@@ -66,6 +68,20 @@
                     <li class="nav-item">
                         <a class="nav-link maskot-nav-link" href="{{ url_for('asistencia') }}">
                             <i class="fas fa-clock me-2"></i>Asistencia
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if session.rol in ['admin', 'empleado', 'dueño'] %}
+                    <li class="nav-item">
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('fidelizacion') }}">
+                            <i class="fas fa-stamp me-2"></i>Fidelización
+                        </a>
+                    </li>
+                    {% elif session.rol == 'cliente' %}
+                    <li class="nav-item">
+                        <a class="nav-link maskot-nav-link" href="{{ url_for('mi_cartilla') }}">
+                            <i class="fas fa-paw me-2"></i>Mi cartilla
                         </a>
                     </li>
                     {% endif %}

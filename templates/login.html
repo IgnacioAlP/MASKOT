@@ -217,13 +217,13 @@
             <h2>Bienvenido de nuevo</h2>
             <p class="subtitle">Ingresa tus credenciales para continuar</p>
 
-            {% if session.get('rol') in ['dueño','admin','empleado','superadmin'] %}
+            {% if session.get('rol') in ['cliente','dueño','admin','empleado','superadmin'] %}
             <div class="already-logged">
                 <i class="fas fa-user-check me-2"></i>
                 Ya iniciaste sesión como <strong>{{ session.get('usuario') }}</strong>.
                 <div class="mt-2 d-flex gap-2">
-                    <a href="{{ url_for('dashboard') }}" class="btn btn-login" style="margin-top:0;">
-                        <i class="fas fa-tachometer-alt me-2"></i>Ir al Dashboard
+                    <a href="{{ url_for('mi_cartilla') if session.get('rol') == 'cliente' else url_for('dashboard') }}" class="btn btn-login" style="margin-top:0;">
+                        <i class="fas {{ 'fa-paw' if session.get('rol') == 'cliente' else 'fa-tachometer-alt' }} me-2"></i>{{ 'Mi cartilla' if session.get('rol') == 'cliente' else 'Ir al Dashboard' }}
                     </a>
                 </div>
                 <div class="mt-2 text-center">

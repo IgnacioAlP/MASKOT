@@ -26,6 +26,222 @@ WSP_API_URL = os.environ.get('WSP_API_URL')
 WSP_API_TOKEN = os.environ.get('WSP_API_TOKEN')
 
 
+def registrar_visita_en_transaccion(cursor, cita_id, cliente_id, tenant_id):
+    """Registra un sello una sola vez y abre una nueva cartilla al completar el ciclo."""
+    cursor.execute(
+        "SELECT id FROM clientes WHERE id = %s AND tenant_id = %s FOR UPDATE",
+        (cliente_id, tenant_id)
+    )
+    if not cursor.fetchone():
+        return None
+
+    cursor.execute("""
+        SELECT id, nombre, beneficio_nombre, beneficio_descripcion, sellos_objetivo
+        FROM fidelizacion_programas
+        WHERE tenant_id = %s AND activo = TRUE
+        ORDER BY id DESC
+        LIMIT 1
+    """, (tenant_id,))
+    programa = cursor.fetchone()
+    if not programa:
+        return None
+
+    cursor.execute("""
+        SELECT id, sellos
+        FROM fidelizacion_cartillas
+        WHERE tenant_id = %s AND cliente_id = %s AND estado = 'activa'
+        FOR UPDATE
+    """, (tenant_id, cliente_id))
+    cartilla = cursor.fetchone()
+    if not cartilla:
+        cursor.execute("""
+            INSERT INTO fidelizacion_cartillas (tenant_id, cliente_id)
+            VALUES (%s, %s) RETURNING id, sellos
+        """, (tenant_id, cliente_id))
+        cartilla = cursor.fetchone()
+
+    cursor.execute("""
+        INSERT INTO fidelizacion_visitas (tenant_id, cartilla_id, cita_id)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (cita_id) DO NOTHING
+        RETURNING id
+    """, (tenant_id, cartilla[0], cita_id))
+    if not cursor.fetchone():
+        return {'sellos': cartilla[1], 'objetivo': programa[4], 'recompensa': None}
+
+    nuevos_sellos = cartilla[1] + 1
+    cursor.execute("""
+        UPDATE fidelizacion_cartillas
+        SET sellos = %s
+        WHERE id = %s AND tenant_id = %s
+    """, (nuevos_sellos, cartilla[0], tenant_id))
+
+    recompensa = None
+    if nuevos_sellos >= programa[4]:
+        cursor.execute("""
+            UPDATE fidelizacion_cartillas
+            SET estado = 'completada', completed_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND tenant_id = %s
+        """, (cartilla[0], tenant_id))
+        cursor.execute("""
+            INSERT INTO fidelizacion_recompensas (
+                tenant_id, cliente_id, cartilla_id, beneficio_nombre, beneficio_descripcion
+            ) VALUES (%s, %s, %s, %s, %s)
+            RETURNING id, beneficio_nombre, beneficio_descripcion
+        """, (tenant_id, cliente_id, cartilla[0], programa[2], programa[3]))
+        recompensa = cursor.fetchone()
+        cursor.execute("""
+            INSERT INTO fidelizacion_cartillas (tenant_id, cliente_id)
+            VALUES (%s, %s)
+        """, (tenant_id, cliente_id))
+
+    return {
+        'sellos': 0 if recompensa else nuevos_sellos,
+        'objetivo': programa[4],
+        'recompensa': recompensa,
+    }
+
+
+def obtener_programa_activo(tenant_id=None):
+    conexion = obtener_conexion()
+    tenant_id = tenant_id or obtener_tenant_id()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, nombre, beneficio_nombre, beneficio_descripcion, sellos_objetivo
+                FROM fidelizacion_programas
+                WHERE tenant_id = %s AND activo = TRUE
+                ORDER BY id DESC LIMIT 1
+            """, (tenant_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                'id': row[0], 'nombre': row[1], 'beneficio_nombre': row[2],
+                'beneficio_descripcion': row[3], 'sellos_objetivo': row[4],
+            }
+    finally:
+        conexion.close()
+
+
+def guardar_programa(beneficio_nombre, beneficio_descripcion, tenant_id=None):
+    conexion = obtener_conexion()
+    tenant_id = tenant_id or obtener_tenant_id()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE fidelizacion_programas SET activo = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE tenant_id = %s AND activo = TRUE
+            """, (tenant_id,))
+            cursor.execute("""
+                INSERT INTO fidelizacion_programas (
+                    tenant_id, beneficio_nombre, beneficio_descripcion, sellos_objetivo
+                ) VALUES (%s, %s, %s, 10)
+            """, (tenant_id, beneficio_nombre.strip(), beneficio_descripcion.strip()))
+        conexion.commit()
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+
+def obtener_cartillas_admin(tenant_id=None):
+    conexion = obtener_conexion()
+    tenant_id = tenant_id or obtener_tenant_id()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT cl.id, cl.nombre, cl.email, cl.telefono,
+                       COALESCE(fc.sellos, 0), COALESCE(fp.sellos_objetivo, 10),
+                       (SELECT COUNT(*) FROM fidelizacion_recompensas fr
+                        WHERE fr.cliente_id = cl.id AND fr.tenant_id = cl.tenant_id
+                          AND fr.estado = 'disponible'),
+                       fc.created_at
+                FROM clientes cl
+                LEFT JOIN fidelizacion_cartillas fc
+                  ON fc.cliente_id = cl.id AND fc.tenant_id = cl.tenant_id AND fc.estado = 'activa'
+                LEFT JOIN fidelizacion_programas fp
+                  ON fp.tenant_id = cl.tenant_id AND fp.activo = TRUE
+                WHERE cl.tenant_id = %s AND COALESCE(cl.activo, TRUE) = TRUE
+                ORDER BY cl.nombre
+            """, (tenant_id,))
+            cartillas = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT fr.id, cl.nombre, fr.beneficio_nombre, fr.beneficio_descripcion,
+                       fr.created_at, fr.estado
+                FROM fidelizacion_recompensas fr
+                JOIN clientes cl ON cl.id = fr.cliente_id AND cl.tenant_id = fr.tenant_id
+                WHERE fr.tenant_id = %s
+                ORDER BY fr.created_at DESC
+            """, (tenant_id,))
+            recompensas = cursor.fetchall()
+            cursor.execute("""
+                SELECT fc.id, cl.nombre, fc.sellos, fc.estado, fc.created_at,
+                       fc.completed_at, COUNT(fv.id)
+                FROM fidelizacion_cartillas fc
+                JOIN clientes cl ON cl.id = fc.cliente_id AND cl.tenant_id = fc.tenant_id
+                LEFT JOIN fidelizacion_visitas fv ON fv.cartilla_id = fc.id
+                WHERE fc.tenant_id = %s
+                GROUP BY fc.id, cl.nombre
+                ORDER BY fc.created_at DESC
+            """, (tenant_id,))
+            historial_cartillas = cursor.fetchall()
+            return cartillas, recompensas, historial_cartillas
+    finally:
+        conexion.close()
+
+
+def obtener_cartilla_cliente(cliente_id, tenant_id=None):
+    conexion = obtener_conexion()
+    tenant_id = tenant_id or obtener_tenant_id()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT fc.sellos, COALESCE(fp.sellos_objetivo, 10), fp.nombre
+                FROM fidelizacion_cartillas fc
+                LEFT JOIN fidelizacion_programas fp
+                  ON fp.tenant_id = fc.tenant_id AND fp.activo = TRUE
+                WHERE fc.cliente_id = %s AND fc.tenant_id = %s AND fc.estado = 'activa'
+            """, (cliente_id, tenant_id))
+            actual = cursor.fetchone() or (0, 10, 'Cartilla de visitas')
+            cursor.execute("""
+                SELECT beneficio_nombre, beneficio_descripcion, estado, created_at
+                FROM fidelizacion_recompensas
+                WHERE cliente_id = %s AND tenant_id = %s
+                ORDER BY created_at DESC
+            """, (cliente_id, tenant_id))
+            recompensas = cursor.fetchall()
+            return {
+                'sellos': actual[0], 'objetivo': actual[1], 'nombre': actual[2],
+                'recompensas': recompensas,
+            }
+    finally:
+        conexion.close()
+
+
+def canjear_recompensa(recompensa_id, tenant_id=None):
+    conexion = obtener_conexion()
+    tenant_id = tenant_id or obtener_tenant_id()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                UPDATE fidelizacion_recompensas
+                SET estado = 'canjeada', redeemed_at = CURRENT_TIMESTAMP
+                WHERE id = %s AND tenant_id = %s AND estado = 'disponible'
+                RETURNING id
+            """, (recompensa_id, tenant_id))
+            actualizada = cursor.fetchone() is not None
+        conexion.commit()
+        return actualizada
+    except Exception:
+        conexion.rollback()
+        raise
+    finally:
+        conexion.close()
+
+
 def _log(text):
     now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     log_msg = f"{now} | {text}\n"

@@ -1,4 +1,5 @@
 from bd import obtener_conexion, obtener_tenant_id
+from controladores.fidelizacion_controlador import registrar_visita_en_transaccion
 
 def obtener_citas():
     conexion = obtener_conexion()
@@ -24,22 +25,75 @@ def obtener_citas():
     conexion.close()
     return citas
 
-def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servicios_ids, fecha, hora, observaciones=''):
+def obtener_clientes_y_mascotas_para_citas():
+    conexion = obtener_conexion()
+    tenant_id = obtener_tenant_id()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, nombre, email, telefono, direccion
+                FROM clientes
+                WHERE tenant_id = %s AND COALESCE(activo, TRUE) = TRUE
+                ORDER BY nombre
+            """, (tenant_id,))
+            clientes = cursor.fetchall()
+            cursor.execute("""
+                SELECT m.id, m.cliente_id, m.nombre, m.especie, m.raza, m.edad, m.peso
+                FROM mascotas m
+                JOIN clientes c ON c.id = m.cliente_id AND c.tenant_id = m.tenant_id
+                WHERE m.tenant_id = %s AND COALESCE(m.activo, TRUE) = TRUE
+                  AND COALESCE(c.activo, TRUE) = TRUE
+                ORDER BY m.nombre
+            """, (tenant_id,))
+            mascotas = cursor.fetchall()
+            return clientes, mascotas
+    finally:
+        conexion.close()
+
+
+def insertar_cita_completa(
+    cliente_nombre, cliente_email, mascotas_data, servicios_ids, fecha, hora,
+    observaciones='', cliente_id=None, cliente_telefono=None, cliente_direccion=None
+):
     """Inserta una cita con múltiples mascotas y servicios"""
     conexion = obtener_conexion()
     cita_id = None
     try:
         with conexion.cursor() as cursor:
-            # Verificar/insertar cliente
-            cliente_id = verificar_o_insertar_cliente(cursor, cliente_nombre, cliente_email)
-            
-            # Insertar cita principal con RETURNING id
             tenant_id = obtener_tenant_id()
+            if cliente_id:
+                cursor.execute("""
+                    SELECT id, nombre, email, telefono, direccion
+                    FROM clientes
+                    WHERE id = %s AND tenant_id = %s AND COALESCE(activo, TRUE) = TRUE
+                """, (cliente_id, tenant_id))
+                cliente = cursor.fetchone()
+                if not cliente:
+                    raise ValueError('El cliente seleccionado no existe o está inactivo.')
+                cliente_id, cliente_nombre, cliente_email = cliente[:3]
+                cliente_telefono, cliente_direccion = cliente[3:]
+            else:
+                cliente_id = verificar_o_insertar_cliente(
+                    cursor, cliente_nombre, cliente_email, tenant_id,
+                    cliente_telefono, cliente_direccion
+                )
+                cursor.execute("""
+                    SELECT nombre, email, telefono, direccion
+                    FROM clientes WHERE id = %s AND tenant_id = %s
+                """, (cliente_id, tenant_id))
+                cliente = cursor.fetchone()
+                cliente_nombre, cliente_email, cliente_telefono, cliente_direccion = cliente
+
             cursor.execute("""
-                INSERT INTO citas (cliente_id, cliente_nombre, cliente_email, fecha, hora, estado, observaciones, tenant_id) 
-                VALUES (%s, %s, %s, %s, %s, 'pendiente', %s, %s)
+                INSERT INTO citas (
+                    cliente_id, cliente_nombre, cliente_email, cliente_telefono,
+                    fecha, hora, estado, observaciones, tenant_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, 'pendiente', %s, %s)
                 RETURNING id
-            """, (cliente_id, cliente_nombre, cliente_email, fecha, hora, observaciones, tenant_id))
+            """, (
+                cliente_id, cliente_nombre, cliente_email, cliente_telefono,
+                fecha, hora, observaciones, tenant_id
+            ))
             cita_id = cursor.fetchone()[0]
             
             # Insertar mascotas y vincular con la cita
@@ -53,6 +107,8 @@ def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servici
             for servicio_id in servicios_ids:
                 cursor.execute("INSERT INTO citas_servicios (cita_id, servicio_id) VALUES (%s, %s)", 
                              (cita_id, servicio_id))
+
+            registrar_visita_en_transaccion(cursor, cita_id, cliente_id, tenant_id)
             
             # Actualizar precio total si es necesario
             if precio_total > 0:
@@ -66,21 +122,36 @@ def insertar_cita_completa(cliente_nombre, cliente_email, mascotas_data, servici
         conexion.close()
     return cita_id
 
-def verificar_o_insertar_cliente(cursor, nombre, email, tenant_id=None):
+def verificar_o_insertar_cliente(
+    cursor, nombre, email, tenant_id=None, telefono=None, direccion=None
+):
     """Verifica si existe un cliente o lo crea"""
     if tenant_id is None:
         tenant_id = obtener_tenant_id()
-    cursor.execute("SELECT id FROM clientes WHERE email = %s AND tenant_id = %s", (email, tenant_id))
-    cliente = cursor.fetchone()
+    if email:
+        cursor.execute("""
+            SELECT id FROM clientes
+            WHERE LOWER(email) = LOWER(%s) AND tenant_id = %s
+            ORDER BY id LIMIT 1
+        """, (email, tenant_id))
+        cliente = cursor.fetchone()
+    else:
+        cliente = None
     
     if cliente:
+        cursor.execute("""
+            UPDATE clientes
+            SET nombre = %s, telefono = COALESCE(%s, telefono),
+                direccion = COALESCE(%s, direccion)
+            WHERE id = %s AND tenant_id = %s
+        """, (nombre, telefono, direccion, cliente[0], tenant_id))
         return cliente[0]
     else:
         cursor.execute("""
-            INSERT INTO clientes (nombre, email, fecha_registro, tenant_id) 
-            VALUES (%s, %s, CURRENT_TIMESTAMP, %s) 
+            INSERT INTO clientes (nombre, email, telefono, direccion, fecha_registro, tenant_id)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
             RETURNING id
-        """, (nombre, email, tenant_id))
+        """, (nombre, email, telefono, direccion, tenant_id))
         return cursor.fetchone()[0]
 
 def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data, tenant_id=None):
@@ -92,6 +163,18 @@ def insertar_o_obtener_mascota(cursor, cliente_id, mascota_data, tenant_id=None)
     raza = mascota_data.get('raza', '')
     edad = mascota_data.get('edad')
     peso = mascota_data.get('peso')
+
+    mascota_id = mascota_data.get('id')
+    if mascota_id:
+        cursor.execute("""
+            SELECT id FROM mascotas
+            WHERE id = %s AND cliente_id = %s AND tenant_id = %s
+              AND COALESCE(activo, TRUE) = TRUE
+        """, (mascota_id, cliente_id, tenant_id))
+        mascota = cursor.fetchone()
+        if not mascota:
+            raise ValueError('La mascota seleccionada no pertenece al cliente.')
+        return mascota[0]
     
     # Buscar mascota existente
     cursor.execute("""

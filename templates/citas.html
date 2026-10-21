@@ -705,7 +705,7 @@
 <div id="modal-nueva-cita"
     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
     <div
-        style="background:white; border-radius:20px; padding:35px; max-width:520px; width:94%; box-shadow:0 20px 60px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
+        style="background:white; border-radius:20px; padding:28px; max-width:760px; width:94%; box-shadow:0 20px 60px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
             <h3 style="color:#2c3e50; font-size:22px; font-weight:700; margin:0;"><i class="fas fa-calendar-plus"
                     style="color:#ffa301; margin-right:10px;"></i> Agendar Cita</h3>
@@ -714,28 +714,31 @@
         </div>
         <form method="POST" action="{{ url_for('agendar_cita') }}">
             <div style="margin-bottom:16px;">
-                <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Nombre del cliente
-                    <span style="color:red">*</span></label>
-                <input type="text" name="cliente_nombre" required placeholder="Ej: María López"
-                    style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+                <label for="cita-cliente" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Cliente</label>
+                <select name="cliente_id" id="cita-cliente" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50; background:white;">
+                    <option value="">Nuevo cliente</option>
+                    {% for cliente in clientes %}
+                    <option value="{{ cliente[0] }}" data-nombre="{{ cliente[1] or '' }}" data-email="{{ cliente[2] or '' }}" data-telefono="{{ cliente[3] or '' }}" data-direccion="{{ cliente[4] or '' }}">{{ cliente[1] }}{% if cliente[3] %} · {{ cliente[3] }}{% elif cliente[2] %} · {{ cliente[2] }}{% endif %}</option>
+                    {% endfor %}
+                </select>
             </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Email del cliente <span
-                        style="color:#adb5bd; font-size:12px;">(opcional)</span></label>
-                <input type="email" name="cliente_email" placeholder="cliente@email.com"
-                    style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Teléfono del cliente
-                    <span style="color:red; font-size:12px;">*</span></label>
-                <input type="tel" name="cliente_telefono" placeholder="+51 999 999 999"
-                    style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Direccion <span
-                        style="color:red; font-size:12px;">*</span></label>
-                <input type="tel" name="cliente_direccion" placeholder="Calle 123"
-                    style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+            <div id="cita-cliente-datos" class="row g-3" style="margin-bottom:16px;">
+                <div class="col-md-6">
+                    <label for="cita-cliente-nombre" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Nombre <span style="color:red">*</span></label>
+                    <input id="cita-cliente-nombre" type="text" name="cliente_nombre" required placeholder="Ej: María López" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+                </div>
+                <div class="col-md-6">
+                    <label for="cita-cliente-email" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Email <span style="color:#adb5bd; font-size:12px;">(opcional)</span></label>
+                    <input id="cita-cliente-email" type="email" name="cliente_email" placeholder="cliente@email.com" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+                </div>
+                <div class="col-md-6">
+                    <label for="cita-cliente-telefono" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Teléfono <span style="color:red">*</span></label>
+                    <input id="cita-cliente-telefono" type="tel" name="cliente_telefono" required placeholder="+51 999 999 999" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+                </div>
+                <div class="col-md-6">
+                    <label for="cita-cliente-direccion" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Dirección</label>
+                    <input id="cita-cliente-direccion" type="text" name="cliente_direccion" placeholder="Calle 123" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+                </div>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px;">
                 <div>
@@ -765,24 +768,31 @@
                     {% endfor %}
                 </select>
             </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Nombre de la mascota
-                    <span style="color:red">*</span></label>
-                <input type="text" name="mascota_nombre" required placeholder="Ej: Firulais"
-                    style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
-            </div>
-            <div style="margin-bottom:16px;">
-                <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Especie <span
-                        style="color:red">*</span></label>
-                <select name="mascota_especie" required
-                    style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50; background:white;">
-                    <option value="">-- Seleccionar --</option>
-                    <option value="perro">🐶 Perro</option>
-                    <option value="gato">🐱 Gato</option>
-                    <option value="ave">🐦 Ave</option>
-                    <option value="conejo">🐰 Conejo</option>
-                    <option value="otro">Otro</option>
+            <div id="cita-mascota-registrada" style="margin-bottom:16px; display:none;">
+                <label for="cita-mascota" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Mascota registrada</label>
+                <select id="cita-mascota" name="mascota_id" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50; background:white;">
+                    <option value="nueva">Registrar una mascota nueva</option>
+                    {% for mascota in mascotas %}
+                    <option value="{{ mascota[0] }}" data-cliente-id="{{ mascota[1] }}">{{ mascota[2] }} · {{ mascota[3] }}{% if mascota[4] %} · {{ mascota[4] }}{% endif %}</option>
+                    {% endfor %}
                 </select>
+            </div>
+            <div id="cita-mascota-nueva" class="row g-3" style="margin-bottom:16px;">
+                <div class="col-md-6">
+                    <label for="cita-mascota-nombre" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Nombre de la mascota <span style="color:red">*</span></label>
+                    <input id="cita-mascota-nombre" type="text" name="mascota_nombre" required placeholder="Ej: Firulais" style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50;">
+                </div>
+                <div class="col-md-6">
+                    <label for="cita-mascota-especie" style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Especie <span style="color:red">*</span></label>
+                    <select id="cita-mascota-especie" name="mascota_especie" required style="width:100%; border:2px solid #e9ecef; border-radius:10px; padding:12px 14px; font-size:15px; color:#2c3e50; background:white;">
+                        <option value="">-- Seleccionar --</option>
+                        <option value="perro">Perro</option>
+                        <option value="gato">Gato</option>
+                        <option value="ave">Ave</option>
+                        <option value="conejo">Conejo</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
             </div>
             <div style="margin-bottom:20px;">
                 <label style="font-weight:600; color:#2c3e50; display:block; margin-bottom:6px;">Observaciones</label>
@@ -799,4 +809,64 @@
         </form>
     </div>
 </div>
+<script>
+    (() => {
+        const clienteSelect = document.getElementById('cita-cliente');
+        const clienteDatos = document.getElementById('cita-cliente-datos');
+        const mascotaRegistrada = document.getElementById('cita-mascota-registrada');
+        const mascotaSelect = document.getElementById('cita-mascota');
+        const mascotaNueva = document.getElementById('cita-mascota-nueva');
+        const camposCliente = {
+            nombre: document.getElementById('cita-cliente-nombre'),
+            email: document.getElementById('cita-cliente-email'),
+            telefono: document.getElementById('cita-cliente-telefono'),
+            direccion: document.getElementById('cita-cliente-direccion')
+        };
+        const camposMascotaNueva = [
+            document.getElementById('cita-mascota-nombre'),
+            document.getElementById('cita-mascota-especie')
+        ];
+
+        function actualizarMascotas() {
+            const clienteId = clienteSelect.value;
+            const esClienteExistente = Boolean(clienteId);
+            mascotaRegistrada.style.display = esClienteExistente ? 'block' : 'none';
+            mascotaSelect.disabled = !esClienteExistente;
+            mascotaSelect.required = esClienteExistente;
+            Array.from(mascotaSelect.options).forEach((option) => {
+                if (option.dataset.clienteId) {
+                    option.hidden = option.dataset.clienteId !== clienteId;
+                }
+            });
+            if (esClienteExistente && mascotaSelect.value !== 'nueva' && mascotaSelect.selectedOptions[0]?.hidden) {
+                mascotaSelect.value = 'nueva';
+            }
+
+            const crearMascota = !esClienteExistente || mascotaSelect.value === 'nueva';
+            mascotaNueva.style.display = crearMascota ? 'flex' : 'none';
+            camposMascotaNueva.forEach((campo) => {
+                campo.required = crearMascota;
+                campo.disabled = !crearMascota;
+            });
+        }
+
+        function actualizarCliente() {
+            const option = clienteSelect.selectedOptions[0];
+            const esClienteExistente = Boolean(clienteSelect.value);
+            clienteDatos.style.opacity = esClienteExistente ? '0.78' : '1';
+            Object.entries(camposCliente).forEach(([campo, input]) => {
+                input.readOnly = esClienteExistente;
+                input.value = esClienteExistente ? (option.dataset[campo] || '') : '';
+            });
+            camposCliente.nombre.required = !esClienteExistente;
+            camposCliente.telefono.required = !esClienteExistente;
+            mascotaSelect.value = 'nueva';
+            actualizarMascotas();
+        }
+
+        clienteSelect.addEventListener('change', actualizarCliente);
+        mascotaSelect.addEventListener('change', actualizarMascotas);
+        actualizarCliente();
+    })();
+</script>
 {% endblock %}

@@ -652,21 +652,24 @@ def procesar_pago():
 @app.route('/agendar_cita', methods=['POST'])
 def agendar_cita():
     try:
-        nombre = request.form['cliente_nombre']
-        email = request.form['cliente_email']
-        # New: capture telefono and direccion from the appointment form (if provided)
+        cliente_id_raw = request.form.get('cliente_id', '').strip()
+        cliente_id = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
+        nombre = request.form.get('cliente_nombre', '').strip()
+        email = request.form.get('cliente_email', '').strip() or None
         telefono = request.form.get('cliente_telefono', '').strip()
         direccion = request.form.get('cliente_direccion', '').strip()
-        fecha = request.form['fecha']
-        hora = request.form['hora']
+        fecha = request.form.get('fecha', '').strip()
+        hora = request.form.get('hora', '').strip()
+        return_to = url_for('citas', fecha=fecha) if session.get('rol') in ['admin', 'empleado', 'dueño'] else url_for('index')
         
-        # Obtener múltiples servicios
         servicios_ids = request.form.getlist('servicio_id[]')
+        if not servicios_ids and request.form.get('servicio_id'):
+            servicios_ids = [request.form.get('servicio_id')]
         servicios_ids = [int(sid) for sid in servicios_ids if sid]
         
         if not servicios_ids:
             flash('Debe seleccionar al menos un servicio.', 'error')
-            return redirect(url_for('index'))
+            return redirect(return_to)
         
         # Obtener múltiples mascotas
         mascota_nombres = request.form.getlist('mascota_nombre[]')
@@ -674,36 +677,41 @@ def agendar_cita():
         mascota_razas = request.form.getlist('mascota_raza[]')
         mascota_edades = request.form.getlist('mascota_edad[]')
         mascota_pesos = request.form.getlist('mascota_peso[]')
+        mascota_id_raw = request.form.get('mascota_id', '').strip()
+        mascota_id = int(mascota_id_raw) if mascota_id_raw.isdigit() else None
+        if (cliente_id or mascota_id) and session.get('rol') not in ['admin', 'empleado', 'dueño']:
+            flash('Solo el personal puede agendar con registros de clientes existentes.', 'error')
+            return redirect(url_for('index'))
+        if not mascota_nombres and request.form.get('mascota_nombre', '').strip():
+            mascota_nombres = [request.form.get('mascota_nombre', '').strip()]
+            mascota_especies = [request.form.get('mascota_especie', '').strip()]
         
-        # Validar que hay al menos una mascota
-        if not mascota_nombres or not any(nombre.strip() for nombre in mascota_nombres):
+        if not mascota_id and (not mascota_nombres or not any(item.strip() for item in mascota_nombres)):
             flash('Debe registrar al menos una mascota.', 'error')
-            return redirect(url_for('index'))
+            return redirect(return_to)
 
-        # Require phone and address for appointment booking
-        if not telefono or not direccion:
-            flash('Por favor proporciona teléfono y dirección del cliente al agendar la cita.', 'error')
-            return redirect(url_for('index'))
+        if not cliente_id and (not nombre or not telefono):
+            flash('Para un cliente nuevo, registra su nombre y teléfono.', 'error')
+            return redirect(return_to)
         
-        # Procesar datos de mascotas
-        mascotas_data = []
-        for i, nombre_mascota in enumerate(mascota_nombres):
-            if nombre_mascota.strip():  # Solo procesar mascotas con nombre
-                mascota_data = {
-                    'nombre': nombre_mascota.strip(),
-                    'especie': mascota_especies[i] if i < len(mascota_especies) else '',
-                    'raza': mascota_razas[i] if i < len(mascota_razas) and mascota_razas[i] else None,
-                    'edad': int(mascota_edades[i]) if i < len(mascota_edades) and mascota_edades[i] else None,
-                    'peso': float(mascota_pesos[i]) if i < len(mascota_pesos) and mascota_pesos[i] else None
-                }
-                mascotas_data.append(mascota_data)
+        mascotas_data = [{'id': mascota_id}] if mascota_id else []
+        if not mascota_id:
+            for i, nombre_mascota in enumerate(mascota_nombres):
+                if nombre_mascota.strip():
+                    mascotas_data.append({
+                        'nombre': nombre_mascota.strip(),
+                        'especie': mascota_especies[i] if i < len(mascota_especies) else '',
+                        'raza': mascota_razas[i] if i < len(mascota_razas) and mascota_razas[i] else None,
+                        'edad': int(mascota_edades[i]) if i < len(mascota_edades) and mascota_edades[i] else None,
+                        'peso': float(mascota_pesos[i]) if i < len(mascota_pesos) and mascota_pesos[i] else None
+                    })
         
         # Validar límites de citas para cada servicio
         for servicio_id in servicios_ids:
             servicio = servicios_controlador.obtener_max_citas_dia(servicio_id)
             if not servicio:
                 flash(f'Servicio con ID {servicio_id} no válido.', 'error')
-                return redirect(url_for('index'))
+                return redirect(return_to)
             
             max_citas = servicio
             citas_hoy = citas_controlador.contar_citas_pendientes(servicio_id, fecha)
@@ -712,34 +720,14 @@ def agendar_cita():
                 servicio_info = servicios_controlador.obtener_servicio_por_id(servicio_id)
                 servicio_nombre = servicio_info[1] if servicio_info else f'Servicio {servicio_id}'
                 flash(f'Límite de {max_citas} citas alcanzado para "{servicio_nombre}" en la fecha seleccionada.', 'warning')
-                return redirect(url_for('index'))
+                return redirect(return_to)
         
-        # Ensure client exists or create/update with phone & address
-        try:
-            cliente = clientes_controlador.obtener_cliente_por_email(email)
-            if cliente:
-                # Update phone/direction if missing or changed
-                clientes_controlador.actualizar_cliente(email, email, telefono, direccion)
-            else:
-                clientes_controlador.insertar_cliente(nombre, email, telefono, direccion)
-        except Exception as e:
-            # Log but continue to create the cita; clientes table should sync if DB allows
-            logger.warning(f"No se pudo crear/actualizar cliente al agendar cita: {e}")
-
-        # Insertar cita completa
-        cita_id = citas_controlador.insertar_cita_completa(
-            nombre, email, mascotas_data, servicios_ids, fecha, hora
+        citas_controlador.insertar_cita_completa(
+            nombre, email, mascotas_data, servicios_ids, fecha, hora,
+            cliente_id=cliente_id, cliente_telefono=telefono or None,
+            cliente_direccion=direccion or None
         )
 
-        # Procesar programa de fidelización: registrar y obtener URL de WA si corresponde
-        try:
-            fidel_res = fidelizacion.procesar_fidelizacion_para_cliente(nombre, email)
-            if fidel_res and fidel_res.get('wa_url'):
-                wa_link = fidel_res.get('wa_url')
-                # Agregar info breve al mensaje de éxito para que el personal pueda abrir el enlace
-                flash(f'Notificación de fidelización lista: {wa_link}', 'info')
-        except Exception as e:
-            logger.warning(f'No se pudo procesar fidelización para {email}: {e}')
         
         # Agregar servicios al carrito automáticamente
         servicios_agregados = []
@@ -753,7 +741,7 @@ def agendar_cita():
                 logger.warning(f"Error agregando servicio {servicio_id} al carrito: {e}")
         
         # Mensaje de éxito
-        mascotas_str = ', '.join([m['nombre'] for m in mascotas_data])
+        mascotas_str = ', '.join([m.get('nombre', 'mascota registrada') for m in mascotas_data])
         success_msg = f'Cita agendada exitosamente para {mascotas_str} el {fecha} a las {hora}.'
         
         if servicios_agregados:
@@ -766,11 +754,13 @@ def agendar_cita():
         flash(f'Error al agendar la cita: {str(e)}', 'error')
         logger.error(f"Error en agendar_cita: {e}")
     
-    return redirect(url_for('index'))
+    return redirect(return_to)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     # Si ya está autenticado, ir directo al dashboard
+    if session.get('rol') == 'cliente':
+        return redirect(url_for('mi_cartilla'))
     if 'rol' in session and session.get('rol') in ['dueño', 'admin', 'empleado', 'superadmin']:
         return redirect(url_for('dashboard'))
 
@@ -809,6 +799,9 @@ def login():
         # Validar next_url seguro: solo rutas internas
         if next_url and next_url.startswith('/'):
             return redirect(next_url)
+
+        if user[3] == 'cliente':
+            return redirect(url_for('mi_cartilla'))
         
         # Superadmin va a gestión de tenants
         if user[3] == 'superadmin':
@@ -841,11 +834,6 @@ def dashboard():
     # Obtener/actualizar alertas de fidelización solo para roles de personal (empleado, admin, dueño)
     alertas_fidelizacion = []
     if rol in ['admin', 'empleado', 'dueño']:
-        try:
-            fidelizacion.sincronizar_fidelizacion_desde_citas()
-        except Exception as e:
-            logger.warning(f"Error sincronizando fidelizacion: {e}")
-
         try:
             alertas_fidelizacion = fidelizacion.obtener_alertas_recientes(limit=10)
         except Exception as e:
@@ -937,8 +925,80 @@ def citas():
     
     citas = citas_controlador.obtener_citas_por_fecha(fecha_filtro)
     servicios_lista = servicios_controlador.obtener_servicios()
+    clientes_lista, mascotas_lista = citas_controlador.obtener_clientes_y_mascotas_para_citas()
     
-    return render_template('citas.html', citas=citas, fecha_filtro=fecha_filtro, servicios=servicios_lista)
+    return render_template(
+        'citas.html', citas=citas, fecha_filtro=fecha_filtro,
+        servicios=servicios_lista, clientes=clientes_lista, mascotas=mascotas_lista
+    )
+
+
+@app.route('/fidelizacion', methods=['GET', 'POST'], endpoint='fidelizacion')
+def gestionar_fidelizacion():
+    rol = session.get('rol')
+    if rol not in ['admin', 'empleado', 'dueño']:
+        flash('Acceso denegado.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        if request.form.get('accion') == 'guardar_programa':
+            beneficio_nombre = request.form.get('beneficio_nombre', '').strip()
+            beneficio_descripcion = request.form.get('beneficio_descripcion', '').strip()
+            if rol not in ['admin', 'dueño']:
+                flash('Solo administración puede configurar el beneficio.', 'error')
+            elif not beneficio_nombre or not beneficio_descripcion:
+                flash('Completa el nombre y la descripción del beneficio.', 'error')
+            else:
+                fidelizacion.guardar_programa(beneficio_nombre, beneficio_descripcion)
+                flash('Programa de fidelización actualizado.', 'success')
+        return redirect(url_for('fidelizacion'))
+
+    programa = fidelizacion.obtener_programa_activo()
+    cartillas, recompensas, historial_cartillas = fidelizacion.obtener_cartillas_admin()
+    return render_template(
+        'fidelizacion.html', programa=programa, cartillas=cartillas,
+        recompensas=recompensas, historial_cartillas=historial_cartillas
+    )
+
+
+@app.route('/fidelizacion/recompensas/<int:recompensa_id>/canjear', methods=['POST'])
+def canjear_recompensa_fidelizacion(recompensa_id):
+    if session.get('rol') not in ['admin', 'empleado', 'dueño']:
+        return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+    try:
+        canjeada = fidelizacion.canjear_recompensa(recompensa_id)
+        flash('Recompensa marcada como canjeada.' if canjeada else 'La recompensa ya no está disponible.',
+              'success' if canjeada else 'warning')
+    except Exception as e:
+        logger.error(f'Error canjeando recompensa de fidelización: {e}')
+        flash('No se pudo actualizar la recompensa.', 'error')
+    return redirect(url_for('fidelizacion'))
+
+
+@app.route('/mi-cartilla')
+def mi_cartilla():
+    if session.get('rol') != 'cliente':
+        return redirect(url_for('login', next=url_for('mi_cartilla')))
+
+    email = (session.get('usuario') or '').strip()
+    tenant_id = session.get('tenant_id', 1)
+    conexion = obtener_conexion()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, nombre, email FROM clientes
+                WHERE LOWER(email) = LOWER(%s) AND tenant_id = %s
+                LIMIT 1
+            """, (email, tenant_id))
+            cliente = cursor.fetchone()
+    finally:
+        conexion.close()
+
+    if not cliente:
+        flash('No encontramos un cliente asociado al correo de esta cuenta.', 'warning')
+        return redirect(url_for('dashboard'))
+    cartilla = fidelizacion.obtener_cartilla_cliente(cliente[0], tenant_id)
+    return render_template('mi_cartilla.html', cliente=cliente, cartilla=cartilla)
 
 
 @app.route('/citas/crear', methods=['POST'])
@@ -948,29 +1008,36 @@ def crear_cita_interna():
         flash('Acceso denegado.', 'error')
         return redirect(url_for('dashboard'))
     try:
+        cliente_id_raw = request.form.get('cliente_id', '').strip()
+        cliente_id = int(cliente_id_raw) if cliente_id_raw.isdigit() else None
         cliente_nombre = request.form.get('cliente_nombre', '').strip()
-        cliente_email = request.form.get('cliente_email', '').strip()
+        cliente_email = request.form.get('cliente_email', '').strip() or None
+        cliente_telefono = request.form.get('cliente_telefono', '').strip() or None
+        cliente_direccion = request.form.get('cliente_direccion', '').strip() or None
         fecha = request.form.get('fecha', '').strip()
         hora = request.form.get('hora', '').strip()
         servicio_id = request.form.get('servicio_id', '').strip()
+        mascota_id_raw = request.form.get('mascota_id', '').strip()
+        mascota_id = int(mascota_id_raw) if mascota_id_raw.isdigit() else None
         mascota_nombre = request.form.get('mascota_nombre', '').strip()
         mascota_especie = request.form.get('mascota_especie', '').strip()
         observaciones = request.form.get('observaciones', '').strip()
 
-        if not all([cliente_nombre, fecha, hora, servicio_id, mascota_nombre, mascota_especie]):
-            flash('Por favor completa los campos obligatorios: nombre del cliente, fecha, hora, servicio y mascota.', 'error')
+        if (not cliente_id and not cliente_nombre) or not all([fecha, hora, servicio_id]) or (
+            not mascota_id and not all([mascota_nombre, mascota_especie])
+        ):
+            flash('Completa cliente, mascota, fecha, hora y servicio.', 'error')
             return redirect(url_for('citas', fecha=fecha or date.today().strftime('%Y-%m-%d')))
-
-        # Si no se proporcionó email, generar uno interno para no romper el FK
-        if not cliente_email:
-            slug = cliente_nombre.lower().replace(' ', '.').replace("'", '')
-            cliente_email = f'{slug}.interno@vetclinic.local'
 
         citas_controlador.insertar_cita_completa(
             cliente_nombre, cliente_email,
-            [{'nombre': mascota_nombre, 'especie': mascota_especie, 'raza': '', 'edad': None, 'peso': None}],
+            [{'id': mascota_id}] if mascota_id else [{
+                'nombre': mascota_nombre, 'especie': mascota_especie,
+                'raza': '', 'edad': None, 'peso': None
+            }],
             [int(servicio_id)],
-            fecha, hora, observaciones
+            fecha, hora, observaciones, cliente_id=cliente_id,
+            cliente_telefono=cliente_telefono, cliente_direccion=cliente_direccion
         )
         flash('Cita agendada exitosamente.', 'success')
     except Exception as e:
@@ -1658,17 +1725,26 @@ def personal():
                 
                 # Verificar que el usuario no exista ya
                 existing_user = None
+                cliente_asociado = True
                 try:
                     conexion = obtener_conexion()
                     with conexion.cursor() as cursor:
                         cursor.execute("SELECT id FROM usuarios WHERE username = %s", (username,))
                         existing_user = cursor.fetchone()
+                        if rol == 'cliente':
+                            cursor.execute("""
+                                SELECT id FROM clientes
+                                WHERE LOWER(email) = LOWER(%s) AND tenant_id = %s
+                            """, (username.strip(), session.get('tenant_id', 1)))
+                            cliente_asociado = cursor.fetchone() is not None
                     conexion.close()
                 except Exception as e:
                     logger.error(f'Error verificando usuario existente: {e}')
                 
                 if existing_user:
                     flash(f'El usuario "{username}" ya existe.', 'error')
+                elif rol == 'cliente' and not cliente_asociado:
+                    flash('Para crear acceso, usa el correo exacto de un cliente registrado.', 'error')
                 else:
                     try:
                         user_id = usuarios_controlador.insertar_usuario(username, password, rol)

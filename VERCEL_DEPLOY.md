@@ -30,4 +30,6 @@ La aplicación ejecuta migraciones ligeras al arrancar para columnas faltantes. 
 
 Antes de usar el historial clínico y las compras por documento, ejecuta `migrations/004_clinical_history_and_supplier_purchases.sql` en el SQL Editor de Supabase. Esta migración crea las tablas de detalle e índices y habilita los métodos de pago `multipago` y `credito`.
 
+Antes de habilitar el módulo de fidelización, ejecuta `migrations/005_fidelizacion_cartillas.sql` en el SQL Editor de Supabase. Esta migración crea los programas, ciclos de cartilla, sellos por cita y recompensas.
+
 Los archivos escritos durante una función serverless son temporales. Los uploads usan `/tmp/uploads` en Vercel y no deben considerarse almacenamiento permanente.
